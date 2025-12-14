@@ -88,3 +88,4 @@ export class Scene {
         return false;
     }
 }
+//# sourceMappingURL=scene.js.map

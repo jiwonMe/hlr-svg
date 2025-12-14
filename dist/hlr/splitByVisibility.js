@@ -29,3 +29,4 @@ function pushIfNotTiny(out, b, visible, minSegLenSq) {
         return;
     out.push({ bez: b, visible });
 }
+//# sourceMappingURL=splitByVisibility.js.map

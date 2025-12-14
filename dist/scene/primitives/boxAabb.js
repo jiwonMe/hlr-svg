@@ -60,3 +60,4 @@ export class BoxAabb {
         return { t, point, normal: hitNormal, primitiveId: this.id };
     }
 }
+//# sourceMappingURL=boxAabb.js.map

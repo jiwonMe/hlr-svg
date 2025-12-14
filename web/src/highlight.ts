@@ -1,37 +1,27 @@
-import { Scene } from "../../dist/scene/scene.js";
-import { Sphere } from "../../dist/scene/primitives/sphere.js";
-import { Cylinder } from "../../dist/scene/primitives/cylinder.js";
-import { Cone } from "../../dist/scene/primitives/cone.js";
-import { PlaneRect } from "../../dist/scene/primitives/planeRect.js";
-import { BoxAabb } from "../../dist/scene/primitives/boxAabb.js";
-
-import { Vec3 } from "../../dist/math/vec3.js";
+import {
+  bordersForPrimitives,
+  BoxAabb,
+  Cone,
+  coneSilhouetteToCubics3,
+  Cylinder,
+  cylinderSilhouetteToCubics3,
+  intersectionCurvesToOwnedCubics,
+  piecesToSvg,
+  PlaneRect,
+  rimsForPrimitives,
+  Scene,
+  Sphere,
+  sphereSilhouetteToCubics3,
+  splitCubicByVisibility,
+  splitCubicByVisibilityWithIgnore,
+  type SvgStyle,
+  boxEdgesForPrimitives,
+} from "../../dist/index.js";
 import type { DemoCase } from "../../dist/demo/types.js";
 
-import { bordersForPrimitives } from "../../dist/demo/borders.js";
-import { rimsForPrimitives } from "../../dist/demo/rims.js";
-import { piecesToSvg } from "../../dist/svg/svgWriter.js";
-import { splitCubicByVisibility, splitCubicByVisibilityWithIgnore } from "../../dist/hlr/splitByVisibility.js";
-import {
-  coneSilhouetteToCubics3,
-  cylinderSilhouetteToCubics3,
-  lineToCubic3,
-  sphereSilhouetteToCubics3,
-} from "../../dist/curves/builders.js";
-import { intersectionCurvesToOwnedCubics } from "../../dist/scene/intersections/intersectionCurves.js";
-
-type SvgStyle = {
-  strokeVisible: string;
-  strokeHidden: string;
-  strokeWidthVisible: number;
-  strokeWidthHidden: number;
-  dashArrayHidden: string;
-  opacityHidden: number;
-  lineCap: "butt" | "round" | "square";
-};
-
 export function renderHighlightSvg(demo: DemoCase, selectedId: string, baseStyle: SvgStyle): string {
-  const scene = new Scene(demo.primitives, demo.camera);
+  const scene = new Scene(demo.primitives);
+  const rayScene = scene.toRaycastScene(demo.camera);
   const params = {
     samples: 192,
     refineIters: 22,
@@ -86,7 +76,7 @@ export function renderHighlightSvg(demo: DemoCase, selectedId: string, baseStyle
 
   // 4) cube edges (BoxAabb) - treat as "border/outline"
   if (selected instanceof BoxAabb) {
-    highlightCubics.push(...boxEdgesAsCubics(selected.min, selected.max));
+    highlightCubics.push(...boxEdgesForPrimitives([selected]));
   }
 
   // 5) intersections "attached" to this object (by owned ignorePrimitiveIds)
@@ -97,8 +87,8 @@ export function renderHighlightSvg(demo: DemoCase, selectedId: string, baseStyle
   const attached = owned.filter((x) => matchesSelected(selectedId, x.ignorePrimitiveIds));
 
   const pieces: any[] = [];
-  for (const b of highlightCubics) pieces.push(...splitCubicByVisibility(b, scene, params));
-  for (const x of attached) pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, scene, params, x.ignorePrimitiveIds));
+  for (const b of highlightCubics) pieces.push(...splitCubicByVisibility(b, rayScene, params));
+  for (const x of attached) pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, rayScene, params, x.ignorePrimitiveIds));
 
   const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
   return piecesToSvg(sorted, demo.camera, {
@@ -120,27 +110,6 @@ function matchesSelected(selectedId: string, ignoreIds: readonly string[]): bool
     if (id.startsWith(`${selectedId}:cap:`)) return true;
   }
   return false;
-}
-
-function boxEdgesAsCubics(min: any, max: any) {
-  const x0 = min.x, y0 = min.y, z0 = min.z;
-  const x1 = max.x, y1 = max.y, z1 = max.z;
-
-  const v000 = new Vec3(x0, y0, z0);
-  const v100 = new Vec3(x1, y0, z0);
-  const v010 = new Vec3(x0, y1, z0);
-  const v110 = new Vec3(x1, y1, z0);
-  const v001 = new Vec3(x0, y0, z1);
-  const v101 = new Vec3(x1, y0, z1);
-  const v011 = new Vec3(x0, y1, z1);
-  const v111 = new Vec3(x1, y1, z1);
-
-  const edges: Array<[any, any]> = [
-    [v000, v100], [v010, v110], [v001, v101], [v011, v111],
-    [v000, v010], [v100, v110], [v001, v011], [v101, v111],
-    [v000, v001], [v100, v101], [v010, v011], [v110, v111],
-  ];
-  return edges.map(([a, b]) => lineToCubic3(a, b));
 }
 
 function emptySvg(width: number, height: number): string {

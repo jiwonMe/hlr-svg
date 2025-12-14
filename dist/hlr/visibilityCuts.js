@@ -37,3 +37,4 @@ function refineCutBisection(b, scene, params, tLo, tHi, visLo, ignorePrimitiveId
     }
     return (lo + hi) / 2;
 }
+//# sourceMappingURL=visibilityCuts.js.map

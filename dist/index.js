@@ -4,7 +4,6 @@ export * from "./math/eps.js";
 export * from "./camera/camera.js";
 export * from "./scene/ray.js";
 export * from "./scene/primitive.js";
-export * from "./scene/scene.js";
 export * from "./scene/primitives/sphere.js";
 export * from "./scene/primitives/cylinder.js";
 export * from "./scene/primitives/cone.js";
@@ -18,3 +17,8 @@ export * from "./curves/builders.js";
 export * from "./hlr/visibilityCuts.js";
 export * from "./hlr/splitByVisibility.js";
 export * from "./svg/svgWriter.js";
+// 사용자용(three.js 스타일) API
+export * from "./core/scene.js";
+export * from "./core/curves.js";
+export * from "./core/svgRenderer.js";
+//# sourceMappingURL=index.js.map

@@ -20,3 +20,4 @@ function main() {
     process.stdout.write(renderCaseToSvgString(selected));
 }
 main();
+//# sourceMappingURL=main.js.map

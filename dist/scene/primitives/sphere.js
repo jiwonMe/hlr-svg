@@ -33,3 +33,4 @@ export class Sphere {
         return { t, point, normal, primitiveId: this.id };
     }
 }
+//# sourceMappingURL=sphere.js.map

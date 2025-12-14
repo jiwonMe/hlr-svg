@@ -1,30 +1,47 @@
 {
-  "name": "hlr-svg",
+  "name": "hlr",
   "version": "0.1.0",
-  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/index.*",
+    "dist/math/**",
+    "dist/camera/**",
+    "dist/scene/**",
+    "dist/curves/**",
+    "dist/hlr/**",
+    "dist/svg/**",
+    "dist/core/**"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "demo": "node dist/demo/main.js",
     "demo:all": "node dist/demo/main.js --all",
+    "prepublishOnly": "npm run build",
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",
     "web:preview": "vite preview --config web/vite.config.ts --port 4173"
-  },
-  "dependencies": {
-    "@radix-ui/react-popover": "^1.1.5",
-    "@radix-ui/react-slider": "^1.2.2",
-    "@radix-ui/react-toggle-group": "^1.1.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.6.3"
-    ,
+    "@radix-ui/react-popover": "^1.1.5",
+    "@radix-ui/react-slider": "^1.2.2",
+    "@radix-ui/react-toggle-group": "^1.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }
 }

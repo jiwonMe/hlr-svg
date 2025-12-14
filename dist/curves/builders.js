@@ -149,3 +149,4 @@ function arc90ToCubic3(center, u, v, r, a0, a1) {
 function pointOnCircle(center, u, v, r, c, s) {
     return Vec3.add(center, Vec3.add(Vec3.mulScalar(u, r * c), Vec3.mulScalar(v, r * s)));
 }
+//# sourceMappingURL=builders.js.map

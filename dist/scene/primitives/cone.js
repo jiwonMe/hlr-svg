@@ -80,3 +80,4 @@ export class Cone {
         return { t, point: p, normal: n, primitiveId: this.id };
     }
 }
+//# sourceMappingURL=cone.js.map

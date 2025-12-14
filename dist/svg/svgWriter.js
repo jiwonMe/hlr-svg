@@ -39,3 +39,4 @@ function cubic3ToSvgPathD(piece, camera, width, height) {
 function fmt(n) {
     return Number.isFinite(n) ? n.toFixed(3) : "0";
 }
+//# sourceMappingURL=svgWriter.js.map

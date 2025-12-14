@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as Slider from "@radix-ui/react-slider";
 
-import { Camera } from "../../dist/camera/camera.js";
-import { Vec3 } from "../../dist/math/vec3.js";
-import { Scene } from "../../dist/scene/scene.js";
+import { Camera, Scene, Vec3 } from "../../dist/index.js";
 import { renderCaseToSvgString } from "../../dist/demo/renderCase.js";
 import type { DemoCase } from "../../dist/demo/types.js";
 
@@ -125,8 +123,12 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
       ),
     );
 
-    const scene = new Scene(runtimeDemo.primitives, runtimeDemo.camera);
-    const hit = scene.raycastClosest({ origin: runtimeDemo.camera.position, dir }, { tMin: 0, tMax: Number.POSITIVE_INFINITY });
+    const scene = new Scene(runtimeDemo.primitives);
+    const rayScene = scene.toRaycastScene(runtimeDemo.camera);
+    const hit = rayScene.raycastClosest(
+      { origin: runtimeDemo.camera.position, dir },
+      { tMin: 0, tMax: Number.POSITIVE_INFINITY },
+    );
     return hit ? (hit.primitiveId as string) : null;
   };
 
