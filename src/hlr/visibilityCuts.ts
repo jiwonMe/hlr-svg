@@ -13,13 +13,14 @@ export function findVisibilityCutsOnCubic(
   b: CubicBezier3,
   scene: Scene,
   params: VisibilityParams,
+  ignorePrimitiveIds?: readonly string[],
 ): number[] {
   const samples = Math.max(2, Math.floor(params.samples));
   const vis: boolean[] = [];
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
     const p = evalCubic3(b, t);
-    vis.push(scene.visibleAtPoint(p, { eps: params.epsVisible }));
+    vis.push(scene.visibleAtPoint(p, { eps: params.epsVisible, ignorePrimitiveIds }));
   }
 
   const cuts: number[] = [];
@@ -29,7 +30,7 @@ export function findVisibilityCutsOnCubic(
     if (v0 === v1) continue;
     const t0 = (i - 1) / samples;
     const t1 = i / samples;
-    const tStar = refineCutBisection(b, scene, params, t0, t1, v0);
+    const tStar = refineCutBisection(b, scene, params, t0, t1, v0, ignorePrimitiveIds);
     cuts.push(tStar);
   }
 
@@ -45,13 +46,14 @@ function refineCutBisection(
   tLo: number,
   tHi: number,
   visLo: boolean,
+  ignorePrimitiveIds?: readonly string[],
 ): number {
   let lo = tLo;
   let hi = tHi;
   for (let i = 0; i < params.refineIters; i++) {
     const mid = (lo + hi) / 2;
     const p = evalCubic3(b, mid);
-    const v = scene.visibleAtPoint(p, { eps: params.epsVisible });
+    const v = scene.visibleAtPoint(p, { eps: params.epsVisible, ignorePrimitiveIds });
     if (v === visLo) lo = mid;
     else hi = mid;
   }

@@ -11,6 +11,10 @@ export * from "./scene/primitives/sphere.js";
 export * from "./scene/primitives/cylinder.js";
 export * from "./scene/primitives/cone.js";
 export * from "./scene/primitives/boxAabb.js";
+export * from "./scene/primitives/planeRect.js";
+export * from "./scene/primitives/disk.js";
+export * from "./scene/intersections/intersectionCurves.js";
+export * from "./scene/intersections/bezierFit.js";
 
 export * from "./curves/cubicBezier3.js";
 export * from "./curves/builders.js";

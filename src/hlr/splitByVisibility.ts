@@ -13,7 +13,16 @@ export type SplitParams = VisibilityParams & {
 };
 
 export function splitCubicByVisibility(b: CubicBezier3, scene: Scene, params: SplitParams): StyledPiece[] {
-  const cuts = findVisibilityCutsOnCubic(b, scene, params);
+  return splitCubicByVisibilityWithIgnore(b, scene, params);
+}
+
+export function splitCubicByVisibilityWithIgnore(
+  b: CubicBezier3,
+  scene: Scene,
+  params: SplitParams,
+  ignorePrimitiveIds?: readonly string[],
+): StyledPiece[] {
+  const cuts = findVisibilityCutsOnCubic(b, scene, params, ignorePrimitiveIds);
   const out: StyledPiece[] = [];
 
   let current = b;
@@ -22,18 +31,18 @@ export function splitCubicByVisibility(b: CubicBezier3, scene: Scene, params: Sp
   for (const cut of cuts) {
     const localT = (cut - prevCut) / (1 - prevCut);
     const { left, right } = splitCubic3(current, localT);
-    pushIfNotTiny(out, left, midVisibility(scene, left, params.epsVisible), params.minSegLenSq);
+    pushIfNotTiny(out, left, midVisibility(scene, left, params.epsVisible, ignorePrimitiveIds), params.minSegLenSq);
     current = right;
     prevCut = cut;
   }
-  pushIfNotTiny(out, current, midVisibility(scene, current, params.epsVisible), params.minSegLenSq);
+  pushIfNotTiny(out, current, midVisibility(scene, current, params.epsVisible, ignorePrimitiveIds), params.minSegLenSq);
 
   return out;
 }
 
-function midVisibility(scene: Scene, b: CubicBezier3, epsVisible: number): boolean {
+function midVisibility(scene: Scene, b: CubicBezier3, epsVisible: number, ignorePrimitiveIds?: readonly string[]): boolean {
   const p = evalCubic3(b, 0.5);
-  return scene.visibleAtPoint(p, { eps: epsVisible });
+  return scene.visibleAtPoint(p, { eps: epsVisible, ignorePrimitiveIds });
 }
 
 function pushIfNotTiny(out: StyledPiece[], b: CubicBezier3, visible: boolean, minSegLenSq: number): void {
