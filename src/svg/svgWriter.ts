@@ -4,7 +4,8 @@ import type { StyledPiece } from "../hlr/splitByVisibility.js";
 export type SvgStyle = {
   strokeVisible: string;
   strokeHidden: string;
-  strokeWidth: number;
+  strokeWidthVisible: number;
+  strokeWidthHidden: number;
   dashArrayHidden: string;
   opacityHidden: number;
   lineCap: "butt" | "round" | "square";
@@ -19,9 +20,10 @@ export type SvgRenderOptions = {
 const defaultStyle: SvgStyle = {
   strokeVisible: "black",
   strokeHidden: "black",
-  strokeWidth: 1.5,
+  strokeWidthVisible: 1.5,
+  strokeWidthHidden: 1.5,
   dashArrayHidden: "3 3",
-  opacityHidden: 1,
+  opacityHidden: 0.5,
   lineCap: "butt",
 };
 
@@ -33,11 +35,12 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
   for (const piece of pieces) {
     const d = cubic3ToSvgPathD(piece, camera, width, height);
     const stroke = piece.visible ? style.strokeVisible : style.strokeHidden;
+    const strokeWidth = piece.visible ? style.strokeWidthVisible : style.strokeWidthHidden;
     const extra = piece.visible
       ? ""
       : ` stroke-dasharray="${style.dashArrayHidden}" opacity="${style.opacityHidden}"`;
     const path =
-      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${style.strokeWidth}" stroke-linecap="${style.lineCap}"` +
+      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${style.lineCap}"` +
       `${extra} />`;
     paths.push(path);
   }

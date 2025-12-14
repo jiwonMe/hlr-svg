@@ -157,6 +157,8 @@ body {
 .viewerHint { white-space: nowrap; }
 .viewerLabel { display: inline-flex; gap: 8px; align-items: center; }
 .viewerRange { width: 180px; }
+.viewerPovValue { width: 42px; text-align: right; color: var(--text); font-size: 12px; }
+.viewerPovSlider { width: 180px; }
 
 .btn {
   padding: 8px 10px;

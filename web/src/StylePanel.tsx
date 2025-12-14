@@ -6,7 +6,8 @@ import * as ToggleGroup from "@radix-ui/react-toggle-group";
 export type LineStyleState = {
   strokeVisible: string;
   strokeHidden: string;
-  strokeWidth: number;
+  strokeWidthVisible: number;
+  strokeWidthHidden: number;
   dashArrayHidden: string;
   opacityHidden: number;
   lineCap: "butt" | "round" | "square";
@@ -52,17 +53,40 @@ export function StylePanel({ value, onChange }: StylePanelProps): React.ReactEle
             </div>
 
             <div className="radixRow">
-              <div className="radixLabel">선 두께</div>
-              <div className="radixValue">{value.strokeWidth.toFixed(2)}</div>
+              <div className="radixLabel">실선 두께</div>
+              <div className="radixValue">{value.strokeWidthVisible.toFixed(2)}</div>
             </div>
             <Slider.Root
               className="radixSlider"
               min={0.5}
               max={4.0}
               step={0.05}
-              value={[value.strokeWidth]}
-              onValueChange={(v) => onChange({ ...value, strokeWidth: v[0] ?? value.strokeWidth })}
-              aria-label="선 두께"
+              value={[value.strokeWidthVisible]}
+              onValueChange={(v) =>
+                onChange({ ...value, strokeWidthVisible: v[0] ?? value.strokeWidthVisible })
+              }
+              aria-label="실선 두께"
+            >
+              <Slider.Track className="radixSliderTrack">
+                <Slider.Range className="radixSliderRange" />
+              </Slider.Track>
+              <Slider.Thumb className="radixSliderThumb" />
+            </Slider.Root>
+
+            <div className="radixRow">
+              <div className="radixLabel">점선 두께</div>
+              <div className="radixValue">{value.strokeWidthHidden.toFixed(2)}</div>
+            </div>
+            <Slider.Root
+              className="radixSlider"
+              min={0.5}
+              max={4.0}
+              step={0.05}
+              value={[value.strokeWidthHidden]}
+              onValueChange={(v) =>
+                onChange({ ...value, strokeWidthHidden: v[0] ?? value.strokeWidthHidden })
+              }
+              aria-label="점선 두께"
             >
               <Slider.Track className="radixSliderTrack">
                 <Slider.Range className="radixSliderRange" />

@@ -6,10 +6,12 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "strict": true,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client"]
   },
+  "files": ["src/dist-shims.d.ts"],
   "include": ["src"]
 }
 

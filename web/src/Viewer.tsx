@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import * as Slider from "@radix-ui/react-slider";
 
 import { Camera } from "../../dist/camera/camera.js";
 import { Vec3 } from "../../dist/math/vec3.js";
@@ -13,23 +14,23 @@ type ViewerProps = {
   demo: DemoCase;
 };
 
-type Projection = "perspective" | "isometric";
-
 const ISO_AZ = Math.PI / 4; // 45°
 const ISO_POLAR = Math.acos(1 / Math.sqrt(3)); // ~54.7356° from +Y
+const RAD2DEG = 180 / Math.PI;
+const DEG2RAD = Math.PI / 180;
 
 export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const baseOrbit = useMemo(() => orbitFromCamera(demo.camera.position, demo.camera.target), [demo]);
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
-  const [projection, setProjection] = useState<Projection>("perspective");
-  const [orthoHalfHeight, setOrthoHalfHeight] = useState(() => clamp(0.2, baseOrbit.radius * 0.55, 10));
+  const [povDeg, setPovDeg] = useState(() =>
+    clamp(1, (demo.camera.fovYRad ?? (55 * Math.PI) / 180) * RAD2DEG, 90),
+  );
 
   useEffect(() => {
     setOrbit(baseOrbit);
-    setProjection("perspective");
-    setOrthoHalfHeight(clamp(0.2, baseOrbit.radius * 0.55, 10));
+    setPovDeg(clamp(1, (demo.camera.fovYRad ?? (55 * Math.PI) / 180) * RAD2DEG, 90));
   }, [baseOrbit]);
 
   const [playing, setPlaying] = useState(false);
@@ -37,9 +38,10 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const [style, setStyle] = useState<LineStyleState>(() => ({
     strokeVisible: "#000000",
     strokeHidden: "#000000",
-    strokeWidth: 1.8,
+    strokeWidthVisible: 1.8,
+    strokeWidthHidden: 1.8,
     dashArrayHidden: "4 4",
-    opacityHidden: 1,
+    opacityHidden: 0.5,
     lineCap: "butt",
   }));
 
@@ -56,29 +58,17 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const camera = useMemo(() => {
     const pos = orbitPosition(orbit);
     const aspect = demo.camera.aspect;
-    if (projection === "perspective") {
-      return Camera.from({
-        kind: "perspective",
-        position: pos,
-        target: orbit.target,
-        up: demo.camera.up,
-        fovYRad: demo.camera.fovYRad ?? (55 * Math.PI) / 180,
-        aspect,
-        near: demo.camera.near,
-        far: demo.camera.far,
-      });
-    }
     return Camera.from({
-      kind: "orthographic",
+      kind: "perspective",
       position: pos,
       target: orbit.target,
       up: demo.camera.up,
-      halfHeight: orthoHalfHeight,
+      fovYRad: clamp(1, povDeg, 120) * DEG2RAD,
       aspect,
       near: demo.camera.near,
       far: demo.camera.far,
     });
-  }, [demo, orbit, orthoHalfHeight, projection, dirty]);
+  }, [demo, orbit, povDeg, dirty]);
 
   const runtimeDemo = useMemo<DemoCase>(() => {
     // renderCaseToSvgString는 demo.camera를 사용하므로, camera만 바꿔 끼운다.
@@ -99,9 +89,16 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             className="btn"
             type="button"
             onClick={() => {
-              setProjection("isometric");
               setOrbit((o) => ({ ...o, azimuth: ISO_AZ, polar: ISO_POLAR }));
-              setOrthoHalfHeight(clamp(0.2, baseOrbit.radius * 0.55, 10));
+              // "isometric" = perspective에서 FOV를 극단적으로 좁게 만든 상태로 취급
+              // 프레이밍이 너무 변하지 않도록 거리도 함께 보정한다.
+              setOrbit((o) => {
+                const oldFov = clamp(1, povDeg, 120) * DEG2RAD;
+                const newFov = 6 * DEG2RAD;
+                const k = Math.tan(oldFov / 2) / Math.tan(newFov / 2);
+                return { ...o, radius: clamp(0.2, o.radius * k, 200) };
+              });
+              setPovDeg(6);
               setDirty((x) => x + 1);
             }}
             title="표준 등각 뷰로 스냅"
@@ -119,34 +116,39 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
       </div>
 
       <div className="viewerBar">
-        <div className="viewerHint">
-          드래그: 회전 · 휠: {projection === "perspective" ? "줌(거리)" : "줌(스케일)"}
-        </div>
-        <div className="segmented" role="tablist" aria-label="투영 모드">
-          <button
-            className={projection === "perspective" ? "segBtn segBtnActive" : "segBtn"}
-            type="button"
-            role="tab"
-            aria-selected={projection === "perspective"}
-            onClick={() => setProjection("perspective")}
-          >
-            Perspective
-          </button>
-          <button
-            className={projection === "isometric" ? "segBtn segBtnActive" : "segBtn"}
-            type="button"
-            role="tab"
-            aria-selected={projection === "isometric"}
-            onClick={() => {
-              setProjection("isometric");
-              setOrbit((o) => ({ ...o, azimuth: ISO_AZ, polar: ISO_POLAR }));
-              setOrthoHalfHeight((h) => clamp(0.2, h, 20));
-              setDirty((x) => x + 1);
-            }}
-          >
-            Isometric
-          </button>
-        </div>
+        <div className="viewerHint">드래그: 회전 · 휠: 줌(거리) · POV: FOV</div>
+        <label className="viewerLabel">
+          POV
+          <div className="viewerPovSlider">
+            <Slider.Root
+              className="radixSlider"
+              min={1}
+              max={85}
+              step={1}
+              value={[povDeg]}
+              onValueChange={(v) => {
+                const next = clamp(1, v[0] ?? povDeg, 85);
+                // "isometric = FOV 극소" 취급이므로, FOV를 바꿔도 프레이밍이 너무 변하지 않게
+                // radius를 tan(FOV/2)에 반비례하도록 보정한다.
+                setOrbit((o) => {
+                  const oldFov = clamp(1, povDeg, 120) * DEG2RAD;
+                  const newFov = next * DEG2RAD;
+                  const k = Math.tan(oldFov / 2) / Math.tan(newFov / 2);
+                  return { ...o, radius: clamp(0.2, o.radius * k, 200) };
+                });
+                setPovDeg(next);
+                setDirty((x) => x + 1);
+              }}
+              aria-label="POV (FOV)"
+            >
+              <Slider.Track className="radixSliderTrack">
+                <Slider.Range className="radixSliderRange" />
+              </Slider.Track>
+              <Slider.Thumb className="radixSliderThumb" />
+            </Slider.Root>
+          </div>
+          <span className="viewerPovValue">{Math.round(povDeg)}°</span>
+        </label>
         <label className="viewerLabel">
           속도
           <input
@@ -189,11 +191,7 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
         onWheel={(e) => {
           e.preventDefault();
           const k = Math.exp(e.deltaY * 0.0012);
-          if (projection === "perspective") {
-            setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
-          } else {
-            setOrthoHalfHeight((h) => clamp(0.15, h * k, 50));
-          }
+          setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 200) }));
           setDirty((x) => x + 1);
         }}
       >

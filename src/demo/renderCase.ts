@@ -44,7 +44,8 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
     width: demo.width,
     height: demo.height,
     style: {
-      strokeWidth: 1.8,
+      strokeWidthVisible: 1.8,
+      strokeWidthHidden: 1.8,
       dashArrayHidden: "4 4",
       ...(opts.svgStyle ?? {}),
     },
