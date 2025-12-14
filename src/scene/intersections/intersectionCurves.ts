@@ -5,6 +5,7 @@ import { Cylinder } from "../primitives/cylinder.js";
 import { Cone } from "../primitives/cone.js";
 import { PlaneRect } from "../primitives/planeRect.js";
 import { Disk } from "../primitives/disk.js";
+import { BoxAabb } from "../primitives/boxAabb.js";
 import {
   intersectConeCone,
   intersectCylinderCone,
@@ -16,6 +17,9 @@ import {
 import { intersectPlaneRectPlaneRect } from "./pairsPlane.js";
 import { derivedCapDisks, intersectDiskDisk } from "./capDisks.js";
 import { planeSurfaceCurvesToOwnedCubics, type OwnedCubic3 as OwnedPlaneSurfaceCubic3 } from "./planeSurfaceCurves.js";
+import { intersectDiskPlaneRect } from "./diskPlaneRect.js";
+import { intersectPlaneRectBoxAabb } from "./planeRectBoxAabb.js";
+import { intersectBoxAabbBoxAabb } from "./boxBoxAabb.js";
 
 export type IntersectionCurveOptions = {
   angularSamples: number; // e.g. 128
@@ -53,6 +57,34 @@ export function intersectionCurvesToOwnedCubics(
   const planeSurfaces: Array<Disk | PlaneRect> = [...capDisks, ...explicitDisks, ...planeRects];
   const curved = primitives.filter((p): p is Sphere | Cylinder | Cone => p instanceof Sphere || p instanceof Cylinder || p instanceof Cone);
   out.push(...planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved) as OwnedPlaneSurfaceCubic3[]);
+
+  // Disk(림) × PlaneRect 교선 (plane과 rim)
+  const allDisks: Disk[] = [...capDisks, ...explicitDisks];
+  for (const d of allDisks) {
+    for (const r of planeRects) {
+      const ignorePrimitiveIds = [d.id, r.id] as const;
+      out.push(...intersectDiskPlaneRect(d, r).map((bez) => ({ bez, ignorePrimitiveIds })));
+    }
+  }
+
+  // PlaneRect × BoxAabb 교선 (plane과 cube)
+  const boxes = primitives.filter((p): p is BoxAabb => p instanceof BoxAabb);
+  for (const r of planeRects) {
+    for (const b of boxes) {
+      const ignorePrimitiveIds = [r.id, b.id] as const;
+      out.push(...intersectPlaneRectBoxAabb(r, b).map((bez) => ({ bez, ignorePrimitiveIds })));
+    }
+  }
+
+  // BoxAabb × BoxAabb 교선 (cube와 cube)
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      const ignorePrimitiveIds = [a.id, b.id] as const;
+      out.push(...intersectBoxAabbBoxAabb(a, b).map((bez) => ({ bez, ignorePrimitiveIds })));
+    }
+  }
 
   for (let i = 0; i < primitives.length; i++) {
     for (let j = i + 1; j < primitives.length; j++) {

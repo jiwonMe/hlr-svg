@@ -38,6 +38,14 @@ export function buildDemoCases(): DemoCase[] {
   const planeA = new PlaneRect("planeA", new Vec3(0.0, -0.2, -1.2), new Vec3(0, 1, 0.15), new Vec3(1, 0, 0), 2.2, 1.4);
   const planeB = new PlaneRect("planeB", new Vec3(0.2, 0.3, -1.0), new Vec3(1, 0.1, 0), new Vec3(0, 0, 1), 2.0, 1.6);
 
+  const planeC = new PlaneRect("planeC", new Vec3(0.0, -0.15, 0.2), new Vec3(0, 1, 0), new Vec3(1, 0, 0), 2.8, 2.0);
+  const planeD = new PlaneRect("planeD", new Vec3(0.1, 0.35, 0.0), new Vec3(0.25, 1, 0.2), new Vec3(1, 0, 0), 2.6, 1.9);
+
+  const cubeA = new BoxAabb("cubeA", new Vec3(-1.2, -0.8, -0.6), new Vec3(-0.2, 0.2, 0.4));
+  const cubeB = new BoxAabb("cubeB", new Vec3(-0.1, -0.6, -0.2), new Vec3(0.9, 0.4, 0.8));
+  const cubeC = new BoxAabb("cubeC", new Vec3(0.6, -0.9, 0.2), new Vec3(1.6, 0.1, 1.2));
+  const cubeD = new BoxAabb("cubeD", new Vec3(-0.5, 0.0, 0.1), new Vec3(0.5, 1.0, 1.1));
+
   return [
     {
       name: "Sphere: silhouette + great circles",
@@ -133,6 +141,29 @@ export function buildDemoCases(): DemoCase[] {
       curves: ({ camera }) => [
         ...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: cone.apex, axis: cone.axis, height: cone.height, baseRadius: cone.baseRadius }),
         ...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: cone2.apex, axis: cone2.axis, height: cone2.height, baseRadius: cone2.baseRadius }),
+      ],
+    },
+    {
+      name: "Overlap: multiple cubes × planes (with HLR)",
+      width,
+      height,
+      camera: Camera.from({
+        kind: "perspective",
+        position: new Vec3(3.6, 2.4, 3.8),
+        target: new Vec3(0.2, 0.0, 0.3),
+        up: new Vec3(0, 1, 0),
+        fovYRad: (55 * Math.PI) / 180,
+        aspect: width / height,
+        near: 0.1,
+        far: 100,
+      }),
+      primitives: [cubeA, cubeB, cubeC, cubeD, planeC, planeD],
+      includeIntersections: true,
+      curves: () => [
+        ...boxEdgesAsCubics(cubeA.min, cubeA.max),
+        ...boxEdgesAsCubics(cubeB.min, cubeB.max),
+        ...boxEdgesAsCubics(cubeC.min, cubeC.max),
+        ...boxEdgesAsCubics(cubeD.min, cubeD.max),
       ],
     },
     {

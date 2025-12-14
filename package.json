@@ -12,6 +12,9 @@
     "web:preview": "vite preview --config web/vite.config.ts --port 4173"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.5",
+    "@radix-ui/react-slider": "^1.2.2",
+    "@radix-ui/react-toggle-group": "^1.1.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -1,7 +1,10 @@
 const defaultStyle = {
-    stroke: "black",
+    strokeVisible: "black",
+    strokeHidden: "black",
     strokeWidth: 1.5,
     dashArrayHidden: "3 3",
+    opacityHidden: 1,
+    lineCap: "butt",
 };
 export function piecesToSvg(pieces, camera, opts) {
     const style = { ...defaultStyle, ...(opts.style ?? {}) };
@@ -9,8 +12,11 @@ export function piecesToSvg(pieces, camera, opts) {
     const paths = [];
     for (const piece of pieces) {
         const d = cubic3ToSvgPathD(piece, camera, width, height);
-        const extra = piece.visible ? "" : ` stroke-dasharray="${style.dashArrayHidden}"`;
-        const path = `<path d="${d}" fill="none" stroke="${style.stroke}" stroke-width="${style.strokeWidth}"` +
+        const stroke = piece.visible ? style.strokeVisible : style.strokeHidden;
+        const extra = piece.visible
+            ? ""
+            : ` stroke-dasharray="${style.dashArrayHidden}" opacity="${style.opacityHidden}"`;
+        const path = `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${style.strokeWidth}" stroke-linecap="${style.lineCap}"` +
             `${extra} />`;
         paths.push(path);
     }

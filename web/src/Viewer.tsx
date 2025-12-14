@@ -7,23 +7,41 @@ import type { DemoCase } from "../../dist/demo/types.js";
 
 import { orbitFromCamera, orbitPosition, type OrbitState, clamp } from "./runtime/orbit";
 import { useRafTick } from "./runtime/useRaf";
+import { StylePanel, type LineStyleState } from "./StylePanel";
 
 type ViewerProps = {
   demo: DemoCase;
 };
+
+type Projection = "perspective" | "isometric";
+
+const ISO_AZ = Math.PI / 4; // 45°
+const ISO_POLAR = Math.acos(1 / Math.sqrt(3)); // ~54.7356° from +Y
 
 export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const baseOrbit = useMemo(() => orbitFromCamera(demo.camera.position, demo.camera.target), [demo]);
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
+  const [projection, setProjection] = useState<Projection>("perspective");
+  const [orthoHalfHeight, setOrthoHalfHeight] = useState(() => clamp(0.2, baseOrbit.radius * 0.55, 10));
 
   useEffect(() => {
     setOrbit(baseOrbit);
+    setProjection("perspective");
+    setOrthoHalfHeight(clamp(0.2, baseOrbit.radius * 0.55, 10));
   }, [baseOrbit]);
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(0.6); // rad/sec
+  const [style, setStyle] = useState<LineStyleState>(() => ({
+    strokeVisible: "#000000",
+    strokeHidden: "#000000",
+    strokeWidth: 1.8,
+    dashArrayHidden: "4 4",
+    opacityHidden: 1,
+    lineCap: "butt",
+  }));
 
   const [drag, setDrag] = useState<null | { x: number; y: number; az: number; pol: number; id: number }>(null);
   const [dirty, setDirty] = useState(0);
@@ -38,7 +56,7 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const camera = useMemo(() => {
     const pos = orbitPosition(orbit);
     const aspect = demo.camera.aspect;
-    if (demo.camera.kind === "perspective") {
+    if (projection === "perspective") {
       return Camera.from({
         kind: "perspective",
         position: pos,
@@ -55,19 +73,19 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
       position: pos,
       target: orbit.target,
       up: demo.camera.up,
-      halfHeight: demo.camera.halfHeight ?? 2,
+      halfHeight: orthoHalfHeight,
       aspect,
       near: demo.camera.near,
       far: demo.camera.far,
     });
-  }, [demo, orbit, dirty]);
+  }, [demo, orbit, orthoHalfHeight, projection, dirty]);
 
   const runtimeDemo = useMemo<DemoCase>(() => {
     // renderCaseToSvgString는 demo.camera를 사용하므로, camera만 바꿔 끼운다.
     return { ...demo, camera };
   }, [demo, camera]);
 
-  const svg = useMemo(() => renderCaseToSvgString(runtimeDemo), [runtimeDemo]);
+  const svg = useMemo(() => renderCaseToSvgString(runtimeDemo, { svgStyle: style }), [runtimeDemo, style]);
 
   return (
     <section className="caseCard">
@@ -77,9 +95,23 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           <button className="btn" type="button" onClick={() => setOrbit(baseOrbit)} title="카메라 리셋">
             리셋
           </button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => {
+              setProjection("isometric");
+              setOrbit((o) => ({ ...o, azimuth: ISO_AZ, polar: ISO_POLAR }));
+              setOrthoHalfHeight(clamp(0.2, baseOrbit.radius * 0.55, 10));
+              setDirty((x) => x + 1);
+            }}
+            title="표준 등각 뷰로 스냅"
+          >
+            등각
+          </button>
           <button className="btn" type="button" onClick={() => setPlaying((p) => !p)} title="자동 회전">
             {playing ? "정지" : "재생"}
           </button>
+          <StylePanel value={style} onChange={setStyle} />
           <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(svg)} title="SVG 문자열 복사">
             SVG 복사
           </button>
@@ -87,7 +119,34 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
       </div>
 
       <div className="viewerBar">
-        <div className="viewerHint">드래그: 회전 · 휠: 줌</div>
+        <div className="viewerHint">
+          드래그: 회전 · 휠: {projection === "perspective" ? "줌(거리)" : "줌(스케일)"}
+        </div>
+        <div className="segmented" role="tablist" aria-label="투영 모드">
+          <button
+            className={projection === "perspective" ? "segBtn segBtnActive" : "segBtn"}
+            type="button"
+            role="tab"
+            aria-selected={projection === "perspective"}
+            onClick={() => setProjection("perspective")}
+          >
+            Perspective
+          </button>
+          <button
+            className={projection === "isometric" ? "segBtn segBtnActive" : "segBtn"}
+            type="button"
+            role="tab"
+            aria-selected={projection === "isometric"}
+            onClick={() => {
+              setProjection("isometric");
+              setOrbit((o) => ({ ...o, azimuth: ISO_AZ, polar: ISO_POLAR }));
+              setOrthoHalfHeight((h) => clamp(0.2, h, 20));
+              setDirty((x) => x + 1);
+            }}
+          >
+            Isometric
+          </button>
+        </div>
         <label className="viewerLabel">
           속도
           <input
@@ -130,7 +189,11 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
         onWheel={(e) => {
           e.preventDefault();
           const k = Math.exp(e.deltaY * 0.0012);
-          setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
+          if (projection === "perspective") {
+            setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
+          } else {
+            setOrthoHalfHeight((h) => clamp(0.15, h * k, 50));
+          }
           setDirty((x) => x + 1);
         }}
       >

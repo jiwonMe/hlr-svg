@@ -2,9 +2,12 @@ import type { Camera } from "../camera/camera.js";
 import type { StyledPiece } from "../hlr/splitByVisibility.js";
 
 export type SvgStyle = {
-  stroke: string;
+  strokeVisible: string;
+  strokeHidden: string;
   strokeWidth: number;
   dashArrayHidden: string;
+  opacityHidden: number;
+  lineCap: "butt" | "round" | "square";
 };
 
 export type SvgRenderOptions = {
@@ -14,9 +17,12 @@ export type SvgRenderOptions = {
 };
 
 const defaultStyle: SvgStyle = {
-  stroke: "black",
+  strokeVisible: "black",
+  strokeHidden: "black",
   strokeWidth: 1.5,
   dashArrayHidden: "3 3",
+  opacityHidden: 1,
+  lineCap: "butt",
 };
 
 export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string {
@@ -26,9 +32,12 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
   const paths: string[] = [];
   for (const piece of pieces) {
     const d = cubic3ToSvgPathD(piece, camera, width, height);
-    const extra = piece.visible ? "" : ` stroke-dasharray="${style.dashArrayHidden}"`;
+    const stroke = piece.visible ? style.strokeVisible : style.strokeHidden;
+    const extra = piece.visible
+      ? ""
+      : ` stroke-dasharray="${style.dashArrayHidden}" opacity="${style.opacityHidden}"`;
     const path =
-      `<path d="${d}" fill="none" stroke="${style.stroke}" stroke-width="${style.strokeWidth}"` +
+      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${style.strokeWidth}" stroke-linecap="${style.lineCap}"` +
       `${extra} />`;
     paths.push(path);
   }

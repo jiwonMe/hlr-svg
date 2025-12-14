@@ -2,12 +2,16 @@ import type { DemoCase } from "./types.js";
 import { Scene } from "../scene/scene.js";
 import { splitCubicByVisibility, splitCubicByVisibilityWithIgnore } from "../hlr/splitByVisibility.js";
 import type { StyledPiece } from "../hlr/splitByVisibility.js";
-import { piecesToSvg } from "../svg/svgWriter.js";
+import { piecesToSvg, type SvgStyle } from "../svg/svgWriter.js";
 import { intersectionCurvesToOwnedCubics } from "../scene/intersections/intersectionCurves.js";
 import { rimsForPrimitives } from "./rims.js";
 import { bordersForPrimitives } from "./borders.js";
 
-export function renderCaseToSvgString(demo: DemoCase): string {
+export type RenderCaseSvgOptions = {
+  svgStyle?: Partial<SvgStyle>;
+};
+
+export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions = {}): string {
   const scene = new Scene(demo.primitives, demo.camera);
 
   const cubics = demo.curves({ camera: demo.camera, primitives: demo.primitives });
@@ -39,7 +43,11 @@ export function renderCaseToSvgString(demo: DemoCase): string {
   return piecesToSvg(sorted, demo.camera, {
     width: demo.width,
     height: demo.height,
-    style: { strokeWidth: 1.8, dashArrayHidden: "4 4" },
+    style: {
+      strokeWidth: 1.8,
+      dashArrayHidden: "4 4",
+      ...(opts.svgStyle ?? {}),
+    },
   });
 }
 
