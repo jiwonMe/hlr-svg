@@ -5,6 +5,11 @@ export class Camera {
     position;
     target;
     up;
+    aspect;
+    near;
+    far;
+    fovYRad; // perspective only
+    halfHeight; // orthographic only
     view;
     proj;
     viewProj;
@@ -14,6 +19,13 @@ export class Camera {
         this.position = params.position;
         this.target = params.target;
         this.up = params.up;
+        this.aspect = params.aspect;
+        this.near = params.near;
+        this.far = params.far;
+        if (params.kind === "perspective")
+            this.fovYRad = params.fovYRad;
+        if (params.kind === "orthographic")
+            this.halfHeight = params.halfHeight;
         this.forward = Vec3.normalize(Vec3.sub(params.target, params.position));
         this.view = Mat4.lookAt(params.position, params.target, params.up);
         this.proj =

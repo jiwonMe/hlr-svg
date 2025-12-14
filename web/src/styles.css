@@ -144,6 +144,20 @@ body {
 .caseName { font-weight: 700; }
 .caseActions { display: flex; gap: 8px; }
 
+.viewerBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+}
+.viewerHint { white-space: nowrap; }
+.viewerLabel { display: inline-flex; gap: 8px; align-items: center; }
+.viewerRange { width: 180px; }
+
 .btn {
   padding: 8px 10px;
   border-radius: 10px;
@@ -157,6 +171,11 @@ body {
 .svgWrap {
   padding: 12px;
 }
+.svgWrapInteractive {
+  touch-action: none;
+  cursor: grab;
+}
+.svgWrapInteractive:active { cursor: grabbing; }
 .svgWrap svg {
   width: 100%;
   height: auto;

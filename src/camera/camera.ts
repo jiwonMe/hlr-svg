@@ -30,6 +30,11 @@ export class Camera {
   readonly position: Vec3;
   readonly target: Vec3;
   readonly up: Vec3;
+  readonly aspect: number;
+  readonly near: number;
+  readonly far: number;
+  readonly fovYRad?: number; // perspective only
+  readonly halfHeight?: number; // orthographic only
   readonly view: Mat4;
   readonly proj: Mat4;
   readonly viewProj: Mat4;
@@ -40,6 +45,11 @@ export class Camera {
     this.position = params.position;
     this.target = params.target;
     this.up = params.up;
+    this.aspect = params.aspect;
+    this.near = params.near;
+    this.far = params.far;
+    if (params.kind === "perspective") this.fovYRad = params.fovYRad;
+    if (params.kind === "orthographic") this.halfHeight = params.halfHeight;
     this.forward = Vec3.normalize(Vec3.sub(params.target, params.position));
 
     this.view = Mat4.lookAt(params.position, params.target, params.up);

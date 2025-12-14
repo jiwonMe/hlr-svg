@@ -2,8 +2,8 @@ import React, { useMemo, useState } from "react";
 
 // NOTE: src/는 .js 확장자 import를 사용하므로, 브라우저에서는 dist/를 직접 import한다.
 import { buildDemoCases } from "../../dist/demo/cases.js";
-import { renderCaseToSvgString } from "../../dist/demo/renderCase.js";
 import type { DemoCase } from "../../dist/demo/types.js";
+import { Viewer } from "./Viewer";
 
 type Mode = "single" | "all";
 
@@ -91,14 +91,14 @@ export function App(): React.ReactElement {
         <main className="main">
           {mode === "single" ? (
             selected ? (
-              <CaseBlock demo={selected} />
+              <Viewer demo={selected} />
             ) : (
               <div className="empty">케이스가 없습니다.</div>
             )
           ) : (
             <div className="grid">
               {filtered.map((c) => (
-                <CaseBlock key={c.name} demo={c} />
+                <Viewer key={c.name} demo={c} />
               ))}
             </div>
           )}
@@ -107,29 +107,3 @@ export function App(): React.ReactElement {
     </div>
   );
 }
-
-function CaseBlock({ demo }: { demo: DemoCase }): React.ReactElement {
-  const svg = useMemo(() => renderCaseToSvgString(demo), [demo]);
-
-  return (
-    <section className="caseCard">
-      <div className="caseHeader">
-        <div className="caseName">{demo.name}</div>
-        <div className="caseActions">
-          <button
-            className="btn"
-            type="button"
-            onClick={() => void navigator.clipboard.writeText(svg)}
-            title="SVG 문자열 복사"
-          >
-            SVG 복사
-          </button>
-        </div>
-      </div>
-
-      <div className="svgWrap" dangerouslySetInnerHTML={{ __html: svg }} />
-    </section>
-  );
-}
-
-
