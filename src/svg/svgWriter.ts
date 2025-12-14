@@ -15,6 +15,7 @@ export type SvgRenderOptions = {
   width: number;
   height: number;
   style?: Partial<SvgStyle>;
+  background?: boolean; // default: true (white rect)
 };
 
 const defaultStyle: SvgStyle = {
@@ -30,6 +31,7 @@ const defaultStyle: SvgStyle = {
 export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string {
   const style = { ...defaultStyle, ...(opts.style ?? {}) };
   const { width, height } = opts;
+  const background = opts.background ?? true;
 
   const paths: string[] = [];
   for (const piece of pieces) {
@@ -45,9 +47,10 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
     paths.push(path);
   }
 
+  const bg = background ? `<rect width="100%" height="100%" fill="white" />` : "";
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
-    `<rect width="100%" height="100%" fill="white" />` +
+    bg +
     paths.join("") +
     `</svg>`
   );

@@ -281,3 +281,37 @@ body {
 }
 
 
+
+/* Object selector list */
+.objList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow: auto;
+}
+.objBtn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(16, 26, 48, 0.75);
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.objBtn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.objBtnActive { color: var(--text); background: rgba(122, 167, 255, 0.16); }
+
+/* SVG overlay */
+.svgStack { position: relative; }
+.svgLayer { position: relative; }
+.svgOverlay {
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+}
+.svgOverlay svg {
+  width: 100%;
+  height: auto;
+  background: transparent;
+}

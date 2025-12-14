@@ -10,6 +10,7 @@ const defaultStyle = {
 export function piecesToSvg(pieces, camera, opts) {
     const style = { ...defaultStyle, ...(opts.style ?? {}) };
     const { width, height } = opts;
+    const background = opts.background ?? true;
     const paths = [];
     for (const piece of pieces) {
         const d = cubic3ToSvgPathD(piece, camera, width, height);
@@ -22,8 +23,9 @@ export function piecesToSvg(pieces, camera, opts) {
             `${extra} />`;
         paths.push(path);
     }
+    const bg = background ? `<rect width="100%" height="100%" fill="white" />` : "";
     return (`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
-        `<rect width="100%" height="100%" fill="white" />` +
+        bg +
         paths.join("") +
         `</svg>`);
 }
