@@ -6,11 +6,23 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "demo": "node dist/demo/main.js",
-    "demo:all": "node dist/demo/main.js --all"
+    "demo:all": "node dist/demo/main.js --all",
+    "web:dev": "vite --config web/vite.config.ts",
+    "web:build": "vite build --config web/vite.config.ts",
+    "web:preview": "vite preview --config web/vite.config.ts --port 4173"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3"
+    ,
+    "vite": "^5.4.11"
   }
 }
 
