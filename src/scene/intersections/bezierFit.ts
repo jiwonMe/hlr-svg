@@ -8,15 +8,26 @@ export type BezierFitParams = {
   minAlpha: number; // minimum handle length
   closeEps: number; // if end is close to start, close it
   maxAlphaFactor: number; // clamp handle length: alpha <= maxAlphaFactor * |p3-p0|
+  /**
+   * Split polyline at sharp corners before fitting.
+   * This reduces "hooks" caused by overfitting around vertices.
+   * - cornerCos: split if cos(angle) < cornerCos (smaller => sharper corner)
+   */
+  cornerCos: number;
 };
 
 export const defaultBezierFitParams: BezierFitParams = {
   maxError: 0.02,
   maxDepth: 18,
-  reparamIters: 3,
+  reparamIters: 1,
   minAlpha: 1e-4,
   closeEps: 1e-3,
-  maxAlphaFactor: 2.0,
+  maxAlphaFactor: 1.0,
+  // Corner splitting is a tradeoff:
+  // - too aggressive => many tiny 2-point chunks => looks like straight segments
+  // - too weak => hooks may appear near vertices
+  // 0.5 = ~60 degrees: only split at genuinely sharp corners
+  cornerCos: 0.5,
 };
 
 export function fitPolylineToCubics(pointsIn: Vec3[], params: Partial<BezierFitParams> = {}): CubicBezier3[] {
@@ -37,9 +48,47 @@ export function fitPolylineToCubics(pointsIn: Vec3[], params: Partial<BezierFitP
   }
   if (clean.length < 2) return [];
 
-  const tanL = endpointTangentLeft(clean);
-  const tanR = endpointTangentRight(clean);
-  return fitCubicRecursive(clean, tanL, tanR, p.maxError, p, 0);
+  // Ignore "corners" formed by very short noisy steps.
+  const minSeg = Math.max(1e-9, medianStep(clean) * 0.85);
+  const chunks = splitByCorners(clean, p.cornerCos, minSeg);
+  return chunks.flatMap((chunk) => {
+    if (chunk.length < 2) return [];
+    const tanL = endpointTangentLeft(chunk);
+    const tanR = endpointTangentRight(chunk);
+    return fitCubicRecursive(chunk, tanL, tanR, p.maxError, p, 0);
+  });
+}
+
+function medianStep(pts: Vec3[]): number {
+  const ds: number[] = [];
+  for (let i = 1; i < pts.length; i++) ds.push(Vec3.distance(pts[i - 1]!, pts[i]!));
+  ds.sort((a, b) => a - b);
+  return ds[Math.floor(ds.length / 2)] ?? 0;
+}
+
+function splitByCorners(pts: Vec3[], cornerCos: number, minSeg: number): Vec3[][] {
+  if (pts.length < 3) return [pts];
+  const out: Vec3[][] = [];
+  let cur: Vec3[] = [pts[0]!];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const c = pts[i + 1]!;
+    const ab = Vec3.sub(b, a);
+    const bc = Vec3.sub(c, b);
+    const lab = Vec3.len(ab);
+    const lbc = Vec3.len(bc);
+    cur.push(b);
+    if (lab < minSeg || lbc < minSeg) continue;
+    const cos = Vec3.dot(ab, bc) / (lab * lbc);
+    if (cos < cornerCos) {
+      out.push(cur);
+      cur = [b];
+    }
+  }
+  cur.push(pts[pts.length - 1]!);
+  out.push(cur);
+  return out.filter((x) => x.length >= 2);
 }
 
 function fitCubicRecursive(
@@ -52,18 +101,21 @@ function fitCubicRecursive(
 ): CubicBezier3[] {
   const nPts = pts.length;
   if (nPts === 2) {
-    const d = Vec3.distance(pts[0]!, pts[1]!);
-    const alpha = Math.max(p.minAlpha, d / 3);
+    // For 2-point segments, using inherited tangents can create visible "hooks" near vertices.
+    // Output a straight cubic (equivalent to a line segment) to guarantee no overshoot.
+    const p0 = pts[0]!;
+    const p3 = pts[1]!;
+    const d = Vec3.sub(p3, p0);
     return [{
-      p0: pts[0]!,
-      p1: Vec3.add(pts[0]!, Vec3.mulScalar(tanL, alpha)),
-      p2: Vec3.add(pts[1]!, Vec3.mulScalar(tanR, alpha)),
-      p3: pts[1]!,
+      p0,
+      p1: Vec3.add(p0, Vec3.mulScalar(d, 1 / 3)),
+      p2: Vec3.add(p0, Vec3.mulScalar(d, 2 / 3)),
+      p3,
     }];
   }
 
-  // chord-length parameterization
-  let u = chordLengthParams(pts);
+  // centripetal parameterization (more stable than chord-length near sharp corners)
+  let u = centripetalParams(pts);
   let bez = generateBezier(pts, u, tanL, tanR, p);
   let { maxDist, splitIndex } = maxErrorPoint(pts, u, bez);
 
@@ -85,18 +137,27 @@ function fitCubicRecursive(
   // split and recurse
   const leftPts = pts.slice(0, splitIndex + 1);
   const rightPts = pts.slice(splitIndex);
+  // centerTangent returns forward-pointing tangent at split point
   const tanM = centerTangent(pts, splitIndex);
   return [
-    ...fitCubicRecursive(leftPts, tanL, tanM, maxError, p, depth + 1),
-    ...fitCubicRecursive(rightPts, Vec3.mulScalar(tanM, -1), tanR, maxError, p, depth + 1),
+    // Left curve: tanL = forward (inherited), tanR = backward (-tanM)
+    ...fitCubicRecursive(leftPts, tanL, Vec3.mulScalar(tanM, -1), maxError, p, depth + 1),
+    // Right curve: tanL = forward (tanM), tanR = backward (inherited)
+    ...fitCubicRecursive(rightPts, tanM, tanR, maxError, p, depth + 1),
   ];
 }
 
-function chordLengthParams(pts: Vec3[]): number[] {
+/**
+ * Centripetal parameterization: uses sqrt(distance) instead of distance.
+ * More stable than chord-length for curves with sharp corners or cusps.
+ * Reference: Lee, E.T.Y. "Choosing nodes in parametric curve interpolation" (1989)
+ */
+function centripetalParams(pts: Vec3[]): number[] {
   const u: number[] = [0];
   let total = 0;
   for (let i = 1; i < pts.length; i++) {
-    total += Vec3.distance(pts[i]!, pts[i - 1]!);
+    // centripetal: sqrt(distance) reduces overshoot near sharp corners
+    total += Math.sqrt(Vec3.distance(pts[i]!, pts[i - 1]!));
     u.push(total);
   }
   if (total <= 1e-12) return u.map(() => 0);
@@ -160,8 +221,43 @@ function generateBezier(pts: Vec3[], u: number[], tanL: Vec3, tanR: Vec3, p: Bez
   alphaL = clamp(alphaL, eps, maxAlpha);
   alphaR = clamp(alphaR, eps, maxAlpha);
 
-  const p1 = Vec3.add(p0, Vec3.mulScalar(tanL, alphaL));
-  const p2 = Vec3.add(p3, Vec3.mulScalar(tanR, alphaR));
+  let p1 = Vec3.add(p0, Vec3.mulScalar(tanL, alphaL));
+  let p2 = Vec3.add(p3, Vec3.mulScalar(tanR, alphaR));
+
+  // Extra stabilization: even with clamped alpha, tangents can point sideways/backwards,
+  // producing visible "hooks" near vertices. Clamp controls relative to the chord direction.
+  const chord = Vec3.sub(p3, p0);
+  const chordLen = Vec3.len(chord);
+  if (chordLen > 1e-12) {
+    const d = Vec3.mulScalar(chord, 1 / chordLen); // p0 -> p3
+    const maxSide = chordLen * 0.30; // allow curvature, just cap pathological sideways bulge
+
+    // Clamp p1: keep forward progress along chord, and clamp lateral magnitude (don't snap to chord).
+    const v1 = Vec3.sub(p1, p0);
+    let s1 = Vec3.dot(v1, d);
+    s1 = clamp(s1, eps, maxAlpha);
+    const side1 = Vec3.sub(v1, Vec3.mulScalar(d, s1));
+    const side1Len = Math.sqrt(Vec3.lenSq(side1));
+    const side1Clamped =
+      side1Len > maxSide
+        ? Vec3.mulScalar(side1, maxSide / Math.max(1e-12, side1Len))
+        : side1;
+    p1 = Vec3.add(p0, Vec3.add(Vec3.mulScalar(d, s1), side1Clamped));
+
+    // Clamp p2: keep backward progress from p3 along -chord, clamp lateral magnitude.
+    const v2 = Vec3.sub(p2, p3);
+    // Inward from p3 is -d, so along component should be negative (v2·d < 0).
+    let s2 = -Vec3.dot(v2, d);
+    s2 = clamp(s2, eps, maxAlpha);
+    const side2 = Vec3.add(v2, Vec3.mulScalar(d, s2)); // remove (-d*s2) from v2
+    const side2Len = Math.sqrt(Vec3.lenSq(side2));
+    const side2Clamped =
+      side2Len > maxSide
+        ? Vec3.mulScalar(side2, maxSide / Math.max(1e-12, side2Len))
+        : side2;
+    p2 = Vec3.add(p3, Vec3.add(Vec3.mulScalar(d, -s2), side2Clamped));
+  }
+
   return { p0, p1, p2, p3 };
 }
 

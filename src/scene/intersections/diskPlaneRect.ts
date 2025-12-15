@@ -3,10 +3,23 @@ import { lineToCubic3 } from "../../curves/builders.js";
 import { Vec3 } from "../../math/vec3.js";
 import { Disk } from "../primitives/disk.js";
 import { PlaneRect } from "../primitives/planeRect.js";
-import { basisFromAxis, splitRunsByJump } from "./math.js";
+import {
+  basisFromAxis,
+  mergeCyclicRuns,
+  polylineRunsToLineCubics,
+  splitRunsByJump,
+  stitchRunsByEndpoints,
+  tryMergeRunsToSinglePolyline,
+} from "./math.js";
 import { fitPolylineToCubics } from "./bezierFit.js";
 
-export function intersectDiskPlaneRect(d: Disk, r: PlaneRect): CubicBezier3[] {
+export function intersectDiskPlaneRect(
+  d: Disk,
+  r: PlaneRect,
+  opts?: { useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" },
+): CubicBezier3[] {
+  const useBezierFit = opts?.useBezierFit ?? true;
+  const fitMode = opts?.fitMode ?? "stitchThenFit";
   const n0 = Vec3.normalize(d.normal);
   const n1 = Vec3.normalize(r.normal);
   const dirRaw = Vec3.cross(n0, n1);
@@ -16,7 +29,7 @@ export function intersectDiskPlaneRect(d: Disk, r: PlaneRect): CubicBezier3[] {
   if (dirLenSq <= 1e-12) {
     const planeDist = Math.abs(Vec3.dot(n1, Vec3.sub(d.center, r.center)));
     if (planeDist > 1e-6) return [];
-    return intersectCoplanarDiskRect(d, r);
+    return intersectCoplanarDiskRect(d, r, useBezierFit, fitMode);
   }
 
   const dir = Vec3.mulScalar(dirRaw, 1 / Math.sqrt(dirLenSq)); // unit
@@ -84,7 +97,12 @@ function slab1D(x0: number, dx: number, half: number): { tMin: number; tMax: num
   return { tMin: Math.min(t0, t1), tMax: Math.max(t0, t1) };
 }
 
-function intersectCoplanarDiskRect(d: Disk, r: PlaneRect): CubicBezier3[] {
+function intersectCoplanarDiskRect(
+  d: Disk,
+  r: PlaneRect,
+  useBezierFit: boolean,
+  fitMode: "perRun" | "stitchThenFit",
+): CubicBezier3[] {
   // Intersection = "circle (rim) ∩ rectangular patch" => sample the circle and connect only inside rect, then fit to cubic
   const n = Vec3.normalize(r.normal);
   const { u, v } = basisFromAxis(n);
@@ -101,7 +119,16 @@ function intersectCoplanarDiskRect(d: Disk, r: PlaneRect): CubicBezier3[] {
   }
   if (pts.length < 2) return [];
 
-  const runs = splitRunsByJump(pts, maxJumpSq);
+  const closeEpsSq = (step * 3) * (step * 3);
+  const runs = stitchRunsByEndpoints(mergeCyclicRuns(splitRunsByJump(pts, maxJumpSq), closeEpsSq), closeEpsSq);
+  if (!useBezierFit) return polylineRunsToLineCubics(runs, closeEpsSq);
+  if (fitMode === "stitchThenFit") {
+    const merged = tryMergeRunsToSinglePolyline(runs, closeEpsSq);
+    if (merged) {
+      const maxError = step * 0.6;
+      return fitPolylineToCubics(merged, { maxError, closeEps: step * 3 });
+    }
+  }
   const maxError = step * 0.6;
   return runs.flatMap((run) => fitPolylineToCubics(run, { maxError, closeEps: step * 3 }));
 }

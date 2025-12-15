@@ -9,6 +9,7 @@ export type SvgStyle = {
   dashArrayHidden: string;
   opacityHidden: number;
   lineCap: "butt" | "round" | "square";
+  lineJoin: "miter" | "round" | "bevel";
 };
 
 export type SvgRenderOptions = {
@@ -26,6 +27,7 @@ const defaultStyle: SvgStyle = {
   dashArrayHidden: "3 3",
   opacityHidden: 0.5,
   lineCap: "butt",
+  lineJoin: "round",
 };
 
 export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string {
@@ -34,15 +36,17 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
   const background = opts.background ?? true;
 
   const paths: string[] = [];
-  for (const piece of pieces) {
-    const d = cubic3ToSvgPathD(piece, camera, width, height);
-    const stroke = piece.visible ? style.strokeVisible : style.strokeHidden;
-    const strokeWidth = piece.visible ? style.strokeWidthVisible : style.strokeWidthHidden;
-    const extra = piece.visible
+  // Use slightly larger epsilon to connect pieces that may have minor numerical differences
+  for (const chain of chainPieces(pieces, 1e-6)) {
+    const d = chainToSvgPathD(chain, camera, width, height);
+    const visible = chain[0]?.visible ?? true;
+    const stroke = visible ? style.strokeVisible : style.strokeHidden;
+    const strokeWidth = visible ? style.strokeWidthVisible : style.strokeWidthHidden;
+    const extra = visible
       ? ""
       : ` stroke-dasharray="${style.dashArrayHidden}" opacity="${style.opacityHidden}"`;
     const path =
-      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${style.lineCap}"` +
+      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${style.lineCap}" stroke-linejoin="${style.lineJoin}"` +
       `${extra} />`;
     paths.push(path);
   }
@@ -56,16 +60,50 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
   );
 }
 
-function cubic3ToSvgPathD(piece: StyledPiece, camera: Camera, width: number, height: number): string {
-  const p0 = camera.projectToSvg(piece.bez.p0, width, height);
-  const p1 = camera.projectToSvg(piece.bez.p1, width, height);
-  const p2 = camera.projectToSvg(piece.bez.p2, width, height);
-  const p3 = camera.projectToSvg(piece.bez.p3, width, height);
-  return `M ${fmt(p0.x)} ${fmt(p0.y)} C ${fmt(p1.x)} ${fmt(p1.y)} ${fmt(p2.x)} ${fmt(p2.y)} ${fmt(p3.x)} ${fmt(p3.y)}`;
+function chainToSvgPathD(chain: StyledPiece[], camera: Camera, width: number, height: number): string {
+  const first = chain[0]!;
+  const p0 = camera.projectToSvg(first.bez.p0, width, height);
+  let d = `M ${fmt(p0.x)} ${fmt(p0.y)}`;
+  for (const piece of chain) {
+    const p1 = camera.projectToSvg(piece.bez.p1, width, height);
+    const p2 = camera.projectToSvg(piece.bez.p2, width, height);
+    const p3 = camera.projectToSvg(piece.bez.p3, width, height);
+    d += ` C ${fmt(p1.x)} ${fmt(p1.y)} ${fmt(p2.x)} ${fmt(p2.y)} ${fmt(p3.x)} ${fmt(p3.y)}`;
+  }
+  return d;
 }
 
 function fmt(n: number): string {
   return Number.isFinite(n) ? n.toFixed(3) : "0";
+}
+
+function chainPieces(pieces: StyledPiece[], connectEpsSq: number): StyledPiece[][] {
+  const out: StyledPiece[][] = [];
+  let cur: StyledPiece[] = [];
+
+  const canAppend = (a: StyledPiece, b: StyledPiece) => {
+    if (a.visible !== b.visible) return false;
+    const dx = a.bez.p3.x - b.bez.p0.x;
+    const dy = a.bez.p3.y - b.bez.p0.y;
+    const dz = a.bez.p3.z - b.bez.p0.z;
+    return (dx * dx + dy * dy + dz * dz) <= connectEpsSq;
+  };
+
+  for (const p of pieces) {
+    const prev = cur[cur.length - 1];
+    if (!prev) {
+      cur = [p];
+      continue;
+    }
+    if (canAppend(prev, p)) {
+      cur.push(p);
+    } else {
+      out.push(cur);
+      cur = [p];
+    }
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 

@@ -77,11 +77,16 @@ export class Scene {
         // intersection/tangent/numerical errors are mistaken for occluders, causing solid lines to become dashed.
         // Important: don't ignore entire primitives, only ignore "nearby hits"
         const snap = Math.max(epsAbs * 8, targetDist * 2e-6);
-        if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) {
-          const allow = opts?.ignorePrimitiveIds;
-          // If ignore list exists, only ignore nearby hits from primitives "participating in the intersection"
-          if (!allow) return true;
-          if (allow.includes(hit.primitiveId)) return true;
+        const allow = opts?.ignorePrimitiveIds;
+        // If ignore list doesn't exist, we still treat "nearby hits" as noise (self-hit / numeric)
+        if (!allow) {
+          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
+          // Also allow small along-ray tolerance: point distance can be inflated by tiny angular error.
+          if (hit.t >= tMax - snap * 2) return true;
+        } else if (allow.includes(hit.primitiveId)) {
+          // Intersection curves: for participating primitives, ignore only "nearby" hits.
+          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
+          if (hit.t >= tMax - snap * 2) return true;
         }
         return false;
       }
@@ -102,10 +107,13 @@ export class Scene {
       });
       if (hit === null) return true;
       const snap = Math.max(epsAbs * 8, 2e-6 * far);
-      if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) {
-        const allow = opts?.ignorePrimitiveIds;
-        if (!allow) return true;
-        if (allow.includes(hit.primitiveId)) return true;
+      const allow = opts?.ignorePrimitiveIds;
+      if (!allow) {
+        if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
+        if (hit.t >= tMax - snap * 2) return true;
+      } else if (allow.includes(hit.primitiveId)) {
+        if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
+        if (hit.t >= tMax - snap * 2) return true;
       }
       return false;
     } finally {

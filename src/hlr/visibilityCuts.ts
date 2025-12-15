@@ -83,10 +83,21 @@ export function findVisibilityCutsOnCubicWithVisibility(
     vis.push(scene.visibleAtPoint(p, { eps: params.epsVisible, ignorePrimitiveIds }));
   }
 
+  // Reduce jitter: single-sample flips (T/F/T or F/T/F) often come from numerical noise near tangency/intersections.
+  // A 3-point majority filter preserves longer transitions while removing 1-sample toggles.
+  const visSmooth = vis.slice();
+  for (let i = 1; i < visSmooth.length - 1; i++) {
+    const a = vis[i - 1]!;
+    const c = vis[i]!;
+    const d = vis[i + 1]!;
+    const ones = Number(a) + Number(c) + Number(d);
+    visSmooth[i] = ones >= 2;
+  }
+
   const cuts: number[] = [];
   for (let i = 1; i <= samples; i++) {
-    const v0 = vis[i - 1]!;
-    const v1 = vis[i]!;
+    const v0 = visSmooth[i - 1]!;
+    const v1 = visSmooth[i]!;
     if (v0 === v1) continue;
     const t0 = (i - 1) / samples;
     const t1 = i / samples;
@@ -104,7 +115,7 @@ export function findVisibilityCutsOnCubicWithVisibility(
   const sampleAt = (t: number): boolean => {
     const tt = clamp01(t);
     const idx = Math.max(0, Math.min(samples, Math.round(tt * samples)));
-    return vis[idx] ?? true;
+    return visSmooth[idx] ?? true;
   };
 
   const segmentVisible: boolean[] = [];

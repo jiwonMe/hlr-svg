@@ -15,6 +15,7 @@ type ViewerProps = {
 };
 
 type Projection = "perspective" | "isometric";
+type FitMode = "perRun" | "stitchThenFit";
 
 const ISO_AZ = Math.PI / 4; // 45°
 const ISO_POLAR = Math.acos(1 / Math.sqrt(3)); // ~54.7356° from +Y
@@ -31,6 +32,9 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const [profileOn, setProfileOn] = useState(false);
   const [profileText, setProfileText] = useState("");
   const [coarseIdx, setCoarseIdx] = useState<CoarsePresetIndex>(2); // default: 64
+  const [angularSamples, setAngularSamples] = useState(256);
+  const [useBezierFit, setUseBezierFit] = useState(false);
+  const [fitMode, setFitMode] = useState<FitMode>("stitchThenFit");
 
   useEffect(() => {
     setOrbit(baseOrbit);
@@ -39,6 +43,9 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     setProfileOn(false);
     setProfileText("");
     setCoarseIdx(2);
+    setAngularSamples(256);
+    setUseBezierFit(false);
+    setFitMode("stitchThenFit");
   }, [baseOrbit]);
 
   const [playing, setPlaying] = useState(false);
@@ -100,12 +107,12 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const profiled = useMemo((): { svg: string; report: ProfileReport | null } => {
     if (!profileOn) {
       return {
-        svg: renderCaseToSvgString(runtimeDemo, { svgStyle: style, hlr: { coarseSamples } }),
+        svg: renderCaseToSvgString(runtimeDemo, { svgStyle: style, hlr: { coarseSamples }, intersections: { angularSamples, useBezierFit, fitMode } }),
         report: null,
       };
     }
-    return renderCaseToSvgStringProfiled(runtimeDemo, { svgStyle: style, hlr: { coarseSamples } });
-  }, [coarseSamples, profileOn, runtimeDemo, style]);
+    return renderCaseToSvgStringProfiled(runtimeDemo, { svgStyle: style, hlr: { coarseSamples }, intersections: { angularSamples, useBezierFit, fitMode } });
+  }, [coarseSamples, profileOn, runtimeDemo, style, angularSamples, useBezierFit, fitMode]);
 
   const svg = profiled.svg;
 
@@ -144,6 +151,14 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           </button>
           <button className="btn" type="button" onClick={() => setPlaying((p) => !p)} title="자동 회전">
             {playing ? "정지" : "재생"}
+          </button>
+          <button
+            className={useBezierFit ? "btn" : "btn btnActive"}
+            type="button"
+            onClick={() => setUseBezierFit((v) => !v)}
+            title="교선/샘플 기반 곡선의 Bezier fitting 토글 (OFF면 선분 cubic로 출력)"
+          >
+            BezierFit: {useBezierFit ? "ON" : "OFF"}
           </button>
           <button
             className={profileOn ? "btn btnActive" : "btn"}
@@ -215,6 +230,43 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           />
           <span className="viewerPovValue">{coarseSamples}</span>
         </label>
+
+        <label className="viewerLabel" title="교선(곡면×곡면/평면×곡면) 샘플링 분해능 (값이 클수록 더 촘촘/느림)">
+          samples
+          <input
+            className="viewerRange"
+            type="range"
+            min={48}
+            max={768}
+            step={16}
+            value={angularSamples}
+            onChange={(e) => setAngularSamples(Number(e.target.value))}
+          />
+          <span className="viewerPovValue">{angularSamples}</span>
+        </label>
+
+        <div className="segmented" role="tablist" aria-label="교선 bezier fitting 모드">
+          <button
+            className={fitMode === "stitchThenFit" ? "segBtn segBtnActive" : "segBtn"}
+            type="button"
+            role="tab"
+            aria-selected={fitMode === "stitchThenFit"}
+            onClick={() => setFitMode("stitchThenFit")}
+            title="runs를 최대한 stitch로 합친 뒤, 하나의 polyline에 대해 bezierFit을 1회 수행"
+          >
+            stitch→fit
+          </button>
+          <button
+            className={fitMode === "perRun" ? "segBtn segBtnActive" : "segBtn"}
+            type="button"
+            role="tab"
+            aria-selected={fitMode === "perRun"}
+            onClick={() => setFitMode("perRun")}
+            title="splitRunsByJump로 나뉜 run마다 개별 bezierFit 수행"
+          >
+            per-run
+          </button>
+        </div>
       </div>
 
       {profileOn && profileText ? (

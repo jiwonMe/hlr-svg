@@ -13,6 +13,7 @@ export type RenderCaseSvgOptions = {
   svgStyle?: Partial<SvgStyle>;
   profiler?: Profiler;
   hlr?: Partial<HlrParams>;
+  intersections?: { angularSamples?: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
 };
 
 export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions = {}): string {
@@ -31,8 +32,9 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
   if (profiler) profiler.end("render.demo.curves");
 
   if (profiler) profiler.begin("render.intersections");
+  const ix = { angularSamples: 256, useBezierFit: true, fitMode: "stitchThenFit" as const, ...(opts.intersections ?? {}) };
   const ownedIntersections = demo.includeIntersections
-    ? intersectionCurvesToOwnedCubics(scene.primitives, { angularSamples: 160 })
+    ? intersectionCurvesToOwnedCubics(scene.primitives, { angularSamples: ix.angularSamples, useBezierFit: ix.useBezierFit, fitMode: ix.fitMode })
     : [];
   if (profiler) profiler.end("render.intersections");
 
@@ -48,16 +50,21 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
     ...(opts.hlr ?? {}),
   };
 
-  const pieces: StyledPiece[] = [];
+  const hiddenPieces: StyledPiece[] = [];
+  const visiblePieces: StyledPiece[] = [];
   if (profiler) profiler.begin("render.visibilitySplit");
-  for (const b of cubics) pieces.push(...splitCubicByVisibility(b, scene, params));
+  for (const b of cubics) {
+    for (const p of splitCubicByVisibility(b, scene, params)) (p.visible ? visiblePieces : hiddenPieces).push(p);
+  }
   for (const x of ownedIntersections) {
-    pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, scene, params, x.ignorePrimitiveIds));
+    for (const p of splitCubicByVisibilityWithIgnore(x.bez, scene, params, x.ignorePrimitiveIds)) {
+      (p.visible ? visiblePieces : hiddenPieces).push(p);
+    }
   }
   if (profiler) profiler.end("render.visibilitySplit");
 
-  // Place solid above dashed
-  const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
+  // Place dashed (hidden) below solid (visible), but keep per-curve order within each group.
+  const sorted = [...hiddenPieces, ...visiblePieces];
 
   if (profiler) profiler.begin("render.svgWrite");
   const out = piecesToSvg(sorted, demo.camera, {

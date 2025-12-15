@@ -19,6 +19,8 @@ export type HlrParams = {
 
 export type IntersectionParams = {
   angularSamples: number;
+  useBezierFit?: boolean; // default: true
+  fitMode?: "perRun" | "stitchThenFit"; // default: "stitchThenFit"
 };
 
 export type RenderInclude = CurveInclude & {
@@ -48,6 +50,8 @@ export const DEFAULT_HLR_PARAMS: HlrParams = {
 
 export const DEFAULT_INTERSECTION_PARAMS: IntersectionParams = {
   angularSamples: 160,
+  useBezierFit: true,
+  fitMode: "stitchThenFit",
 };
 
 function defaultInclude(): Required<RenderInclude> {
@@ -100,22 +104,27 @@ export class SvgRenderer {
     // 3) Intersection curves (owned intersections): participating primitives are partially ignored in visibility rays
     if (profiler) profiler.begin("render.intersections");
     const ownedIntersections = include.intersections
-      ? intersectionCurvesToOwnedCubics(primitives, { angularSamples: ix.angularSamples })
+      ? intersectionCurvesToOwnedCubics(primitives, { angularSamples: ix.angularSamples, useBezierFit: ix.useBezierFit, fitMode: ix.fitMode })
       : [];
     if (profiler) profiler.end("render.intersections");
 
     const rayScene = scene.toRaycastScene(camera, profiler);
 
-    const pieces: StyledPiece[] = [];
+    const hiddenPieces: StyledPiece[] = [];
+    const visiblePieces: StyledPiece[] = [];
     if (profiler) profiler.begin("render.visibilitySplit");
-    for (const b of cubics) pieces.push(...splitCubicByVisibility(b, rayScene, hlr));
+    for (const b of cubics) {
+      for (const p of splitCubicByVisibility(b, rayScene, hlr)) (p.visible ? visiblePieces : hiddenPieces).push(p);
+    }
     for (const x of ownedIntersections) {
-      pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds));
+      for (const p of splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds)) {
+        (p.visible ? visiblePieces : hiddenPieces).push(p);
+      }
     }
     if (profiler) profiler.end("render.visibilitySplit");
 
-    // Place solid above dashed
-    const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
+    // Place dashed (hidden) below solid (visible), but keep per-curve order within each group.
+    const sorted = [...hiddenPieces, ...visiblePieces];
 
     const svgOpts: SvgRenderOptions = {
       width,
