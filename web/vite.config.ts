@@ -10,8 +10,8 @@ export default defineConfig({
   root: __dirname,
   plugins: [react()],
   build: {
-    // 빌드 출력 디렉토리 (절대 경로로 명확히 지정)
-    outDir: path.resolve(__dirname, "dist"),
+    // 빌드 출력 디렉토리 (프로젝트 루트의 out/ 폴더로 출력)
+    outDir: path.resolve(__dirname, "../out"),
     // 빌드 전 outDir 초기화
     emptyOutDir: true,
     // 모듈 형식 설정
