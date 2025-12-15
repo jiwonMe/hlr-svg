@@ -27,5 +27,6 @@ export * from "./svg/svgWriter.js";
 export * from "./core/scene.js";
 export * from "./core/curves.js";
 export * from "./core/svgRenderer.js";
+export * from "./core/profiler.js";
 
 

@@ -6,9 +6,11 @@ import { splitCubicByVisibility, splitCubicByVisibilityWithIgnore, type StyledPi
 import { piecesToSvg, type SvgRenderOptions, type SvgStyle } from "../svg/svgWriter.js";
 import { curvesFromPrimitives, type CurveInclude } from "./curves.js";
 import { Scene } from "./scene.js";
+import type { Profiler } from "./profiler.js";
 
 export type HlrParams = {
   samples: number;
+  coarseSamples?: number;
   refineIters: number;
   epsVisible: number;
   cutEps: number;
@@ -32,10 +34,12 @@ export type RenderOptions = {
   hlr?: Partial<HlrParams>;
   intersections?: Partial<IntersectionParams>;
   curves?: readonly CubicBezier3[]; // User curves (additional)
+  profiler?: Profiler;
 };
 
 export const DEFAULT_HLR_PARAMS: HlrParams = {
   samples: 192,
+  coarseSamples: 0,
   refineIters: 22,
   epsVisible: 2e-4,
   cutEps: 1e-6,
@@ -65,7 +69,7 @@ function defaultInclude(): Required<RenderInclude> {
  * ```
  */
 export class SvgRenderer {
-  private readonly base: Pick<RenderOptions, "width" | "height" | "background" | "style" | "include" | "hlr" | "intersections">;
+  private readonly base: Pick<RenderOptions, "width" | "height" | "background" | "style" | "include" | "hlr" | "intersections" | "profiler">;
 
   constructor(opts: Omit<RenderOptions, "curves">) {
     this.base = opts;
@@ -74,6 +78,9 @@ export class SvgRenderer {
   render(scene: Scene, camera: Camera, opts: Partial<Omit<RenderOptions, "width" | "height">> = {}): string {
     const width = this.base.width;
     const height = this.base.height;
+    const profiler = opts.profiler ?? this.base.profiler;
+    if (profiler) profiler.reset();
+    if (profiler) profiler.begin("render.total");
 
     const include = { ...defaultInclude(), ...(this.base.include ?? {}), ...(opts.include ?? {}) };
     const hlr = { ...DEFAULT_HLR_PARAMS, ...(this.base.hlr ?? {}), ...(opts.hlr ?? {}) };
@@ -83,23 +90,29 @@ export class SvgRenderer {
     const cubics: CubicBezier3[] = [];
 
     // 1) Curves automatically generated from primitives (silhouettes/rims/borders/box edges)
+    if (profiler) profiler.begin("render.curvesFromPrimitives");
     cubics.push(...curvesFromPrimitives(primitives, camera, include));
+    if (profiler) profiler.end("render.curvesFromPrimitives");
 
     // 2) Curves provided by the user
     if (opts.curves) cubics.push(...opts.curves);
 
     // 3) Intersection curves (owned intersections): participating primitives are partially ignored in visibility rays
+    if (profiler) profiler.begin("render.intersections");
     const ownedIntersections = include.intersections
       ? intersectionCurvesToOwnedCubics(primitives, { angularSamples: ix.angularSamples })
       : [];
+    if (profiler) profiler.end("render.intersections");
 
-    const rayScene = scene.toRaycastScene(camera);
+    const rayScene = scene.toRaycastScene(camera, profiler);
 
     const pieces: StyledPiece[] = [];
+    if (profiler) profiler.begin("render.visibilitySplit");
     for (const b of cubics) pieces.push(...splitCubicByVisibility(b, rayScene, hlr));
     for (const x of ownedIntersections) {
       pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds));
     }
+    if (profiler) profiler.end("render.visibilitySplit");
 
     // Place solid above dashed
     const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
@@ -111,7 +124,11 @@ export class SvgRenderer {
       style: { ...(this.base.style ?? {}), ...(opts.style ?? {}) },
     };
 
-    return piecesToSvg(sorted, camera, svgOpts);
+    if (profiler) profiler.begin("render.svgWrite");
+    const out = piecesToSvg(sorted, camera, svgOpts);
+    if (profiler) profiler.end("render.svgWrite");
+    if (profiler) profiler.end("render.total");
+    return out;
   }
 }
 

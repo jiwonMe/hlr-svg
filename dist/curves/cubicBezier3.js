@@ -21,4 +21,3 @@ export function splitCubic3(b, t) {
         right: { p0: g, p1: f, p2: d, p3: b.p3 },
     };
 }
-//# sourceMappingURL=cubicBezier3.js.map

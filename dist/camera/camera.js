@@ -52,4 +52,3 @@ export class Camera {
         return { x, y, z: ndc.z };
     }
 }
-//# sourceMappingURL=camera.js.map

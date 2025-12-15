@@ -1,7 +1,7 @@
 import { buildDemoCases } from "./cases.js";
 import { renderCaseToSvgString, renderCasesToHtml } from "./renderCase.js";
 function main() {
-    // `node ... | head` 같은 파이프에서 EPIPE로 죽지 않도록 처리
+    // Handle EPIPE to avoid dying in pipes like `node ... | head`
     process.stdout.on("error", (err) => {
         if (err?.code === "EPIPE")
             process.exit(0);
@@ -16,8 +16,7 @@ function main() {
     const caseName = caseArgIdx >= 0 ? args[caseArgIdx + 1] : undefined;
     const selected = caseName
         ? cases.find((c) => c.name === caseName) ?? cases[0]
-        : cases[cases.length - 1]; // 기본: Full scene
+        : cases[cases.length - 1]; // Default: Full scene
     process.stdout.write(renderCaseToSvgString(selected));
 }
 main();
-//# sourceMappingURL=main.js.map

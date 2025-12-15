@@ -48,4 +48,3 @@ export class Vec3 {
         return Vec3.lenSq(Vec3.sub(a, b));
     }
 }
-//# sourceMappingURL=vec3.js.map

@@ -1,6 +1,7 @@
 import type { Camera } from "../camera/camera.js";
 import type { Primitive } from "../scene/primitive.js";
 import { Scene as RaycastScene } from "../scene/scene.js";
+import type { Profiler } from "./profiler.js";
 
 /**
  * User-facing Scene for three.js style usage.
@@ -35,8 +36,8 @@ export class Scene {
   }
 
   /** Convert to internal Scene for visibility/raycasting */
-  toRaycastScene(camera: Camera): RaycastScene {
-    return new RaycastScene(this._primitives, camera);
+  toRaycastScene(camera: Camera, profiler?: Profiler): RaycastScene {
+    return new RaycastScene(this._primitives, camera, profiler);
   }
 }
 

@@ -76,7 +76,7 @@ export function coneSilhouetteToCubics3(opts) {
 }
 export function cylinderGeneratorsToCubics3(opts) {
     const a = Vec3.normalize(opts.axis);
-    // 카메라를 axis line에 직교 투영한 뒤, axis에 수직한 반지름 방향을 구한다.
+    // Orthogonally project camera onto axis line, then find radius direction perpendicular to axis
     const baseToCam = Vec3.sub(opts.cameraPos, opts.base);
     const s = Vec3.dot(baseToCam, a);
     const closestOnAxis = Vec3.add(opts.base, Vec3.mulScalar(a, s));
@@ -149,4 +149,3 @@ function arc90ToCubic3(center, u, v, r, a0, a1) {
 function pointOnCircle(center, u, v, r, c, s) {
     return Vec3.add(center, Vec3.add(Vec3.mulScalar(u, r * c), Vec3.mulScalar(v, r * s)));
 }
-//# sourceMappingURL=builders.js.map

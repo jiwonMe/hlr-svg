@@ -79,4 +79,3 @@ export class Cylinder {
         return { t, point: p, normal: n, primitiveId: this.id };
     }
 }
-//# sourceMappingURL=cylinder.js.map

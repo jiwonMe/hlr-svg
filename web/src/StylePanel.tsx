@@ -19,6 +19,10 @@ type StylePanelProps = {
 };
 
 export function StylePanel({ value, onChange }: StylePanelProps): React.ReactElement {
+  const strokeWidthVisible = Number.isFinite(value.strokeWidthVisible) ? value.strokeWidthVisible : 1.8;
+  const strokeWidthHidden = Number.isFinite(value.strokeWidthHidden) ? value.strokeWidthHidden : 1.8;
+  const opacityHidden = Number.isFinite(value.opacityHidden) ? value.opacityHidden : 1;
+
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
@@ -54,16 +58,16 @@ export function StylePanel({ value, onChange }: StylePanelProps): React.ReactEle
 
             <div className="radixRow">
               <div className="radixLabel">실선 두께</div>
-              <div className="radixValue">{value.strokeWidthVisible.toFixed(2)}</div>
+              <div className="radixValue">{strokeWidthVisible.toFixed(2)}</div>
             </div>
             <Slider.Root
               className="radixSlider"
               min={0.5}
               max={4.0}
               step={0.05}
-              value={[value.strokeWidthVisible]}
+              value={[strokeWidthVisible]}
               onValueChange={(v) =>
-                onChange({ ...value, strokeWidthVisible: v[0] ?? value.strokeWidthVisible })
+                onChange({ ...value, strokeWidthVisible: v[0] ?? strokeWidthVisible })
               }
               aria-label="실선 두께"
             >
@@ -75,16 +79,16 @@ export function StylePanel({ value, onChange }: StylePanelProps): React.ReactEle
 
             <div className="radixRow">
               <div className="radixLabel">점선 두께</div>
-              <div className="radixValue">{value.strokeWidthHidden.toFixed(2)}</div>
+              <div className="radixValue">{strokeWidthHidden.toFixed(2)}</div>
             </div>
             <Slider.Root
               className="radixSlider"
               min={0.5}
               max={4.0}
               step={0.05}
-              value={[value.strokeWidthHidden]}
+              value={[strokeWidthHidden]}
               onValueChange={(v) =>
-                onChange({ ...value, strokeWidthHidden: v[0] ?? value.strokeWidthHidden })
+                onChange({ ...value, strokeWidthHidden: v[0] ?? strokeWidthHidden })
               }
               aria-label="점선 두께"
             >
@@ -106,15 +110,15 @@ export function StylePanel({ value, onChange }: StylePanelProps): React.ReactEle
 
             <div className="radixRow">
               <div className="radixLabel">점선 투명도</div>
-              <div className="radixValue">{value.opacityHidden.toFixed(2)}</div>
+              <div className="radixValue">{opacityHidden.toFixed(2)}</div>
             </div>
             <Slider.Root
               className="radixSlider"
               min={0.15}
               max={1.0}
               step={0.05}
-              value={[value.opacityHidden]}
-              onValueChange={(v) => onChange({ ...value, opacityHidden: v[0] ?? value.opacityHidden })}
+              value={[opacityHidden]}
+              onValueChange={(v) => onChange({ ...value, opacityHidden: v[0] ?? opacityHidden })}
               aria-label="점선 투명도"
             >
               <Slider.Track className="radixSliderTrack">

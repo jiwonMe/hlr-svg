@@ -80,4 +80,3 @@ export class Mat4 {
         ]);
     }
 }
-//# sourceMappingURL=mat4.js.map

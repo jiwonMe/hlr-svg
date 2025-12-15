@@ -17,8 +17,8 @@ export * from "./curves/builders.js";
 export * from "./hlr/visibilityCuts.js";
 export * from "./hlr/splitByVisibility.js";
 export * from "./svg/svgWriter.js";
-// 사용자용(three.js 스타일) API
+// User-facing (three.js style) API
 export * from "./core/scene.js";
 export * from "./core/curves.js";
 export * from "./core/svgRenderer.js";
-//# sourceMappingURL=index.js.map
+export * from "./core/profiler.js";

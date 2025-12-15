@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Camera } from "../../dist/camera/camera.js";
 import { Vec3 } from "../../dist/math/vec3.js";
-import { renderCaseToSvgString } from "../../dist/demo/renderCase.js";
+import { renderCaseToSvgString, renderCaseToSvgStringProfiled } from "../../dist/demo/renderCase.js";
 import type { DemoCase } from "../../dist/demo/types.js";
+import { formatProfileReport, type ProfileReport } from "../../dist/core/profiler.js";
 
 import { orbitFromCamera, orbitPosition, type OrbitState, clamp } from "./runtime/orbit";
 import { useRafTick } from "./runtime/useRaf";
@@ -17,6 +18,8 @@ type Projection = "perspective" | "isometric";
 
 const ISO_AZ = Math.PI / 4; // 45°
 const ISO_POLAR = Math.acos(1 / Math.sqrt(3)); // ~54.7356° from +Y
+const COARSE_PRESETS = [0, 48, 64, 96] as const;
+type CoarsePresetIndex = 0 | 1 | 2 | 3;
 
 export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -25,11 +28,17 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
   const [projection, setProjection] = useState<Projection>("perspective");
   const [orthoHalfHeight, setOrthoHalfHeight] = useState(() => clamp(0.2, baseOrbit.radius * 0.55, 10));
+  const [profileOn, setProfileOn] = useState(false);
+  const [profileText, setProfileText] = useState("");
+  const [coarseIdx, setCoarseIdx] = useState<CoarsePresetIndex>(2); // default: 64
 
   useEffect(() => {
     setOrbit(baseOrbit);
     setProjection("perspective");
     setOrthoHalfHeight(clamp(0.2, baseOrbit.radius * 0.55, 10));
+    setProfileOn(false);
+    setProfileText("");
+    setCoarseIdx(2);
   }, [baseOrbit]);
 
   const [playing, setPlaying] = useState(false);
@@ -37,7 +46,8 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const [style, setStyle] = useState<LineStyleState>(() => ({
     strokeVisible: "#000000",
     strokeHidden: "#000000",
-    strokeWidth: 1.8,
+    strokeWidthVisible: 1.8,
+    strokeWidthHidden: 1.8,
     dashArrayHidden: "4 4",
     opacityHidden: 1,
     lineCap: "butt",
@@ -85,7 +95,31 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     return { ...demo, camera };
   }, [demo, camera]);
 
-  const svg = useMemo(() => renderCaseToSvgString(runtimeDemo, { svgStyle: style }), [runtimeDemo, style]);
+  const coarseSamples = COARSE_PRESETS[coarseIdx] ?? 64;
+
+  const profiled = useMemo((): { svg: string; report: ProfileReport | null } => {
+    if (!profileOn) {
+      return {
+        svg: renderCaseToSvgString(runtimeDemo, { svgStyle: style, hlr: { coarseSamples } }),
+        report: null,
+      };
+    }
+    return renderCaseToSvgStringProfiled(runtimeDemo, { svgStyle: style, hlr: { coarseSamples } });
+  }, [coarseSamples, profileOn, runtimeDemo, style]);
+
+  const svg = profiled.svg;
+
+  useEffect(() => {
+    if (!profileOn || !profiled.report) {
+      setProfileText("");
+      return;
+    }
+    const text = formatProfileReport(profiled.report);
+    setProfileText(text);
+    // 한 번에 보기 좋게 콘솔에도 찍어둔다(렌더 1회마다 1로그)
+    // eslint-disable-next-line no-console
+    console.log(`[hlr-svg profile] ${demo.name}\n${text}`);
+  }, [demo.name, profileOn, profiled.report]);
 
   return (
     <section className="caseCard">
@@ -110,6 +144,14 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           </button>
           <button className="btn" type="button" onClick={() => setPlaying((p) => !p)} title="자동 회전">
             {playing ? "정지" : "재생"}
+          </button>
+          <button
+            className={profileOn ? "btn btnActive" : "btn"}
+            type="button"
+            onClick={() => setProfileOn((v) => !v)}
+            title="렌더 프로파일링(타이밍/카운트) 토글"
+          >
+            Profile
           </button>
           <StylePanel value={style} onChange={setStyle} />
           <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(svg)} title="SVG 문자열 복사">
@@ -159,7 +201,27 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             onChange={(e) => setSpeed(Number(e.target.value))}
           />
         </label>
+
+        <label className="viewerLabel" title="HLR coarseSamples(0=끔, 값이 클수록 더 정확/느림)">
+          coarse
+          <input
+            className="viewerRange"
+            type="range"
+            min={0}
+            max={3}
+            step={1}
+            value={coarseIdx}
+            onChange={(e) => setCoarseIdx(Number(e.target.value) as CoarsePresetIndex)}
+          />
+          <span className="viewerPovValue">{coarseSamples}</span>
+        </label>
       </div>
+
+      {profileOn && profileText ? (
+        <div className="profileRow">
+          <pre className="profileBox">{profileText}</pre>
+        </div>
+      ) : null}
 
       <div
         ref={wrapRef}

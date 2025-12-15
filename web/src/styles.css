@@ -169,6 +169,28 @@ body {
   cursor: pointer;
 }
 .btn:hover { background: rgba(122, 167, 255, 0.18); }
+.btnActive {
+  border-color: rgba(122, 167, 255, 0.75);
+  background: rgba(122, 167, 255, 0.22);
+}
+
+.profileRow {
+  padding: 0 12px 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.profileBox {
+  margin: 0;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(16, 26, 48, 0.75);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: auto;
+  max-height: 160px;
+  white-space: pre;
+}
 
 .radixPopover {
   width: 320px;
