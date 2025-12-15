@@ -8,7 +8,7 @@
     "demo": "node dist/demo/main.js",
     "demo:all": "node dist/demo/main.js --all",
     "web:dev": "vite --config web/vite.config.ts",
-    "web:build": "vite build --config web/vite.config.ts",
+    "web:build": "npm run build && vite build --config web/vite.config.ts",
     "web:preview": "vite preview --config web/vite.config.ts --port 4173"
   },
   "dependencies": {
