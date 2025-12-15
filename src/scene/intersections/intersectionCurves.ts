@@ -20,6 +20,11 @@ import { planeSurfaceCurvesToOwnedCubics, type OwnedCubic3 as OwnedPlaneSurfaceC
 import { intersectDiskPlaneRect } from "./diskPlaneRect.js";
 import { intersectPlaneRectBoxAabb } from "./planeRectBoxAabb.js";
 import { intersectBoxAabbBoxAabb } from "./boxBoxAabb.js";
+import {
+  intersectBoxAabbSphereOwned,
+  intersectBoxAabbCylinderOwned,
+  intersectBoxAabbConeOwned,
+} from "./boxCurvedIntersections.js";
 
 export type IntersectionCurveOptions = {
   angularSamples: number; // e.g. 128
@@ -89,6 +94,30 @@ export function intersectionCurvesToOwnedCubics(
       const b = boxes[j]!;
       const ignorePrimitiveIds = [a.id, b.id] as const;
       out.push(...intersectBoxAabbBoxAabb(a, b).map((bez) => ({ bez, ignorePrimitiveIds })));
+    }
+  }
+
+  // BoxAabb × Sphere intersections (cube and sphere)
+  const spheres = primitives.filter((p): p is Sphere => p instanceof Sphere);
+  for (const box of boxes) {
+    for (const sphere of spheres) {
+      out.push(...intersectBoxAabbSphereOwned(box, sphere, { useBezierFit, fitMode }));
+    }
+  }
+
+  // BoxAabb × Cylinder intersections (cube and cylinder)
+  const cylinders = primitives.filter((p): p is Cylinder => p instanceof Cylinder);
+  for (const box of boxes) {
+    for (const cyl of cylinders) {
+      out.push(...intersectBoxAabbCylinderOwned(box, cyl, { useBezierFit, fitMode }));
+    }
+  }
+
+  // BoxAabb × Cone intersections (cube and cone)
+  const cones = primitives.filter((p): p is Cone => p instanceof Cone);
+  for (const box of boxes) {
+    for (const cone of cones) {
+      out.push(...intersectBoxAabbConeOwned(box, cone, { useBezierFit, fitMode }));
     }
   }
 

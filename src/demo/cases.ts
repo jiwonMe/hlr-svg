@@ -46,6 +46,12 @@ export function buildDemoCases(): DemoCase[] {
   const cubeC = new BoxAabb("cubeC", new Vec3(0.6, -0.9, 0.2), new Vec3(1.6, 0.1, 1.2));
   const cubeD = new BoxAabb("cubeD", new Vec3(-0.5, 0.0, 0.1), new Vec3(0.5, 1.0, 1.1));
 
+  // BoxAabb × Curved primitives test
+  const boxForCurved = new BoxAabb("boxForCurved", new Vec3(-0.6, -0.6, -0.6), new Vec3(0.6, 0.6, 0.6));
+  const sphereForBox = new Sphere("sphereForBox", new Vec3(0, 0, 0), 0.9);
+  const cylForBox = new Cylinder("cylForBox", new Vec3(0, -1.0, 0), new Vec3(0, 1, 0), 2.0, 0.5, "both");
+  const coneForBox = new Cone("coneForBox", new Vec3(0, -1.0, 0), new Vec3(0, 1, 0), 2.0, 0.8, "base");
+
   return [
     {
       name: "Sphere: silhouette + great circles",
@@ -180,6 +186,69 @@ export function buildDemoCases(): DemoCase[] {
         ...cylinderSilhouetteToCubics3({ cameraPos: camera.position, base: cyl.base, axis: cyl.axis, height: cyl.height, radius: cyl.radius }),
         ...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: cone.apex, axis: cone.axis, height: cone.height, baseRadius: cone.baseRadius }),
         ...boxEdgesAsCubics(new Vec3(-0.8, -0.8, 1.4), new Vec3(0.6, 0.6, 2.8)),
+      ],
+    },
+    {
+      name: "Intersection: Box × Sphere (with HLR)",
+      width,
+      height,
+      camera: Camera.from({
+        kind: "perspective",
+        position: new Vec3(2.5, 1.8, 2.5),
+        target: new Vec3(0, 0, 0),
+        up: new Vec3(0, 1, 0),
+        fovYRad: (55 * Math.PI) / 180,
+        aspect: width / height,
+        near: 0.1,
+        far: 100,
+      }),
+      primitives: [boxForCurved, sphereForBox],
+      includeIntersections: true,
+      curves: ({ camera }) => [
+        ...sphereSilhouetteToCubics3({ cameraPos: camera.position, center: sphereForBox.center, radius: sphereForBox.radius }),
+        ...boxEdgesAsCubics(boxForCurved.min, boxForCurved.max),
+      ],
+    },
+    {
+      name: "Intersection: Box × Cylinder (with HLR)",
+      width,
+      height,
+      camera: Camera.from({
+        kind: "perspective",
+        position: new Vec3(2.5, 1.8, 2.5),
+        target: new Vec3(0, 0, 0),
+        up: new Vec3(0, 1, 0),
+        fovYRad: (55 * Math.PI) / 180,
+        aspect: width / height,
+        near: 0.1,
+        far: 100,
+      }),
+      primitives: [boxForCurved, cylForBox],
+      includeIntersections: true,
+      curves: ({ camera }) => [
+        ...cylinderSilhouetteToCubics3({ cameraPos: camera.position, base: cylForBox.base, axis: cylForBox.axis, height: cylForBox.height, radius: cylForBox.radius }),
+        ...boxEdgesAsCubics(boxForCurved.min, boxForCurved.max),
+      ],
+    },
+    {
+      name: "Intersection: Box × Cone (with HLR)",
+      width,
+      height,
+      camera: Camera.from({
+        kind: "perspective",
+        position: new Vec3(2.5, 1.8, 2.5),
+        target: new Vec3(0, 0, 0),
+        up: new Vec3(0, 1, 0),
+        fovYRad: (55 * Math.PI) / 180,
+        aspect: width / height,
+        near: 0.1,
+        far: 100,
+      }),
+      primitives: [boxForCurved, coneForBox],
+      includeIntersections: true,
+      curves: ({ camera }) => [
+        ...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: coneForBox.apex, axis: coneForBox.axis, height: coneForBox.height, baseRadius: coneForBox.baseRadius }),
+        ...boxEdgesAsCubics(boxForCurved.min, boxForCurved.max),
       ],
     },
   ];

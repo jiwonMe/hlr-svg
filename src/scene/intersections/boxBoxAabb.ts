@@ -17,7 +17,7 @@ export function intersectBoxAabbBoxAabb(a: BoxAabb, b: BoxAabb): CubicBezier3[] 
   return out;
 }
 
-function boxFacesAsPlaneRects(b: BoxAabb, tag: string): PlaneRect[] {
+export function boxFacesAsPlaneRects(b: BoxAabb, tag: string = ""): PlaneRect[] {
   const x0 = b.min.x, y0 = b.min.y, z0 = b.min.z;
   const x1 = b.max.x, y1 = b.max.y, z1 = b.max.z;
   const cx = (x0 + x1) / 2;
