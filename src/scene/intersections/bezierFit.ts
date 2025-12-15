@@ -155,7 +155,7 @@ function generateBezier(pts: Vec3[], u: number[], tanL: Vec3, tanR: Vec3, p: Bez
     alphaR = a;
   }
 
-  // overshoot 방지: 핸들이 지나치게 길어지면 곡선이 "튀는" 현상이 생긴다.
+  // Prevent overshoot: if handles become too long, curves "jump"
   const maxAlpha = Math.max(eps, segLen * p.maxAlphaFactor);
   alphaL = clamp(alphaL, eps, maxAlpha);
   alphaR = clamp(alphaR, eps, maxAlpha);

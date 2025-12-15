@@ -117,7 +117,7 @@ export function buildDemoCases(): DemoCase[] {
       width,
       height,
       camera: cam,
-      // coaxial 설정으로 교선이 확실히 생기도록 별도 원뿔을 사용
+      // Use a separate cone with coaxial configuration to ensure intersection curves are generated
       primitives: [
         cyl,
         new Cone("coneCC", new Vec3(-2.0, -1.0, -0.2), new Vec3(0, 1, 0), 2.2, 1.4, "base"),

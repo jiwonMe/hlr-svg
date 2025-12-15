@@ -1,4 +1,4 @@
-import { Vec3 } from "../../../dist/index.js";
+import { Vec3 } from "../../../dist/math/vec3.js";
 
 export type OrbitState = {
   target: Vec3;

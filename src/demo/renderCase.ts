@@ -15,9 +15,9 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
   const scene = new Scene(demo.primitives, demo.camera);
 
   const cubics = demo.curves({ camera: demo.camera, primitives: demo.primitives });
-  // 규칙: rim은 항상 세트로 포함 (Cylinder: base+top, Cone: base)
+  // Rule: rims are always included as a set (Cylinder: base+top, Cone: base)
   cubics.push(...rimsForPrimitives(demo.primitives));
-  // PlaneRect는 border(외곽선)도 항상 포함
+  // PlaneRect also always includes border (outline)
   cubics.push(...bordersForPrimitives(demo.primitives));
   const ownedIntersections = demo.includeIntersections
     ? intersectionCurvesToOwnedCubics(scene.primitives, { angularSamples: 160 })
@@ -37,7 +37,7 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
     pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, scene, params, x.ignorePrimitiveIds));
   }
 
-  // solid가 dashed 위로 오도록
+  // Place solid above dashed
   const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
 
   return piecesToSvg(sorted, demo.camera, {

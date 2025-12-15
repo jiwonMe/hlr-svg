@@ -3,10 +3,10 @@ import type { Primitive } from "../scene/primitive.js";
 import { Scene as RaycastScene } from "../scene/scene.js";
 
 /**
- * three.js 스타일로 쓰기 위한 사용자용 Scene.
+ * User-facing Scene for three.js style usage.
  *
- * - 기존 내부 알고리즘은 `scene/scene.ts`의 `Scene(primitives, camera)`를 사용한다.
- * - 이 래퍼는 primitives만 관리하고, 렌더링 시점에 camera를 받아 내부 Scene을 만든다.
+ * - The existing internal algorithm uses `Scene(primitives, camera)` from `scene/scene.ts`.
+ * - This wrapper only manages primitives and creates an internal Scene at render time with the camera.
  */
 export class Scene {
   private _primitives: Primitive[];
@@ -34,7 +34,7 @@ export class Scene {
     return this;
   }
 
-  /** 내부 가시성/레이캐스트용 Scene으로 변환 */
+  /** Convert to internal Scene for visibility/raycasting */
   toRaycastScene(camera: Camera): RaycastScene {
     return new RaycastScene(this._primitives, camera);
   }

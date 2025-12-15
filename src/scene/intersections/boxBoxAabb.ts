@@ -27,7 +27,7 @@ function boxFacesAsPlaneRects(b: BoxAabb, tag: string): PlaneRect[] {
   const hy = (y1 - y0) / 2;
   const hz = (z1 - z0) / 2;
 
-  // 각 face는 PlaneRect로 모델링한다.
+  // Each face is modeled as a PlaneRect.
   // - x face: in-plane axes are (y,z)
   // - y face: in-plane axes are (x,z)
   // - z face: in-plane axes are (x,y)

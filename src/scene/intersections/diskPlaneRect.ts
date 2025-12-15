@@ -12,7 +12,7 @@ export function intersectDiskPlaneRect(d: Disk, r: PlaneRect): CubicBezier3[] {
   const dirRaw = Vec3.cross(n0, n1);
   const dirLenSq = Vec3.lenSq(dirRaw);
 
-  // parallel (coplanar 포함)
+  // parallel (including coplanar)
   if (dirLenSq <= 1e-12) {
     const planeDist = Math.abs(Vec3.dot(n1, Vec3.sub(d.center, r.center)));
     if (planeDist > 1e-6) return [];
@@ -85,7 +85,7 @@ function slab1D(x0: number, dx: number, half: number): { tMin: number; tMax: num
 }
 
 function intersectCoplanarDiskRect(d: Disk, r: PlaneRect): CubicBezier3[] {
-  // 교선 = "원(림) ∩ 사각 패치" => 원을 샘플링하고 rect 안쪽만 이어서 cubic으로 피팅
+  // Intersection = "circle (rim) ∩ rectangular patch" => sample the circle and connect only inside rect, then fit to cubic
   const n = Vec3.normalize(r.normal);
   const { u, v } = basisFromAxis(n);
   const N = 260;

@@ -32,9 +32,9 @@ export function intersectDiskDisk(d0: Disk, d1: Disk): CubicBezier3[] {
   const dirRaw = Vec3.cross(n0, n1);
   const dirLenSq = Vec3.lenSq(dirRaw);
   if (dirLenSq <= 1e-12) {
-    // parallel (coplanar 포함)
+    // parallel (including coplanar)
     const planeDist = Math.abs(Vec3.dot(n0, Vec3.sub(d1.center, d0.center)));
-    if (planeDist > 1e-6) return []; // 서로 다른 평면 -> 교선/교점 없음
+    if (planeDist > 1e-6) return []; // Different planes -> no intersection/intersection points
     return intersectCoplanarDisksAsCircleCircle(d0, d1);
   }
 
@@ -71,8 +71,8 @@ function clipLineToDisk(x0: Vec3, dir: Vec3, d: Disk): { tMin: number; tMax: num
 }
 
 function intersectCoplanarDisksAsCircleCircle(d0: Disk, d1: Disk): CubicBezier3[] {
-  // 같은 평면 위의 두 원(림)의 교점(0/1/2)을 찾아 "마커(짧은 십자 세그먼트)"로 출력한다.
-  // 전부 cubic(C)로 출력하기 위해 lineToCubic3로 짧은 선분 2개를 만든다.
+  // Find intersection points (0/1/2) of two circles (rims) on the same plane and output as "markers (short cross segments)".
+  // Create 2 short line segments with lineToCubic3 to output everything as cubic(C).
   const n = Vec3.normalize(d0.normal);
   const { u, v } = basisFromAxis(n);
 
@@ -86,7 +86,7 @@ function intersectCoplanarDisksAsCircleCircle(d0: Disk, d1: Disk): CubicBezier3[
   const y = Vec3.dot(dc, v);
   const dist = Math.hypot(x, y);
 
-  // coincident circles -> infinite intersections: 여기서는 마커를 만들 수 없으니 생략
+  // coincident circles -> infinite intersections: cannot create markers here, so skip
   if (dist <= 1e-9 && Math.abs(r0 - r1) <= 1e-9) return [];
   if (dist > r0 + r1 + 1e-7) return [];
   if (dist < Math.abs(r0 - r1) - 1e-7) return [];
@@ -101,7 +101,7 @@ function intersectCoplanarDisksAsCircleCircle(d0: Disk, d1: Disk): CubicBezier3[
   const py = a * ey;
 
   const base = Vec3.add(c0, Vec3.add(Vec3.mulScalar(u, px), Vec3.mulScalar(v, py)));
-  const markerSize = 0.03 * Math.max(0.1, Math.min(r0, r1)); // 씬 스케일에 따라 너무 작지 않게
+  const markerSize = 0.03 * Math.max(0.1, Math.min(r0, r1)); // Not too small according to scene scale
 
   if (Math.abs(h2) <= 1e-8) {
     // tangent: 1 point

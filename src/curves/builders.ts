@@ -109,11 +109,11 @@ export function cylinderGeneratorsToCubics3(opts: {
   axis: Vec3; // any length, will be normalized
   height: number;
   radius: number;
-  cameraPos: Vec3; // world-space (perspective에서도 안정적으로 동작)
+  cameraPos: Vec3; // world-space (works stably in perspective as well)
 }): CubicBezier3[] {
   const a = Vec3.normalize(opts.axis);
 
-  // 카메라를 axis line에 직교 투영한 뒤, axis에 수직한 반지름 방향을 구한다.
+  // Orthogonally project camera onto axis line, then find radius direction perpendicular to axis
   const baseToCam = Vec3.sub(opts.cameraPos, opts.base);
   const s = Vec3.dot(baseToCam, a);
   const closestOnAxis = Vec3.add(opts.base, Vec3.mulScalar(a, s));
@@ -139,7 +139,7 @@ export function coneGeneratorsToCubics3(opts: {
   axis: Vec3; // any length, will be normalized (apex -> base)
   height: number;
   baseRadius: number;
-  cameraPos: Vec3; // world-space (perspective에서도 안정적으로 동작)
+  cameraPos: Vec3; // world-space (works stably in perspective as well)
 }): CubicBezier3[] {
   const a = Vec3.normalize(opts.axis);
   const apexToCam = Vec3.sub(opts.cameraPos, opts.apex);

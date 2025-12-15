@@ -31,7 +31,7 @@ export type RenderOptions = {
   include?: RenderInclude;
   hlr?: Partial<HlrParams>;
   intersections?: Partial<IntersectionParams>;
-  curves?: readonly CubicBezier3[]; // 사용자 커브(추가)
+  curves?: readonly CubicBezier3[]; // User curves (additional)
 };
 
 export const DEFAULT_HLR_PARAMS: HlrParams = {
@@ -57,7 +57,7 @@ function defaultInclude(): Required<RenderInclude> {
 }
 
 /**
- * three.js 스타일:
+ * three.js style:
  *
  * ```ts
  * const renderer = new SvgRenderer({ width: 800, height: 600 })
@@ -82,13 +82,13 @@ export class SvgRenderer {
     const primitives = scene.primitives;
     const cubics: CubicBezier3[] = [];
 
-    // 1) primitives에서 자동 생성되는 커브들(실루엣/림/보더/박스엣지)
+    // 1) Curves automatically generated from primitives (silhouettes/rims/borders/box edges)
     cubics.push(...curvesFromPrimitives(primitives, camera, include));
 
-    // 2) 사용자가 추가로 주는 커브
+    // 2) Curves provided by the user
     if (opts.curves) cubics.push(...opts.curves);
 
-    // 3) 교선(owned intersections): 참여 프리미티브는 visibility ray에서 부분적으로 무시한다.
+    // 3) Intersection curves (owned intersections): participating primitives are partially ignored in visibility rays
     const ownedIntersections = include.intersections
       ? intersectionCurvesToOwnedCubics(primitives, { angularSamples: ix.angularSamples })
       : [];
@@ -101,7 +101,7 @@ export class SvgRenderer {
       pieces.push(...splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds));
     }
 
-    // solid가 dashed 위로 오도록
+    // Place solid above dashed
     const sorted = [...pieces].sort((a, b) => Number(a.visible) - Number(b.visible));
 
     const svgOpts: SvgRenderOptions = {

@@ -40,7 +40,7 @@ export function intersectionCurvesToOwnedCubics(
 ): OwnedIntersectionCubic3[] {
   const out: OwnedIntersectionCubic3[] = [];
 
-  // Rim(캡)은 평면 디스크로도 취급: cap disk끼리 부딪히면 교선(선분)을 생성
+  // Rims (caps) are also treated as planar disks: when cap disks collide, generate intersection curves (line segments)
   const capDisks = derivedCapDisks(primitives);
   for (let i = 0; i < capDisks.length; i++) {
     for (let j = i + 1; j < capDisks.length; j++) {
@@ -51,14 +51,14 @@ export function intersectionCurvesToOwnedCubics(
     }
   }
 
-  // Rim(캡 디스크) / PlaneRect(유한 평면) × 곡면 교선 생성
+  // Generate Rim (cap disk) / PlaneRect (finite plane) × surface intersection curves
   const planeRects = primitives.filter((p): p is PlaneRect => p instanceof PlaneRect);
   const explicitDisks = primitives.filter((p): p is Disk => p instanceof Disk);
   const planeSurfaces: Array<Disk | PlaneRect> = [...capDisks, ...explicitDisks, ...planeRects];
   const curved = primitives.filter((p): p is Sphere | Cylinder | Cone => p instanceof Sphere || p instanceof Cylinder || p instanceof Cone);
   out.push(...planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved) as OwnedPlaneSurfaceCubic3[]);
 
-  // Disk(림) × PlaneRect 교선 (plane과 rim)
+  // Disk (rim) × PlaneRect intersections (plane and rim)
   const allDisks: Disk[] = [...capDisks, ...explicitDisks];
   for (const d of allDisks) {
     for (const r of planeRects) {
@@ -67,7 +67,7 @@ export function intersectionCurvesToOwnedCubics(
     }
   }
 
-  // PlaneRect × BoxAabb 교선 (plane과 cube)
+  // PlaneRect × BoxAabb intersections (plane and cube)
   const boxes = primitives.filter((p): p is BoxAabb => p instanceof BoxAabb);
   for (const r of planeRects) {
     for (const b of boxes) {
@@ -76,7 +76,7 @@ export function intersectionCurvesToOwnedCubics(
     }
   }
 
-  // BoxAabb × BoxAabb 교선 (cube와 cube)
+  // BoxAabb × BoxAabb intersections (cube and cube)
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const a = boxes[i]!;

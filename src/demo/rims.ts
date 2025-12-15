@@ -10,7 +10,7 @@ export function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier
 
   for (const p of primitives) {
     if (p instanceof Cylinder) {
-      // 원기둥 rim은 항상 base/top 두 개를 세트로
+      // Cylinder rims are always included as a set of base/top
       out.push(...circleToCubics3({ center: p.base, normal: p.axis, radius: p.radius }));
       out.push(
         ...circleToCubics3({
@@ -23,7 +23,7 @@ export function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier
     }
 
     if (p instanceof Cone) {
-      // 원뿔 rim은 항상 base 한 개(캡이 없더라도 “기하적 림”은 의미가 있어 세트 규칙으로 추가)
+      // Cone rim is always base (one) (even if there's no cap, "geometric rim" has meaning, so added as a set rule)
       const baseCenter = Vec3.add(p.apex, Vec3.mulScalar(p.axis, p.height));
       out.push(...circleToCubics3({ center: baseCenter, normal: p.axis, radius: p.baseRadius }));
       continue;

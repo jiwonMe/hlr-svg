@@ -1,112 +1,206 @@
-# hlr
+# hlr-svg
 
-TypeScript로 작성된 **3D → 2D SVG(Bezier) 렌더러**입니다.
+A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HLR) / Hidden Curve Removal (HCR) support. All curves are output as cubic Bezier curves, enabling accurate representation of visible and hidden line segments.
 
-- **입력**: `Scene`에 primitive를 `add()`로 추가 + `SvgRenderer.render(scene, camera)`
-- **출력**: SVG 문자열 (`<path d="M ... C ...">`만 사용)
-- **HLR/HCR**: 가시 구간은 **실선**, 비가시 구간은 **점선(`stroke-dasharray`)**
-- **곡선 분할**: “전체를 통째로 점선”이 아니라, **가시성이 바뀌는 지점에서만 베지어를 분할**
-- **교선**: 곡면×곡면, 곡면×평면, plane×cube, cube×cube 등 **교선을 생성하고 베지어로 출력**
+## Features
 
-## 빠른 시작
+- **HLR/HCR**: Automatically determines which curve segments are visible and renders them as solid/dashed lines
+- **Multiple Primitives**: Supports Sphere, Cylinder, Cone, BoxAabb, PlaneRect, and Disk
+- **Intersection Curves**: Computes intersection curves between overlapping primitives
+- **Silhouette Generation**: Automatically generates silhouette curves for curved surfaces
+- **three.js-style API**: Familiar API design similar to three.js
+- **SVG Output**: All curves are output as SVG cubic Bezier paths
 
-### 1) npm 설치
+## Installation
 
 ```bash
-npm install hlr
+npm install
 ```
 
-### 2) 사용 예시(풀 스크립트)
+## Quick Start
 
-```ts
-import { Camera, Scene, SvgRenderer, Vec3, Sphere, Cylinder, Cone, BoxAabb } from "hlr";
+```typescript
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr-svg";
 
-const width = 800;
-const height = 600;
+// Create a scene with primitives
+const scene = new Scene();
+scene.add(new Sphere("sphere1", new Vec3(0, 0, 0), 1));
 
+// Create a camera
 const camera = Camera.from({
   kind: "perspective",
-  position: new Vec3(3.2, 2.2, 4.5),
+  position: new Vec3(3, 2, 4),
   target: new Vec3(0, 0, 0),
   up: new Vec3(0, 1, 0),
-  fovYRad: (55 * Math.PI) / 180,
-  aspect: width / height,
+  fovYRad: Math.PI / 4,
+  aspect: 16 / 9,
   near: 0.1,
   far: 100,
 });
 
-const scene = new Scene()
-  .add(new Sphere("sphere", new Vec3(0, 0, 0), 1))
-  .add(new Cylinder("cyl", new Vec3(-2.0, -1.0, -0.2), new Vec3(0, 1, 0), 2.2, 0.7, "both"))
-  .add(new Cone("cone", new Vec3(1.8, -1.0, -0.3), new Vec3(0, 1, 0), 2.2, 0.9, "base"))
-  .add(new BoxAabb("box", new Vec3(-0.8, -0.8, 1.4), new Vec3(0.6, 0.6, 2.8)));
-
+// Render to SVG
 const renderer = new SvgRenderer({
-  width,
-  height,
-  background: true,
-  style: {
-    strokeWidthVisible: 1.8,
-    strokeWidthHidden: 1.8,
-    dashArrayHidden: "4 4",
-    opacityHidden: 0.5,
-    lineCap: "butt",
-  },
+  width: 800,
+  height: 600,
 });
 
 const svg = renderer.render(scene, camera);
 console.log(svg);
 ```
 
-### 3) 커브를 추가로 얹기(선/원호/직접 만든 cubic)
+## Supported Primitives
 
-```ts
-import { Camera, Scene, SvgRenderer, Vec3, lineToCubic3 } from "hlr";
+- **Sphere**: `new Sphere(id, center, radius)`
+- **Cylinder**: `new Cylinder(id, base, axis, height, radius, caps)`
+- **Cone**: `new Cone(id, apex, axis, height, baseRadius, caps)`
+- **BoxAabb**: `new BoxAabb(id, min, max)`
+- **PlaneRect**: `new PlaneRect(id, center, normal, u, halfWidth, halfHeight)`
+- **Disk**: `new Disk(id, center, normal, radius)`
 
-const renderer = new SvgRenderer({ width: 800, height: 600, background: true });
+## API Overview
 
-const svg = renderer.render(scene, camera, {
-  curves: [lineToCubic3(new Vec3(-2, 0, 0), new Vec3(2, 0, 0))],
+### Scene
+
+```typescript
+const scene = new Scene();
+scene.add(new Sphere("s1", center, radius));
+scene.add(new Cylinder("c1", base, axis, height, radius, "both"));
+```
+
+### Camera
+
+```typescript
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(x, y, z),
+  target: new Vec3(x, y, z),
+  up: new Vec3(0, 1, 0),
+  fovYRad: Math.PI / 4,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
 });
 ```
 
-### 4) 레포에서 데모 실행(정적 SVG / Web)
+### SvgRenderer
 
-> npm 패키지(`hlr`)에는 demo 코드가 포함되지 않습니다.  
-> 데모는 이 저장소에서 실행하세요.
+```typescript
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  background: true,
+  style: {
+    strokeWidthVisible: 2,
+    strokeWidthHidden: 1.5,
+    dashArrayHidden: "4 4",
+  },
+  include: {
+    silhouettes: true,
+    rims: true,
+    borders: true,
+    boxEdges: true,
+    intersections: true,
+  },
+});
 
-#### 4-1) CLI(정적 SVG 생성)
-
-```bash
-cd /Users/jiwon/Workspace/jiwonme/hlr-svg
-npm install
-npm run build
-
-# 단일 케이스 출력
-node dist/demo/main.js --case "Intersection: Cone × Cone (with HLR)" > conxcone.svg
-
-# 전체 케이스를 HTML로 출력
-node dist/demo/main.js --all > demo.html
+const svg = renderer.render(scene, camera);
 ```
 
-#### 4-2) Web demo(React + Vite)
+## Rendering Options
 
-web demo는 런타임(드래그/애니메이션/POV 슬라이더/스타일 패널)을 포함합니다.
+### Include Options
+
+Control which curves are automatically generated:
+
+- `silhouettes`: Silhouette curves for spheres, cylinders, and cones
+- `rims`: Rim circles for cylinders and cones
+- `borders`: Border outlines for PlaneRect
+- `boxEdges`: All 12 edges for BoxAabb
+- `intersections`: Intersection curves between overlapping primitives
+
+### HLR Parameters
+
+Fine-tune visibility detection:
+
+```typescript
+renderer.render(scene, camera, {
+  hlr: {
+    samples: 192,        // Number of samples for visibility detection
+    refineIters: 22,     // Bisection refinement iterations
+    epsVisible: 2e-4,    // Epsilon for visibility raycasting
+    cutEps: 1e-6,        // Epsilon for transition point deduplication
+    minSegLenSq: 1e-6,   // Minimum segment length squared
+  },
+});
+```
+
+### Custom Curves
+
+Add your own curves to the scene:
+
+```typescript
+import { lineToCubic3 } from "hlr-svg";
+
+const customCurve = lineToCubic3(
+  new Vec3(0, 0, 0),
+  new Vec3(1, 1, 1)
+);
+
+renderer.render(scene, camera, {
+  curves: [customCurve],
+});
+```
+
+## Build & Development
+
+### Build
 
 ```bash
-cd /Users/jiwon/Workspace/jiwonme/hlr-svg
-npm install
 npm run build
+```
+
+### Run Demo
+
+```bash
+# Build first
+npm run build
+
+# Run single demo case
+npm run demo
+
+# Run all demo cases
+npm run demo:all
+```
+
+### Web Demo
+
+```bash
+# Development server
 npm run web:dev
+
+# Build for production
+npm run web:build
+
+# Preview production build
+npm run web:preview
 ```
 
-> web은 `dist/index.js`(라이브러리 엔트리)를 import해서 렌더링합니다.  
-> TS 소스 변경 후에는 `npm run build`로 `dist/`를 갱신해야 web에서 반영됩니다.
+## Architecture
 
-## 디렉토리 안내(도메인 지식 문서)
+The library is organized into several key modules:
 
-- `src/hlr/README.md`: **가시성 판정 / 베지어 분할(HLR/HCR)** 설계와 epsilon 전략
-- `src/curves/README.md`: **3D cubic 베지어**, 원/원호→cubic 변환, **구/원기둥/원뿔 실루엣**
-- `src/scene/intersections/README.md`: **교선 생성(곡면×곡면/평면×곡면/plane×cube/cube×cube)** + 베지어 피팅
+- **`core/`**: User-facing API (Scene, SvgRenderer)
+- **`scene/`**: Internal scene representation and raycasting
+- **`curves/`**: Cubic Bezier utilities and curve builders
+- **`hlr/`**: Hidden line removal logic
+- **`intersections/`**: Intersection curve computation
+- **`svg/`**: SVG output generation
 
+For detailed design notes, see:
+- [`src/curves/README.md`](src/curves/README.md) - Curve generation and Bezier utilities
+- [`src/hlr/README.md`](src/hlr/README.md) - HLR/HCR implementation
+- [`src/scene/intersections/README.md`](src/scene/intersections/README.md) - Intersection curve computation
 
+## License
+
+Private project.
