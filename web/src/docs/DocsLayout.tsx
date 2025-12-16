@@ -32,8 +32,8 @@ export function DocsLayout(): React.ReactElement {
           "hidden md:flex md:flex-col",
           // 너비
           "w-60 shrink-0",
-          // 배경 (흰색)
-          "bg-white",
+          // 배경 (zinc-50)
+          "bg-[hsl(240,4.8%,95.9%)]",
           // 보더
           "border-r border-[hsl(220,13%,91%)]",
           // 높이
@@ -64,8 +64,8 @@ export function DocsLayout(): React.ReactElement {
             className={cn(
               // 위치
               "fixed inset-y-0 left-0 z-50",
-              // 배경
-              "bg-white",
+              // 배경 (zinc-50)
+              "bg-[hsl(240,4.8%,95.9%)]",
               // 너비
               "w-60",
               // 모바일에서만
@@ -104,29 +104,13 @@ export function DocsLayout(): React.ReactElement {
           className={cn(
             // 플렉스
             "flex-1",
-            // 배경 (연한 회색)
-            "bg-[hsl(220,14%,96%)]",
+            // 배경 (흰색)
+            "bg-white",
             // 오버플로우
             "overflow-y-auto"
           )}
         >
-          {/* 카드 컨테이너 */}
-          <div
-            className={cn(
-              // 마진
-              "m-5",
-              // 배경 (흰색)
-              "bg-white",
-              // 라운드
-              "rounded-lg",
-              // 그림자
-              "shadow-sm",
-              // 최소 높이
-              "min-h-[calc(100vh-5.5rem)]"
-            )}
-          >
-            <Outlet />
-          </div>
+          <Outlet />
         </main>
       </div>
     </div>

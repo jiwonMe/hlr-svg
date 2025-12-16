@@ -89,7 +89,7 @@ export function DocsSidebar({
               // 라운드
               "rounded-md",
               // 호버
-              "hover:bg-[hsl(220,14%,96%)]",
+              "hover:bg-white",
               // 트랜지션
               "transition-colors"
             )}
@@ -161,7 +161,7 @@ export function DocsSidebar({
                               // 색상
                               "text-[hsl(220,9%,35%)]",
                               // 호버
-                              "hover:bg-[hsl(220,14%,96%)]",
+                              "hover:bg-white",
                               "hover:text-[hsl(220,9%,18%)]"
                             )
                       )
