@@ -187,6 +187,7 @@ export function LandingPage(): React.ReactElement {
 
   const svg = useMemo(
     () => renderCaseToSvgString(runtimeDemo, {
+      background: false,
       svgStyle: {
         strokeWidthVisible: 2,
         strokeWidthHidden: 2,
@@ -270,13 +271,35 @@ export function LandingPage(): React.ReactElement {
       onPointerUp={handlePointerUp}
       onWheel={handleWheel}
     >
-      {/* Background SVG */}
+      {/* Background with dotted grid */}
       <div
         className={cn(
           // Full coverage
           "absolute inset-0",
           // Background color
-          "bg-white"
+          "bg-white",
+          // Z-index to ensure it's below SVG
+          "z-0"
+        )}
+        style={{
+          backgroundImage: `
+            radial-gradient(circle, rgba(0, 0, 0, 0.15) 1px, transparent 1px)
+          `,
+          backgroundSize: "20px 20px",
+          backgroundPosition: "0 0",
+        }}
+      />
+
+      {/* Background SVG */}
+      <div
+        data-svg-container
+        className={cn(
+          // Full coverage
+          "absolute inset-0",
+          // Z-index to ensure it's above grid
+          "z-10",
+          // Ensure no background
+          "bg-transparent"
         )}
         dangerouslySetInnerHTML={{ __html: svg }}
         style={{
@@ -286,7 +309,7 @@ export function LandingPage(): React.ReactElement {
 
       {/* Make SVG fill viewport */}
       <style>{`
-        .relative > div:first-child svg {
+        [data-svg-container] svg {
           width: 100vw;
           height: 100vh;
           display: block;
@@ -301,7 +324,9 @@ export function LandingPage(): React.ReactElement {
           // Flex centering
           "flex flex-col items-center justify-center",
           // Pointer events for children only
-          "pointer-events-none"
+          "pointer-events-none",
+          // Z-index to ensure it's above SVG
+          "z-20"
         )}
       >
         {/* Title */}

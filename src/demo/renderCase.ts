@@ -14,6 +14,7 @@ export type RenderCaseSvgOptions = {
   profiler?: Profiler;
   hlr?: Partial<HlrParams>;
   intersections?: { angularSamples?: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
+  background?: boolean;
 };
 
 export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions = {}): string {
@@ -70,6 +71,7 @@ export function renderCaseToSvgString(demo: DemoCase, opts: RenderCaseSvgOptions
   const out = piecesToSvg(sorted, demo.camera, {
     width: demo.width,
     height: demo.height,
+    background: opts.background,
     style: {
       strokeWidthVisible: 1.8,
       strokeWidthHidden: 1.8,
