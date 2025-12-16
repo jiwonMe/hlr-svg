@@ -68,7 +68,7 @@ function createRandomPrimitives(count: number) {
 
   for (let i = 0; i < count; i++) {
     const type = types[Math.floor(Math.random() * types.length)]!;
-    const pos = randomVec3(-2, 2);
+    const pos = randomVec3(-4, 4);
     const id = `prim_${i}`;
 
     if (type === "sphere") {
@@ -90,7 +90,7 @@ function createRandomPrimitives(count: number) {
 }
 
 function createRandomDemoCase(): DemoCase {
-  const count = Math.floor(randomFloat(3, 6));
+  const count = Math.floor(randomFloat(7, 13));
   const primitives = createRandomPrimitives(count);
 
   const width = typeof window !== "undefined" ? window.innerWidth : 1920;
