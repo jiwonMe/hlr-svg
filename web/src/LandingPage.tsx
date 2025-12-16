@@ -90,7 +90,7 @@ function createRandomPrimitives(count: number) {
 }
 
 function createRandomDemoCase(): DemoCase {
-  const count = Math.floor(randomFloat(4, 8));
+  const count = Math.floor(randomFloat(7, 11));
   const primitives = createRandomPrimitives(count);
 
   const width = typeof window !== "undefined" ? window.innerWidth : 1920;
@@ -195,6 +195,9 @@ export function LandingPage(): React.ReactElement {
         strokeColorVisible: "#000000",
         strokeColorHidden: "#000000",
         opacityHidden: 0.4,
+      },
+      hlr: {
+        coarseSamples: 12,
       },
     }),
     [runtimeDemo]
