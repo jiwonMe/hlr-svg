@@ -28,6 +28,10 @@ yarn-error.log*
 coverage/
 *.log
 
-# End Generation Here
-```
+# Temporary files
+_tmp_*.svg
+
+# Build outputs
+demo.svg
+
 .vercel

@@ -58,7 +58,6 @@ File: `web/src/Viewer.tsx`
 ### Run the web demo
 
 ```bash
-cd /Users/jiwon/Workspace/jiwonme/hlr-svg
 npm run build
 npm run web:dev
 ```

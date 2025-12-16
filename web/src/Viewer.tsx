@@ -124,8 +124,11 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     const text = formatProfileReport(profiled.report);
     setProfileText(text);
     // 한 번에 보기 좋게 콘솔에도 찍어둔다(렌더 1회마다 1로그)
-    // eslint-disable-next-line no-console
-    console.log(`[hlr-svg profile] ${demo.name}\n${text}`);
+    // 개발 모드에서만 콘솔 출력
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.log(`[hlr-svg profile] ${demo.name}\n${text}`);
+    }
   }, [demo.name, profileOn, profiled.report]);
 
   return (

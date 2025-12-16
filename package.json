@@ -1,8 +1,35 @@
 {
   "name": "hlr",
   "version": "0.1.1",
+  "description": "A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HLR) / Hidden Curve Removal (HCR) support",
   "private": false,
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jiwonMe/hlr-svg.git"
+  },
+  "homepage": "https://github.com/jiwonMe/hlr-svg#readme",
+  "bugs": {
+    "url": "https://github.com/jiwonMe/hlr-svg/issues"
+  },
+  "keywords": [
+    "svg",
+    "3d",
+    "hidden-line-removal",
+    "hlr",
+    "hcr",
+    "bezier",
+    "curves",
+    "rendering"
+  ],
+  "license": "MIT",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "demo": "node dist/demo/main.js",

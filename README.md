@@ -203,4 +203,4 @@ For detailed design notes, see:
 
 ## License
 
-Private project.
+MIT License - see [LICENSE](LICENSE) file for details.
