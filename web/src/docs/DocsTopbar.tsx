@@ -54,6 +54,13 @@ export function DocsTopbar({
     setLocaleMenuOpen(false);
     if (newLocale === currentLocale) return;
 
+    // examples 라우트인 경우 exampleId 유지
+    if (slug === "examples" || slug?.startsWith("examples/")) {
+      const exampleId = slug === "examples" ? "" : slug.replace("examples/", "");
+      navigate(exampleId ? `/docs/${newLocale}/examples/${exampleId}` : `/docs/${newLocale}/examples`);
+      return;
+    }
+
     // 현재 slug가 있으면 같은 slug로, 없으면 quickstart로 이동
     const targetSlug = slug || "quickstart";
     navigate(`/docs/${newLocale}/${targetSlug}`);

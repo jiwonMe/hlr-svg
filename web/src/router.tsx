@@ -4,6 +4,8 @@ import { LandingPage } from "./LandingPage";
 import { DocsLayout } from "./docs/DocsLayout";
 import { MdxDocPage } from "./docs/MdxDocPage";
 import { DEFAULT_LOCALE } from "./docs/mdxRegistry";
+import { DocsExamplesIndexPage } from "./docs/examples/DocsExamplesIndexPage";
+import { DocsExamplePage } from "./docs/examples/DocsExamplePage";
 
 /**
  * 앱 라우트 정의
@@ -27,13 +29,16 @@ export function AppRoutes(): React.ReactElement {
             <Navigate to={`/docs/${DEFAULT_LOCALE}/quickstart`} replace />
           }
         />
-        {/* /docs/:locale 접근 시 quickstart로 리다이렉트 */}
-        <Route
-          path=":locale"
-          element={<Navigate to="../quickstart" replace relative="route" />}
-        />
-        {/* 동적 locale과 slug 라우트 */}
-        <Route path=":locale/:slug" element={<MdxDocPage />} />
+        {/* locale별 라우트 */}
+        <Route path=":locale">
+          {/* examples 인덱스/상세 (index와 slug 매칭보다 먼저!) */}
+          <Route path="examples" element={<DocsExamplesIndexPage />} />
+          <Route path="examples/:exampleId" element={<DocsExamplePage />} />
+          {/* 동적 slug 라우트 (index보다 먼저 매칭되도록) */}
+          <Route path=":slug" element={<MdxDocPage />} />
+          {/* /docs/:locale 접근 시 quickstart로 리다이렉트 (가장 마지막) */}
+          <Route index element={<Navigate to="../quickstart" replace relative="route" />} />
+        </Route>
       </Route>
 
       {/* 404 fallback → 랜딩으로 */}

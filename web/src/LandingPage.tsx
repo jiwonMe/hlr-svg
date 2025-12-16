@@ -90,7 +90,7 @@ function createRandomPrimitives(count: number) {
 }
 
 function createRandomDemoCase(): DemoCase {
-  const count = Math.floor(randomFloat(7, 13));
+  const count = Math.floor(randomFloat(4, 8));
   const primitives = createRandomPrimitives(count);
 
   const width = typeof window !== "undefined" ? window.innerWidth : 1920;
