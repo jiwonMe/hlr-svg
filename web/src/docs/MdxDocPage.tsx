@@ -7,13 +7,12 @@ import { cn } from "../lib/utils";
 
 /**
  * MDX 문서 페이지 컴포넌트
- * URL의 :slug 파라미터로 해당 MDX 문서를 렌더링
+ * flex 디자인 시스템 스타일 적용
  */
 export function MdxDocPage(): React.ReactElement {
   const { slug } = useParams<{ slug: string }>();
   const doc = slug ? getDocBySlug(slug) : undefined;
 
-  // 문서를 찾지 못한 경우 quickstart로 리다이렉트
   if (!doc) {
     return <Navigate to="/docs/quickstart" replace />;
   }
@@ -23,22 +22,20 @@ export function MdxDocPage(): React.ReactElement {
   return (
     <article
       className={cn(
-        // 최대 너비 및 가운데 정렬
-        "max-w-4xl mx-auto",
+        // 최대 너비
+        "max-w-3xl",
         // 패딩
-        "px-6 py-8",
-        // 타이포그래피 기본
-        "text-foreground"
+        "px-8 py-10"
       )}
     >
       {/* 문서 헤더 */}
-      <header className={cn("mb-8", "border-b border-border", "pb-6")}>
+      <header className={cn("mb-8")}>
         <h1
           className={cn(
             // 타이포그래피
-            "text-3xl font-bold tracking-tight",
+            "text-2xl font-semibold tracking-tight",
             // 색상
-            "text-foreground",
+            "text-[hsl(220,9%,18%)]",
             // 마진
             "mb-2"
           )}
@@ -49,9 +46,9 @@ export function MdxDocPage(): React.ReactElement {
           <p
             className={cn(
               // 타이포그래피
-              "text-lg",
+              "text-base",
               // 색상
-              "text-muted-foreground"
+              "text-[hsl(220,9%,46%)]"
             )}
           >
             {frontmatter.description}
@@ -61,12 +58,7 @@ export function MdxDocPage(): React.ReactElement {
 
       {/* MDX 콘텐츠 */}
       <MDXProvider components={mdxComponents}>
-        <div
-          className={cn(
-            // prose 스타일 대체 (직접 구현)
-            "space-y-4"
-          )}
-        >
+        <div>
           <Component />
         </div>
       </MDXProvider>

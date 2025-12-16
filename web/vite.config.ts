@@ -11,11 +11,14 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// GitHub Pages용 base path (환경변수로 오버라이드 가능)
+const base = process.env.GITHUB_ACTIONS ? "/hlr-svg/" : "/";
+
 export default defineConfig({
   // repoRoot/web 를 Vite root로 사용 (index.html 기준)
   root: __dirname,
-  // GitHub Pages 호환을 위해 상대 경로 base 사용
-  base: "./",
+  // GitHub Pages: /hlr-svg/, 로컬: /
+  base,
   plugins: [
     // MDX 플러그인 (React보다 먼저 등록)
     mdx({

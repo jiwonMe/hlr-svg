@@ -9,7 +9,7 @@ type MdxComponentProps = {
 
 /**
  * MDX 컴포넌트 스타일 매핑
- * MDXProvider에 전달하여 MDX 콘텐츠의 기본 요소들을 스타일링
+ * flex 디자인 시스템 스타일 적용
  */
 export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
   // 헤딩
@@ -17,11 +17,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <h1
       className={cn(
         // 타이포그래피
-        "text-3xl font-bold tracking-tight",
+        "text-2xl font-semibold tracking-tight",
         // 마진
         "mt-8 mb-4 first:mt-0",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,18%)]",
         className
       )}
     >
@@ -33,13 +33,13 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <h2
       className={cn(
         // 타이포그래피
-        "text-2xl font-semibold tracking-tight",
+        "text-xl font-semibold tracking-tight",
         // 마진
-        "mt-8 mb-4",
+        "mt-10 mb-4",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,18%)]",
         // 보더
-        "border-b border-border pb-2",
+        "border-b border-[hsl(220,13%,91%)] pb-3",
         className
       )}
     >
@@ -51,11 +51,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <h3
       className={cn(
         // 타이포그래피
-        "text-xl font-semibold",
+        "text-lg font-semibold",
         // 마진
-        "mt-6 mb-3",
+        "mt-8 mb-3",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,18%)]",
         className
       )}
     >
@@ -67,11 +67,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <h4
       className={cn(
         // 타이포그래피
-        "text-lg font-semibold",
+        "text-base font-semibold",
         // 마진
-        "mt-4 mb-2",
+        "mt-6 mb-2",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,18%)]",
         className
       )}
     >
@@ -84,11 +84,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <p
       className={cn(
         // 타이포그래피
-        "text-base leading-7",
+        "text-[15px] leading-7",
         // 마진
         "my-4",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,35%)]",
         className
       )}
     >
@@ -105,11 +105,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <a
       className={cn(
         // 색상
-        "text-primary",
-        // 언더라인
-        "underline underline-offset-4",
+        "text-[hsl(152,69%,35%)]",
         // 호버
-        "hover:text-primary/80",
+        "hover:text-[hsl(152,69%,25%)]",
+        // 언더라인
+        "hover:underline underline-offset-4",
         // 트랜지션
         "transition-colors",
         className
@@ -157,9 +157,9 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <li
       className={cn(
         // 타이포그래피
-        "text-base leading-7",
+        "text-[15px] leading-7",
         // 색상
-        "text-foreground",
+        "text-[hsl(220,9%,35%)]",
         className
       )}
     >
@@ -168,44 +168,41 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
   ),
 
   // 코드
-  code: ({ children, className }) => {
-    // 인라인 코드 (pre 내부가 아닌 경우)
-    return (
-      <code
-        className={cn(
-          // 배경
-          "bg-muted",
-          // 패딩
-          "px-1.5 py-0.5",
-          // 라운드
-          "rounded-md",
-          // 타이포그래피
-          "text-sm",
-          // 색상
-          "text-foreground",
-          className
-        )}
-      >
-        {children}
-      </code>
-    );
-  },
+  code: ({ children, className }) => (
+    <code
+      className={cn(
+        // 배경
+        "bg-[hsl(220,14%,96%)]",
+        // 패딩
+        "px-1.5 py-0.5",
+        // 라운드
+        "rounded",
+        // 타이포그래피
+        "text-[14px]",
+        // 색상
+        "text-[hsl(220,9%,30%)]",
+        className
+      )}
+    >
+      {children}
+    </code>
+  ),
 
   pre: ({ children, className }) => (
     <pre
       className={cn(
         // 배경
-        "bg-muted",
+        "bg-[hsl(220,14%,96%)]",
         // 패딩
         "p-4",
         // 라운드
         "rounded-lg",
         // 마진
-        "my-4",
+        "my-5",
         // 오버플로우
         "overflow-x-auto",
         // 타이포그래피
-        "text-sm",
+        "text-[14px] leading-6",
         className
       )}
     >
@@ -218,19 +215,13 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <blockquote
       className={cn(
         // 보더
-        "border-l-4 border-primary",
+        "border-l-4 border-[hsl(152,69%,41%)]",
         // 패딩
-        "pl-4 py-2",
+        "pl-4 py-1",
         // 마진
-        "my-4",
-        // 배경
-        "bg-muted/50",
-        // 라운드
-        "rounded-r-md",
-        // 이탤릭
-        "italic",
+        "my-5",
         // 색상
-        "text-muted-foreground",
+        "text-[hsl(220,9%,46%)]",
         className
       )}
     >
@@ -240,20 +231,18 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
 
   // 수평선
   hr: ({ className }) => (
-    <hr className={cn("my-8", "border-border", className)} />
+    <hr className={cn("my-8", "border-[hsl(220,13%,91%)]", className)} />
   ),
 
   // 테이블
   table: ({ children, className }) => (
-    <div className={cn("my-4", "overflow-x-auto")}>
+    <div className={cn("my-5", "overflow-x-auto")}>
       <table
         className={cn(
           // 너비
           "w-full",
-          // 보더
-          "border-collapse border border-border",
           // 타이포그래피
-          "text-sm",
+          "text-[14px]",
           className
         )}
       >
@@ -262,17 +251,27 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     </div>
   ),
 
+  thead: ({ children, className }) => (
+    <thead
+      className={cn(
+        // 보더
+        "border-b border-[hsl(220,13%,91%)]",
+        className
+      )}
+    >
+      {children}
+    </thead>
+  ),
+
   th: ({ children, className }) => (
     <th
       className={cn(
         // 패딩
-        "px-4 py-2",
-        // 보더
-        "border border-border",
-        // 배경
-        "bg-muted",
+        "px-4 py-3",
         // 텍스트
-        "text-left font-semibold",
+        "text-left font-medium",
+        // 색상
+        "text-[hsl(220,9%,35%)]",
         className
       )}
     >
@@ -284,9 +283,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     <td
       className={cn(
         // 패딩
-        "px-4 py-2",
+        "px-4 py-3",
         // 보더
-        "border border-border",
+        "border-b border-[hsl(220,13%,91%)]",
+        // 색상
+        "text-[hsl(220,9%,35%)]",
         className
       )}
     >
@@ -296,7 +297,11 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
 
   // 강조
   strong: ({ children, className }) => (
-    <strong className={cn("font-semibold", className)}>{children}</strong>
+    <strong
+      className={cn("font-semibold", "text-[hsl(220,9%,18%)]", className)}
+    >
+      {children}
+    </strong>
   ),
 
   em: ({ children, className }) => (
