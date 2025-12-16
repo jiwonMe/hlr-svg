@@ -9,6 +9,16 @@ interface DocsSidebarProps {
   onClose?: () => void;
 }
 
+/** 언어별 텍스트 */
+const SIDEBAR_TEXT = {
+  "ko-kr": {
+    noResults: "검색 결과가 없습니다.",
+  },
+  "en-us": {
+    noResults: "No results found.",
+  },
+} as const;
+
 /**
  * 문서 사이드바
  * flex 디자인 시스템 스타일 적용
@@ -24,6 +34,7 @@ export function DocsSidebar({
 
   const navGroups = getNavGroups(validLocale);
   const query = searchQuery.toLowerCase().trim();
+  const texts = SIDEBAR_TEXT[validLocale];
 
   const filteredGroups = navGroups
     .map((group) => ({
@@ -191,7 +202,7 @@ export function DocsSidebar({
               "text-[hsl(220,9%,46%)]"
             )}
           >
-            검색 결과가 없습니다.
+            {texts.noResults}
           </p>
         )}
       </nav>

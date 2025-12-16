@@ -199,10 +199,15 @@ export function LandingPage(): React.ReactElement {
     [runtimeDemo]
   );
 
-  const handleGenerate = useCallback(() => {
-    const newCase = createRandomDemoCase();
-    setDemoCase(newCase);
-    setPlaying(true);
+  // 5초마다 자동으로 새 케이스 생성
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newCase = createRandomDemoCase();
+      setDemoCase(newCase);
+      setPlaying(true);
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSaveSvg = useCallback(() => {
@@ -356,18 +361,6 @@ export function LandingPage(): React.ReactElement {
         {/* Buttons */}
         <div className={cn("flex flex-col items-center gap-2 pointer-events-auto")}>
           <div className={cn("flex items-center gap-3")}>
-            <Button
-              onClick={handleGenerate}
-              onPointerDown={(e) => e.stopPropagation()}
-              size="xl"
-              className={cn(
-                // Extra styling
-                "rounded-2xl",
-                "font-semibold tracking-wide"
-              )}
-            >
-              regenerate
-            </Button>
             <Button
               asChild
               variant="outline"

@@ -1,12 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { cn } from "../lib/utils";
+import { DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
 
 interface TocItem {
   id: string;
   text: string;
   level: number;
 }
+
+/** 언어별 텍스트 */
+const TOC_TEXT = {
+  "ko-kr": {
+    title: "목차",
+    loading: "로딩 중...",
+  },
+  "en-us": {
+    title: "Table of Contents",
+    loading: "Loading...",
+  },
+} as const;
 
 /**
  * 문서 목차 (Table of Contents)
@@ -16,7 +29,13 @@ export function DocsToc(): React.ReactElement {
   const [headings, setHeadings] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const location = useLocation();
+  const { locale } = useParams<{ locale: string }>();
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // locale이 유효한지 확인하고 기본값 설정
+  const validLocale: Locale =
+    locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
+  const texts = TOC_TEXT[validLocale];
 
   useEffect(() => {
     const scrollContainer = document.querySelector<HTMLElement>("#docs-scroll");
@@ -150,7 +169,7 @@ export function DocsToc(): React.ReactElement {
           "mb-3"
         )}
       >
-        목차
+        {texts.title}
       </h3>
       <nav>
         {headings.length === 0 ? (
@@ -162,7 +181,7 @@ export function DocsToc(): React.ReactElement {
               "text-[hsl(220,9%,46%)]"
             )}
           >
-            로딩 중...
+            {texts.loading}
           </p>
         ) : (
           <ul className={cn("space-y-1")}>

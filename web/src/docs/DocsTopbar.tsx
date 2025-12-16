@@ -17,6 +17,20 @@ const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
   { value: "en-us", label: "English" },
 ];
 
+/** 언어별 텍스트 */
+const TOPBAR_TEXT = {
+  "ko-kr": {
+    menuLabel: "메뉴 열기",
+    pageTitle: "Documentation",
+    searchPlaceholder: "문서 검색...",
+  },
+  "en-us": {
+    menuLabel: "Open menu",
+    pageTitle: "Documentation",
+    searchPlaceholder: "Search docs...",
+  },
+} as const;
+
 /**
  * 문서 상단 바
  * flex 디자인 시스템 스타일 적용
@@ -33,6 +47,7 @@ export function DocsTopbar({
   // locale이 유효한지 확인하고 기본값 설정
   const currentLocale: Locale =
     locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
+  const texts = TOPBAR_TEXT[currentLocale];
 
   /** 언어 변경 핸들러 */
   const handleLocaleChange = (newLocale: Locale) => {
@@ -77,7 +92,7 @@ export function DocsTopbar({
             // 트랜지션
             "transition-colors"
           )}
-          aria-label="메뉴 열기"
+          aria-label={texts.menuLabel}
         >
           <Menu className="w-5 h-5 text-[hsl(220,9%,35%)]" />
         </button>
@@ -93,7 +108,7 @@ export function DocsTopbar({
             "text-[hsl(220,9%,18%)]"
           )}
         >
-          Documentation
+          {texts.pageTitle}
         </span>
       </div>
 
@@ -121,7 +136,7 @@ export function DocsTopbar({
           />
           <input
             type="text"
-            placeholder="문서 검색..."
+            placeholder={texts.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className={cn(
