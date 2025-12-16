@@ -1,5 +1,10 @@
 import React from "react";
-import type { ComponentType, ReactNode, AnchorHTMLAttributes } from "react";
+import type {
+  AnchorHTMLAttributes,
+  HTMLAttributes,
+  ComponentType,
+  ReactNode,
+} from "react";
 import { cn } from "../lib/utils";
 
 type MdxComponentProps = {
@@ -7,14 +12,17 @@ type MdxComponentProps = {
   className?: string;
 };
 
+type HeadingProps = HTMLAttributes<HTMLHeadingElement> & MdxComponentProps;
+
 /**
  * MDX 컴포넌트 스타일 매핑
  * flex 디자인 시스템 스타일 적용
  */
-export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
+export const mdxComponents: Record<string, ComponentType<any>> = {
   // 헤딩
-  h1: ({ children, className }) => (
+  h1: ({ children, className, ...props }: HeadingProps) => (
     <h1
+      {...props}
       className={cn(
         // 타이포그래피
         "text-2xl font-semibold tracking-tight",
@@ -29,8 +37,9 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     </h1>
   ),
 
-  h2: ({ children, className }) => (
+  h2: ({ children, className, ...props }: HeadingProps) => (
     <h2
+      {...props}
       className={cn(
         // 타이포그래피
         "text-xl font-semibold tracking-tight",
@@ -47,8 +56,9 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     </h2>
   ),
 
-  h3: ({ children, className }) => (
+  h3: ({ children, className, ...props }: HeadingProps) => (
     <h3
+      {...props}
       className={cn(
         // 타이포그래피
         "text-lg font-semibold",
@@ -63,8 +73,9 @@ export const mdxComponents: Record<string, ComponentType<MdxComponentProps>> = {
     </h3>
   ),
 
-  h4: ({ children, className }) => (
+  h4: ({ children, className, ...props }: HeadingProps) => (
     <h4
+      {...props}
       className={cn(
         // 타이포그래피
         "text-base font-semibold",

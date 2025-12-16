@@ -18,8 +18,10 @@ export function DocsLayout(): React.ReactElement {
   return (
     <div
       className={cn(
-        // 전체 화면
-        "min-h-screen",
+        // 전체 화면 (main을 스크롤 컨테이너로 고정)
+        "h-screen",
+        // 바깥 스크롤 방지
+        "overflow-hidden",
         // 플렉스 레이아웃
         "flex"
       )}
@@ -88,7 +90,11 @@ export function DocsLayout(): React.ReactElement {
           // 플렉스
           "flex-1 flex flex-col",
           // 최소 너비
-          "min-w-0"
+          "min-w-0",
+          // 높이 고정
+          "h-screen",
+          // 내부에서만 스크롤
+          "overflow-hidden"
         )}
       >
         {/* 상단 바 */}
@@ -101,6 +107,7 @@ export function DocsLayout(): React.ReactElement {
 
         {/* 메인 콘텐츠 */}
         <main
+          id="docs-scroll"
           className={cn(
             // 플렉스
             "flex-1",
