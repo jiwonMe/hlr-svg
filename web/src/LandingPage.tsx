@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "./components/ui/button";
 import { Letter3DSwap } from "./components/ui/letter-3d-swap";
 import { cn } from "./lib/utils";
-import { Github } from "lucide-react";
+import { Github, BookOpen } from "lucide-react";
 
 import { Camera } from "../../dist/camera/camera.js";
 import { Vec3 } from "../../dist/math/vec3.js";
@@ -354,18 +355,38 @@ export function LandingPage(): React.ReactElement {
 
         {/* Buttons */}
         <div className={cn("flex flex-col items-center gap-2 pointer-events-auto")}>
-          <Button
-            onClick={handleGenerate}
-            onPointerDown={(e) => e.stopPropagation()}
-            size="xl"
-            className={cn(
-              // Extra styling
-              "rounded-2xl",
-              "font-semibold tracking-wide"
-            )}
-          >
-            regenerate
-          </Button>
+          <div className={cn("flex items-center gap-3")}>
+            <Button
+              onClick={handleGenerate}
+              onPointerDown={(e) => e.stopPropagation()}
+              size="xl"
+              className={cn(
+                // Extra styling
+                "rounded-2xl",
+                "font-semibold tracking-wide"
+              )}
+            >
+              regenerate
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="xl"
+              className={cn(
+                // Extra styling
+                "rounded-2xl",
+                "font-semibold tracking-wide"
+              )}
+            >
+              <Link
+                to="/docs/quickstart"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <BookOpen className="w-5 h-5" />
+                docs
+              </Link>
+            </Button>
+          </div>
           <Button
             onClick={handleSaveSvg}
             onPointerDown={(e) => e.stopPropagation()}

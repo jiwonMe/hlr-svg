@@ -39,6 +39,8 @@
     "web:preview": "vite preview --config web/vite.config.ts --port 4173"
   },
   "dependencies": {
+    "@mdx-js/react": "^3.1.1",
+    "@mdx-js/rollup": "^3.1.1",
     "@radix-ui/react-popover": "^1.1.5",
     "@radix-ui/react-slider": "^1.2.2",
     "@radix-ui/react-slot": "^1.2.4",
@@ -49,6 +51,12 @@
     "motion": "^12.23.26",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.10.1",
+    "rehype-autolink-headings": "^7.1.0",
+    "rehype-slug": "^6.0.0",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-mdx-frontmatter": "^5.2.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

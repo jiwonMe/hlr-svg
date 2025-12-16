@@ -1,4 +1,5 @@
 @import url('https://cdn.jsdelivr.net/npm/hack-font@3/build/web/hack.css');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 
 @import "tailwindcss";
 
@@ -25,6 +26,7 @@
 
   --font-sans: 'Hack', monospace;
   --font-display: 'Hack', monospace;
+  --font-docs: 'Pretendard', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
 
   --radius-lg: 0.75rem;
   --radius-md: calc(0.75rem - 2px);

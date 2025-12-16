@@ -1,0 +1,177 @@
+---
+title: Quick Start
+description: HLR.js를 설치하고 첫 번째 3D SVG를 렌더링하는 방법을 알아봅니다.
+group: Getting Started
+order: 1
+---
+
+## 설치
+
+npm 또는 yarn을 사용하여 설치할 수 있습니다:
+
+```bash
+npm install hlr
+```
+
+```bash
+yarn add hlr
+```
+
+## 기본 사용법
+
+HLR.js는 three.js와 유사한 API를 제공하여 쉽게 3D 장면을 구성하고 SVG로 렌더링할 수 있습니다.
+
+### 최소 예제
+
+다음은 구(Sphere)를 SVG로 렌더링하는 가장 간단한 예제입니다:
+
+```typescript
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+
+// 1. Scene 생성 및 도형 추가
+const scene = new Scene();
+scene.add(new Sphere("sphere1", new Vec3(0, 0, 0), 1));
+
+// 2. Camera 설정
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(3, 2, 4),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: Math.PI / 4,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+// 3. SvgRenderer로 렌더링
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+});
+
+const svg = renderer.render(scene, camera);
+console.log(svg); // SVG 문자열 출력
+```
+
+## 여러 도형 조합하기
+
+Scene에 여러 도형을 추가하면 HLR.js가 자동으로 교차선(intersection curves)을 계산하고,
+보이는 선과 숨겨진 선을 구분하여 렌더링합니다:
+
+```typescript
+import {
+  Scene,
+  Camera,
+  SvgRenderer,
+  Sphere,
+  Cylinder,
+  Cone,
+  BoxAabb,
+  Vec3,
+} from "hlr";
+
+const scene = new Scene();
+
+// 구
+scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
+
+// 원기둥
+scene.add(
+  new Cylinder(
+    "cylinder",
+    new Vec3(0, -1, 0),    // 밑면 중심
+    new Vec3(0, 1, 0),     // 축 방향
+    2,                      // 높이
+    0.6,                    // 반지름
+    "both"                  // 양쪽 뚜껑
+  )
+);
+
+// 원뿔
+scene.add(
+  new Cone(
+    "cone",
+    new Vec3(1.5, 1, 0),   // 꼭짓점
+    new Vec3(0, -1, 0),    // 축 방향 (아래로)
+    1.5,                    // 높이
+    0.8,                    // 밑면 반지름
+    "base"                  // 밑면만 뚜껑
+  )
+);
+
+// 박스
+scene.add(
+  new BoxAabb(
+    "box",
+    new Vec3(0, 0, 1),     // 최소 좌표
+    new Vec3(1, 1, 2)      // 최대 좌표
+  )
+);
+
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(5, 3.5, 6),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (50 * Math.PI) / 180,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+## 스타일 옵션
+
+보이는 선과 숨겨진 선의 스타일을 커스터마이징할 수 있습니다:
+
+```typescript
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  background: true,  // 배경 추가
+  style: {
+    // 보이는 선 스타일
+    strokeWidthVisible: 2,
+    strokeColorVisible: "#000000",
+    
+    // 숨겨진 선 스타일 (점선)
+    strokeWidthHidden: 1.5,
+    strokeColorHidden: "#000000",
+    dashArrayHidden: "4 4",
+    opacityHidden: 0.4,
+  },
+});
+```
+
+## 렌더링 옵션
+
+렌더링할 커브 종류를 선택적으로 포함/제외할 수 있습니다:
+
+```typescript
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  include: {
+    silhouettes: true,    // 실루엣 커브 (구, 원기둥, 원뿔)
+    rims: true,           // 뚜껑 원 (원기둥, 원뿔)
+    borders: true,        // PlaneRect 외곽선
+    boxEdges: true,       // BoxAabb 12개 엣지
+    intersections: true,  // 도형 간 교차선
+  },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+## 다음 단계
+
+- [API Reference](#/docs/api)에서 모든 클래스와 옵션을 확인하세요.
+- [GitHub](https://github.com/jiwonMe/hlr-svg)에서 소스 코드와 예제를 살펴보세요.
