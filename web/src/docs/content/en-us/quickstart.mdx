@@ -1,0 +1,176 @@
+---
+title: Quick Start
+description: Learn how to install HLR.js and render your first 3D SVG.
+group: Getting Started
+order: 1
+---
+
+## Installation
+
+You can install using npm or yarn:
+
+```bash
+npm install hlr
+```
+
+```bash
+yarn add hlr
+```
+
+## Basic Usage
+
+HLR.js provides a three.js-like API to easily compose 3D scenes and render them as SVG.
+
+### Minimal Example
+
+Here's the simplest example of rendering a Sphere as SVG:
+
+```typescript
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+
+// 1. Create Scene and add primitive
+const scene = new Scene();
+scene.add(new Sphere("sphere1", new Vec3(0, 0, 0), 1));
+
+// 2. Setup Camera
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(3, 2, 4),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: Math.PI / 4,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+// 3. Render with SvgRenderer
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+});
+
+const svg = renderer.render(scene, camera);
+console.log(svg); // Output SVG string
+```
+
+## Combining Multiple Primitives
+
+When you add multiple primitives to a Scene, HLR.js automatically calculates intersection curves and distinguishes between visible and hidden lines:
+
+```typescript
+import {
+  Scene,
+  Camera,
+  SvgRenderer,
+  Sphere,
+  Cylinder,
+  Cone,
+  BoxAabb,
+  Vec3,
+} from "hlr";
+
+const scene = new Scene();
+
+// Sphere
+scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
+
+// Cylinder
+scene.add(
+  new Cylinder(
+    "cylinder",
+    new Vec3(0, -1, 0),    // base center
+    new Vec3(0, 1, 0),     // axis direction
+    2,                      // height
+    0.6,                    // radius
+    "both"                  // both caps
+  )
+);
+
+// Cone
+scene.add(
+  new Cone(
+    "cone",
+    new Vec3(1.5, 1, 0),   // apex
+    new Vec3(0, -1, 0),    // axis direction (downward)
+    1.5,                    // height
+    0.8,                    // base radius
+    "base"                  // base cap only
+  )
+);
+
+// Box
+scene.add(
+  new BoxAabb(
+    "box",
+    new Vec3(0, 0, 1),     // min coordinates
+    new Vec3(1, 1, 2)      // max coordinates
+  )
+);
+
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(5, 3.5, 6),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (50 * Math.PI) / 180,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+## Style Options
+
+You can customize the styles of visible and hidden lines:
+
+```typescript
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  background: true,  // Add background
+  style: {
+    // Visible line styles
+    strokeWidthVisible: 2,
+    strokeColorVisible: "#000000",
+    
+    // Hidden line styles (dashed)
+    strokeWidthHidden: 1.5,
+    strokeColorHidden: "#000000",
+    dashArrayHidden: "4 4",
+    opacityHidden: 0.4,
+  },
+});
+```
+
+## Rendering Options
+
+You can selectively include/exclude curve types to render:
+
+```typescript
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  include: {
+    silhouettes: true,    // Silhouette curves (Sphere, Cylinder, Cone)
+    rims: true,           // Cap circles (Cylinder, Cone)
+    borders: true,        // PlaneRect outlines
+    boxEdges: true,       // BoxAabb 12 edges
+    intersections: true,  // Intersection curves between primitives
+  },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+## Next Steps
+
+- Check out all classes and options in the [API Reference](#/docs/en-us/api).
+- Explore the source code and examples on [GitHub](https://github.com/jiwonMe/hlr-svg).

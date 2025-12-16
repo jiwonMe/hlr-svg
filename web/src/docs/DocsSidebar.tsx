@@ -1,7 +1,7 @@
 import React from "react";
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useParams } from "react-router-dom";
 import { cn } from "../lib/utils";
-import { getNavGroups } from "./mdxRegistry";
+import { getNavGroups, DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
 import { X } from "lucide-react";
 
 interface DocsSidebarProps {
@@ -17,7 +17,12 @@ export function DocsSidebar({
   searchQuery = "",
   onClose,
 }: DocsSidebarProps): React.ReactElement {
-  const navGroups = getNavGroups();
+  const { locale } = useParams<{ locale: string }>();
+  // locale이 유효한지 확인하고 기본값 설정
+  const validLocale: Locale =
+    locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
+
+  const navGroups = getNavGroups(validLocale);
   const query = searchQuery.toLowerCase().trim();
 
   const filteredGroups = navGroups
@@ -131,7 +136,7 @@ export function DocsSidebar({
               {group.items.map((item) => (
                 <li key={item.slug}>
                   <NavLink
-                    to={`/docs/${item.slug}`}
+                    to={`/docs/${validLocale}/${item.slug}`}
                     onClick={onClose}
                     className={({ isActive }) =>
                       cn(

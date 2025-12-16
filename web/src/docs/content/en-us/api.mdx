@@ -1,0 +1,335 @@
+---
+title: API Reference
+description: Detailed reference for all classes, functions, and types in HLR.js.
+group: Reference
+order: 10
+---
+
+## Core
+
+### Scene
+
+Container for 3D primitives.
+
+```typescript
+import { Scene } from "hlr";
+
+const scene = new Scene();
+
+// Add primitive
+scene.add(primitive);
+
+// Remove primitive
+scene.remove(primitive);
+
+// Get all primitives
+const primitives = scene.primitives;
+```
+
+### Camera
+
+Defines a camera. Currently only Perspective camera is supported.
+
+```typescript
+import { Camera, Vec3 } from "hlr";
+
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(3, 2, 4),  // Camera position
+  target: new Vec3(0, 0, 0),    // Look-at point
+  up: new Vec3(0, 1, 0),        // Up direction
+  fovYRad: Math.PI / 4,         // Vertical field of view (radians)
+  aspect: 16 / 9,               // Aspect ratio
+  near: 0.1,                    // Near plane
+  far: 100,                     // Far plane
+});
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `kind` | `"perspective"` | Camera type |
+| `position` | `Vec3` | Camera world coordinates |
+| `target` | `Vec3` | Look-at point |
+| `up` | `Vec3` | Up direction vector |
+| `fovYRad` | `number` | Vertical field of view (radians) |
+| `aspect` | `number` | Screen width/height ratio |
+| `near` | `number` | Near plane distance |
+| `far` | `number` | Far plane distance |
+
+### SvgRenderer
+
+Takes a Scene and Camera and generates an SVG string.
+
+```typescript
+import { SvgRenderer } from "hlr";
+
+const renderer = new SvgRenderer({
+  width: 800,
+  height: 600,
+  background: true,
+  style: { /* ... */ },
+  include: { /* ... */ },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+#### SvgRenderer Constructor Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `width` | `number` | Required | SVG width (px) |
+| `height` | `number` | Required | SVG height (px) |
+| `background` | `boolean` | `false` | Whether to add background rect |
+| `style` | `object` | - | Line style options |
+| `include` | `object` | - | Curve types to render |
+
+#### style Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `strokeWidthVisible` | `number` | `2` | Visible line width |
+| `strokeColorVisible` | `string` | `"#000"` | Visible line color |
+| `strokeWidthHidden` | `number` | `1.5` | Hidden line width |
+| `strokeColorHidden` | `string` | `"#000"` | Hidden line color |
+| `dashArrayHidden` | `string` | `"4 4"` | Hidden line dash pattern |
+| `opacityHidden` | `number` | `0.4` | Hidden line opacity |
+
+#### include Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `silhouettes` | `boolean` | `true` | Sphere, Cylinder, Cone silhouettes |
+| `rims` | `boolean` | `true` | Cylinder, Cone cap circles |
+| `borders` | `boolean` | `true` | PlaneRect outlines |
+| `boxEdges` | `boolean` | `true` | BoxAabb 12 edges |
+| `intersections` | `boolean` | `true` | Intersection curves between primitives |
+
+---
+
+## Primitives
+
+### Sphere
+
+Sphere primitive.
+
+```typescript
+import { Sphere, Vec3 } from "hlr";
+
+const sphere = new Sphere(
+  "my-sphere",           // id
+  new Vec3(0, 0, 0),     // center
+  1.5                     // radius
+);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Unique identifier |
+| `center` | `Vec3` | Center coordinates |
+| `radius` | `number` | Radius |
+
+### Cylinder
+
+Cylinder primitive.
+
+```typescript
+import { Cylinder, Vec3 } from "hlr";
+
+const cylinder = new Cylinder(
+  "my-cylinder",         // id
+  new Vec3(0, -1, 0),    // base (base center)
+  new Vec3(0, 1, 0),     // axis (axis direction, no need to normalize)
+  2,                      // height
+  0.5,                    // radius
+  "both"                  // caps ("none" | "top" | "base" | "both")
+);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Unique identifier |
+| `base` | `Vec3` | Base center coordinates |
+| `axis` | `Vec3` | Axis direction vector |
+| `height` | `number` | Height |
+| `radius` | `number` | Radius |
+| `caps` | `"none" \| "top" \| "base" \| "both"` | Cap options |
+
+### Cone
+
+Cone primitive.
+
+```typescript
+import { Cone, Vec3 } from "hlr";
+
+const cone = new Cone(
+  "my-cone",             // id
+  new Vec3(0, 2, 0),     // apex
+  new Vec3(0, -1, 0),    // axis (axis direction, from apex to base)
+  2,                      // height
+  1,                      // baseRadius
+  "base"                  // caps ("none" | "base")
+);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Unique identifier |
+| `apex` | `Vec3` | Apex coordinates |
+| `axis` | `Vec3` | Axis direction vector |
+| `height` | `number` | Height |
+| `baseRadius` | `number` | Base radius |
+| `caps` | `"none" \| "base"` | Base cap options |
+
+### BoxAabb
+
+Axis-Aligned Bounding Box.
+
+```typescript
+import { BoxAabb, Vec3 } from "hlr";
+
+const box = new BoxAabb(
+  "my-box",              // id
+  new Vec3(-1, -1, -1),  // min (minimum coordinates)
+  new Vec3(1, 1, 1)      // max (maximum coordinates)
+);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Unique identifier |
+| `min` | `Vec3` | Minimum coordinates (all x, y, z smaller) |
+| `max` | `Vec3` | Maximum coordinates (all x, y, z larger) |
+
+### PlaneRect
+
+Rectangular plane.
+
+```typescript
+import { PlaneRect, Vec3 } from "hlr";
+
+const plane = new PlaneRect(
+  "my-plane",            // id
+  new Vec3(0, 0, 0),     // center
+  new Vec3(0, 1, 0),     // normal (normal direction)
+  new Vec3(1, 0, 0),     // u (horizontal direction)
+  2,                      // halfWidth
+  1.5                     // halfHeight
+);
+```
+
+### Disk
+
+Disk primitive.
+
+```typescript
+import { Disk, Vec3 } from "hlr";
+
+const disk = new Disk(
+  "my-disk",             // id
+  new Vec3(0, 0, 0),     // center
+  new Vec3(0, 1, 0),     // normal (normal direction)
+  1.5                     // radius
+);
+```
+
+---
+
+## Math
+
+### Vec3
+
+3D vector class.
+
+```typescript
+import { Vec3 } from "hlr";
+
+// Create
+const v = new Vec3(1, 2, 3);
+
+// Static methods
+Vec3.add(a, b);           // Vector addition
+Vec3.sub(a, b);           // Vector subtraction
+Vec3.mulScalar(v, s);     // Scalar multiplication
+Vec3.dot(a, b);           // Dot product
+Vec3.cross(a, b);         // Cross product
+Vec3.normalize(v);        // Normalize
+Vec3.length(v);           // Length
+Vec3.lengthSq(v);         // Length squared
+Vec3.distance(a, b);      // Distance between two points
+```
+
+### Mat4
+
+4x4 matrix class. Mainly used internally.
+
+```typescript
+import { Mat4 } from "hlr";
+
+// Identity matrix
+const identity = Mat4.identity();
+
+// View matrix
+const view = Mat4.lookAt(eye, target, up);
+
+// Projection matrix
+const proj = Mat4.perspective(fovYRad, aspect, near, far);
+
+// Matrix multiplication
+const combined = Mat4.multiply(proj, view);
+```
+
+---
+
+## Advanced
+
+### HLR Parameter Tuning
+
+You can adjust the precision of visibility determination:
+
+```typescript
+const svg = renderer.render(scene, camera, {
+  hlr: {
+    samples: 192,       // Sampling count (↑ = precise, slow)
+    refineIters: 22,    // Bisection iteration count
+    epsVisible: 2e-4,   // Visibility determination epsilon
+    cutEps: 1e-6,       // Transition point deduplication epsilon
+    minSegLenSq: 1e-6,  // Minimum segment length squared
+  },
+});
+```
+
+### Adding Custom Curves
+
+You can add custom curves in addition to automatically generated silhouettes/intersections:
+
+```typescript
+import { lineToCubic3, Vec3 } from "hlr";
+
+// Convert line to Cubic Bezier
+const customLine = lineToCubic3(
+  new Vec3(0, 0, 0),
+  new Vec3(1, 1, 1)
+);
+
+const svg = renderer.render(scene, camera, {
+  curves: [customLine],
+});
+```
+
+---
+
+## TypeScript Types
+
+All types can be imported directly from the package:
+
+```typescript
+import type {
+  CameraParams,
+  SvgRendererOptions,
+  SvgStyle,
+  IncludeOptions,
+  HlrParams,
+  CubicBezier3,
+} from "hlr";
+```

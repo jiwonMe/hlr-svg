@@ -379,7 +379,7 @@ export function LandingPage(): React.ReactElement {
               )}
             >
               <Link
-                to="/docs/quickstart"
+                to="/docs"
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <BookOpen className="w-5 h-5" />

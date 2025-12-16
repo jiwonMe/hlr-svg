@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { MDXProvider } from "@mdx-js/react";
-import { getDocBySlug } from "./mdxRegistry";
+import { getDocBySlug, DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
 import { mdxComponents } from "./mdxComponents";
 import { DocsToc } from "./DocsToc";
 import { cn } from "../lib/utils";
@@ -11,11 +11,21 @@ import { cn } from "../lib/utils";
  * flex 디자인 시스템 스타일 적용
  */
 export function MdxDocPage(): React.ReactElement {
-  const { slug } = useParams<{ slug: string }>();
-  const doc = slug ? getDocBySlug(slug) : undefined;
+  const { locale, slug } = useParams<{
+    locale: string;
+    slug: string;
+  }>();
+
+  // locale이 유효한지 확인하고 기본값 설정
+  const validLocale: Locale =
+    locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
+
+  const doc = slug ? getDocBySlug(validLocale, slug) : undefined;
 
   if (!doc) {
-    return <Navigate to="/docs/quickstart" replace />;
+    return (
+      <Navigate to={`/docs/${validLocale}/quickstart`} replace />
+    );
   }
 
   const { Component, frontmatter } = doc;
