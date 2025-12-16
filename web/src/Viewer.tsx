@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Camera } from "../../dist/camera/camera.js";
 import { Vec3 } from "../../dist/math/vec3.js";
+import { Scene } from "../../dist/scene/scene.js";
 import { renderCaseToSvgString, renderCaseToSvgStringProfiled } from "../../dist/demo/renderCase.js";
 import type { DemoCase } from "../../dist/demo/types.js";
 import { formatProfileReport, type ProfileReport } from "../../dist/core/profiler.js";
@@ -63,6 +64,8 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const [drag, setDrag] = useState<null | { x: number; y: number; az: number; pol: number; id: number }>(null);
   const [dirty, setDirty] = useState(0);
   const tick = useRafTick(playing);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(null);
 
   // auto orbit
   useEffect(() => {
@@ -115,6 +118,40 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   }, [coarseSamples, profileOn, runtimeDemo, style, angularSamples, useBezierFit, fitMode]);
 
   const svg = profiled.svg;
+
+  // Scene for picking
+  const scene = useMemo(
+    () => new Scene(demo.primitives, camera),
+    [demo.primitives, camera],
+  );
+
+  // 클릭으로 객체 선택 (드래그와 구분하기 위해 이동 거리 체크)
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!clickStart) return;
+      const dx = e.clientX - clickStart.x;
+      const dy = e.clientY - clickStart.y;
+      // 5px 이상 이동하면 드래그로 간주
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return;
+
+      const el = wrapRef.current;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const ray = camera.screenToRay(x, y, demo.width, demo.height);
+      const hit = scene.raycastClosest(ray);
+
+      if (hit) {
+        setSelectedId(hit.primitiveId);
+      } else {
+        setSelectedId(null);
+      }
+    },
+    [camera, clickStart, demo.height, demo.width, scene],
+  );
 
   useEffect(() => {
     if (!profileOn || !profiled.report) {
@@ -180,8 +217,21 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
 
       <div className="viewerBar">
         <div className="viewerHint">
-          드래그: 회전 · 휠: {projection === "perspective" ? "줌(거리)" : "줌(스케일)"}
+          드래그: 회전 · 휠: {projection === "perspective" ? "줌(거리)" : "줌(스케일)"} · 클릭: 객체 선택
         </div>
+        {selectedId && (
+          <div className="selectedBadge">
+            <span className="selectedLabel">선택: {selectedId}</span>
+            <button
+              className="btnSmall"
+              type="button"
+              onClick={() => setSelectedId(null)}
+              title="선택 해제"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className="segmented" role="tablist" aria-label="투영 모드">
           <button
             className={projection === "perspective" ? "segBtn segBtnActive" : "segBtn"}
@@ -285,8 +335,10 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           const el = wrapRef.current;
           if (!el) return;
           el.setPointerCapture(e.pointerId);
+          setClickStart({ x: e.clientX, y: e.clientY });
           setDrag({ x: e.clientX, y: e.clientY, az: orbit.azimuth, pol: orbit.polar, id: e.pointerId });
         }}
+        onClick={handleClick}
         onPointerMove={(e) => {
           if (!drag) return;
           if (drag.id !== e.pointerId) return;

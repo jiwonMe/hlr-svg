@@ -1,5 +1,6 @@
 import { Mat4 } from "../math/mat4.js";
 import { Vec3 } from "../math/vec3.js";
+import type { Ray } from "../scene/ray.js";
 
 export type CameraKind = "perspective" | "orthographic";
 
@@ -38,6 +39,7 @@ export class Camera {
   readonly view: Mat4;
   readonly proj: Mat4;
   readonly viewProj: Mat4;
+  readonly viewProjInv: Mat4;
   readonly forward: Vec3; // world-space view direction
 
   private constructor(params: CameraParams) {
@@ -65,6 +67,8 @@ export class Camera {
             params.far,
           );
     this.viewProj = Mat4.mul(this.view, this.proj); // NOTE: we use mulVec4 with column-major; order handled in project()
+    const inv = Mat4.inverse(this.viewProj);
+    this.viewProjInv = inv ?? Mat4.identity();
   }
 
   static from(params: CameraParams): Camera {
@@ -84,6 +88,37 @@ export class Camera {
     const x = (ndc.x * 0.5 + 0.5) * width;
     const y = (1 - (ndc.y * 0.5 + 0.5)) * height;
     return { x, y, z: ndc.z };
+  }
+
+  /**
+   * 스크린 좌표(SVG 픽셀)를 월드 공간 레이로 변환
+   */
+  screenToRay(screenX: number, screenY: number, width: number, height: number): Ray {
+    // SVG 좌표 → NDC (-1 ~ 1)
+    const ndcX = (screenX / width) * 2 - 1;
+    const ndcY = 1 - (screenY / height) * 2;
+
+    if (this.kind === "perspective") {
+      // near plane과 far plane에서의 점을 unproject
+      const nearClip = Mat4.mulVec4(this.viewProjInv, [ndcX, ndcY, -1, 1]);
+      const farClip = Mat4.mulVec4(this.viewProjInv, [ndcX, ndcY, 1, 1]);
+
+      const nearW = nearClip[3] || 1;
+      const farW = farClip[3] || 1;
+
+      const nearWorld = new Vec3(nearClip[0] / nearW, nearClip[1] / nearW, nearClip[2] / nearW);
+      const farWorld = new Vec3(farClip[0] / farW, farClip[1] / farW, farClip[2] / farW);
+
+      const dir = Vec3.normalize(Vec3.sub(farWorld, nearWorld));
+      return { origin: this.position, dir };
+    }
+
+    // orthographic: 레이 원점은 near plane 위, 방향은 forward
+    const nearClip = Mat4.mulVec4(this.viewProjInv, [ndcX, ndcY, -1, 1]);
+    const w = nearClip[3] || 1;
+    const origin = new Vec3(nearClip[0] / w, nearClip[1] / w, nearClip[2] / w);
+
+    return { origin, dir: this.forward };
   }
 }
 

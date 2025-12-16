@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { cn } from "../../lib/utils";
 
 import { Camera } from "../../../../dist/camera/camera.js";
 import { Vec3 } from "../../../../dist/math/vec3.js";
+import { Scene } from "../../../../dist/scene/scene.js";
 import type { DemoCase } from "../../../../dist/demo/types.js";
 import { renderCaseToSvgString } from "../../../../dist/demo/renderCase.js";
 import {
@@ -33,7 +34,7 @@ const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
 const TEXT = {
   "ko-kr": {
     back: "Examples로",
-    hint: "드래그: 회전 · 휠: 줌",
+    hint: "드래그: 회전 · 휠: 줌 · 클릭: 객체 선택",
     github: "GitHub 코드",
     reset: "리셋",
     play: "재생",
@@ -43,10 +44,12 @@ const TEXT = {
     regen: "재생성",
     seed: "seed",
     planeTilt: "plane tilt",
+    selected: "선택",
+    deselect: "선택 해제",
   },
   "en-us": {
     back: "Back to Examples",
-    hint: "Drag: rotate · Wheel: zoom",
+    hint: "Drag: rotate · Wheel: zoom · Click: select object",
     github: "GitHub code",
     reset: "Reset",
     play: "Play",
@@ -56,6 +59,8 @@ const TEXT = {
     regen: "Regenerate",
     seed: "seed",
     planeTilt: "plane tilt",
+    selected: "Selected",
+    deselect: "Deselect",
   },
 } as const;
 
@@ -152,6 +157,42 @@ export function DocsExamplePage(): React.ReactElement {
   );
 
   const [drag, setDrag] = useState<null | { x: number; y: number; az: number; pol: number; id: number }>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(null);
+
+  // Scene for picking
+  const scene = useMemo(
+    () => new Scene(runtimeDemo.primitives, camera),
+    [runtimeDemo.primitives, camera],
+  );
+
+  // 클릭으로 객체 선택 (드래그와 구분)
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!clickStart) return;
+      const dx = e.clientX - clickStart.x;
+      const dy = e.clientY - clickStart.y;
+      // 5px 이상 이동하면 드래그로 간주
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return;
+
+      const el = wrapRef.current;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const ray = camera.screenToRay(x, y, runtimeDemo.width, runtimeDemo.height);
+      const hit = scene.raycastClosest(ray);
+
+      if (hit) {
+        setSelectedId(hit.primitiveId);
+      } else {
+        setSelectedId(null);
+      }
+    },
+    [camera, clickStart, runtimeDemo.height, runtimeDemo.width, scene],
+  );
 
   const info = ex.text[lang];
   const githubUrl = getGithubUrl(ex.githubPath);
@@ -436,6 +477,54 @@ export function DocsExamplePage(): React.ReactElement {
                   />
                 </div>
               ) : null}
+
+              {/* 선택된 객체 표시 */}
+              {selectedId && (
+                <div
+                  className={cn(
+                    // 레이아웃
+                    "flex items-center gap-2",
+                    // 패딩
+                    "px-3 py-1.5",
+                    // 보더
+                    "rounded-md",
+                    "border border-[hsl(152,69%,41%)]",
+                    // 배경
+                    "bg-[hsl(152,69%,97%)]"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      // 타이포그래피
+                      "text-sm font-medium",
+                      // 색상
+                      "text-[hsl(152,69%,35%)]"
+                    )}
+                  >
+                    {t.selected}: {selectedId}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(null)}
+                    className={cn(
+                      // 버튼
+                      "px-1.5 py-0.5",
+                      "rounded",
+                      // 타이포그래피
+                      "text-xs",
+                      // 색상
+                      "text-[hsl(152,69%,35%)]",
+                      // 호버
+                      "hover:bg-[hsl(152,69%,90%)]",
+                      // 트랜지션
+                      "transition-colors"
+                    )}
+                    title={t.deselect}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -462,9 +551,11 @@ export function DocsExamplePage(): React.ReactElement {
               const el = wrapRef.current;
               if (!el) return;
               el.setPointerCapture(e.pointerId);
+              setClickStart({ x: e.clientX, y: e.clientY });
               setDrag({ x: e.clientX, y: e.clientY, az: orbit.azimuth, pol: orbit.polar, id: e.pointerId });
               setPlaying(false);
             }}
+            onClick={handleClick}
             onPointerMove={(e) => {
               if (!drag || drag.id !== e.pointerId) return;
               const dx = e.clientX - drag.x;

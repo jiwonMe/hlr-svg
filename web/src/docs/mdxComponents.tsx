@@ -5,6 +5,7 @@ import type {
   ComponentType,
   ReactNode,
 } from "react";
+import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
 
 type MdxComponentProps = {
@@ -112,25 +113,45 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
   a: ({
     children,
     className,
+    href,
     ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a
-      className={cn(
-        // 색상
-        "text-[hsl(152,69%,35%)]",
-        // 호버
-        "hover:text-[hsl(152,69%,25%)]",
-        // 언더라인
-        "hover:underline underline-offset-4",
-        // 트랜지션
-        "transition-colors",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  }: AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    const linkClassName = cn(
+      // 색상
+      "text-[hsl(152,69%,35%)]",
+      // 호버
+      "hover:text-[hsl(152,69%,25%)]",
+      // 언더라인
+      "hover:underline underline-offset-4",
+      // 트랜지션
+      "transition-colors",
+      className
+    );
+
+    // 내부 링크 (/로 시작하고 외부 프로토콜이 아닌 경우)
+    const isInternalLink = href && href.startsWith("/") && !href.startsWith("//");
+
+    if (isInternalLink) {
+      return (
+        <Link to={href} className={linkClassName}>
+          {children}
+        </Link>
+      );
+    }
+
+    // 외부 링크
+    return (
+      <a
+        className={linkClassName}
+        href={href}
+        target={href?.startsWith("http") ? "_blank" : undefined}
+        rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
 
   // 리스트
   ul: ({ children, className }) => (
