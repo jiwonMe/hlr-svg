@@ -13,6 +13,7 @@ type MdxComponentProps = {
 };
 
 type HeadingProps = HTMLAttributes<HTMLHeadingElement> & MdxComponentProps;
+type CodeProps = HTMLAttributes<HTMLElement> & MdxComponentProps;
 
 /**
  * MDX 컴포넌트 스타일 매핑
@@ -179,46 +180,82 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
   ),
 
   // 코드
-  code: ({ children, className }) => (
-    <code
-      className={cn(
-        // 배경
-        "bg-[hsl(220,14%,96%)]",
-        // 패딩
-        "px-1.5 py-0.5",
-        // 라운드
-        "rounded",
-        // 타이포그래피
-        "text-[14px]",
-        // 색상
-        "text-[hsl(220,9%,30%)]",
-        className
-      )}
-    >
-      {children}
-    </code>
-  ),
+  code: ({ children, className, ...props }: CodeProps) => {
+    const dataLanguage = (props as Record<string, unknown>)["data-language"];
+    const dataTheme = (props as Record<string, unknown>)["data-theme"];
+    const isCodeFence =
+      // fenced code는 보통 language-* 클래스가 붙음
+      (typeof className === "string" && /(^|\s)language-/.test(className)) ||
+      // rehype-pretty-code는 data-language / data-theme 같은 속성을 붙여줌
+      typeof dataLanguage === "string" ||
+      typeof dataTheme === "string";
+
+    // 블록 코드(코드펜스)는 스타일을 pre에만 두고 code에는 붙이지 않음
+    if (isCodeFence) {
+      return (
+        <code {...props} className={cn(className)}>
+          {children}
+        </code>
+      );
+    }
+
+    // 인라인 코드는 기존 스타일 유지
+    return (
+      <code
+        {...props}
+        className={cn(
+          // 배경
+          "bg-[hsl(220,14%,96%)]",
+          // 패딩
+          "px-1.5 py-0.5",
+          // 라운드
+          "rounded",
+          // 타이포그래피
+          "text-[14px]",
+          // 색상
+          "text-[hsl(220,9%,30%)]",
+          className
+        )}
+      >
+        {children}
+      </code>
+    );
+  },
 
   pre: ({ children, className }) => (
     <pre
       className={cn(
-        // 배경
-        "bg-[hsl(220,14%,96%)]",
+        // 배경 (GitHub Dark)
+        "bg-[#0d1117]",
         // 패딩
         "p-4",
         // 라운드
         "rounded-lg",
-        // 마진
-        "my-5",
         // 오버플로우
         "overflow-x-auto",
         // 타이포그래피
         "text-[14px] leading-6",
+        // 기본 텍스트 (토큰 컬러는 shiki inline style이 덮어씀)
+        "text-[#c9d1d9]",
         className
       )}
     >
       {children}
     </pre>
+  ),
+
+  // rehype-pretty-code가 코드 블록을 figure로 감쌉니다 (기본 figure 마진 제거 + 간격 통일)
+  figure: ({ children, className, ...props }: HTMLAttributes<HTMLElement>) => (
+    <figure
+      {...props}
+      className={cn(
+        // 마진
+        "my-5",
+        className
+      )}
+    >
+      {children}
+    </figure>
   ),
 
   // 인용

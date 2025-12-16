@@ -6,6 +6,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
+import rehypePrettyCode from "rehype-pretty-code";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -38,6 +39,15 @@ export default defineConfig(({ command }) => {
           remarkMdxFrontmatter,
         ],
         rehypePlugins: [
+          // 코드 블록 하이라이팅 (Shiki) - GitHub Dark 테마
+          [
+            rehypePrettyCode,
+            {
+              theme: "github-dark",
+              // 테마 배경색을 유지 (GitHub Dark 배경)
+              keepBackground: true,
+            },
+          ],
           // 헤딩에 id 추가
           rehypeSlug,
           // 헤딩에 앵커 링크 추가
