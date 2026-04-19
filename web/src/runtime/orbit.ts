@@ -1,4 +1,4 @@
-import { Vec3 } from "../../../dist/math/vec3.js";
+import { Vec3 } from "@hlr/math/vec3.js";
 
 export type OrbitState = {
   target: Vec3;
@@ -26,5 +26,3 @@ export function orbitPosition(o: OrbitState): Vec3 {
 export function clamp(lo: number, x: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
 }
-
-

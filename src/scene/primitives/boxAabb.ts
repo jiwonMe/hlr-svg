@@ -35,10 +35,11 @@ export class BoxAabb implements Primitive {
       let tNear = (minA - o) * invD;
       let tFar = (maxA - o) * invD;
       let nNear = nMin;
-      let nFar = nMax;
       if (tNear > tFar) {
-        const tmp = tNear; tNear = tFar; tFar = tmp;
-        const tmpN = nNear; nNear = nFar; nFar = tmpN;
+        const tmp = tNear;
+        tNear = tFar;
+        tFar = tmp;
+        nNear = nMax;
       }
       if (tNear > t0) {
         t0 = tNear;
@@ -55,5 +56,3 @@ export class BoxAabb implements Primitive {
     return { t, point, normal: hitNormal, primitiveId: this.id };
   }
 }
-
-

@@ -7,14 +7,10 @@ order: 1
 
 ## 설치
 
-npm 또는 yarn을 사용하여 설치할 수 있습니다:
+pnpm으로 설치할 수 있습니다:
 
 ```bash
-npm install hlr
-```
-
-```bash
-yarn add hlr
+pnpm add hlr
 ```
 
 ## 기본 사용법
@@ -80,33 +76,33 @@ scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
 scene.add(
   new Cylinder(
     "cylinder",
-    new Vec3(0, -1, 0),    // 밑면 중심
-    new Vec3(0, 1, 0),     // 축 방향
-    2,                      // 높이
-    0.6,                    // 반지름
-    "both"                  // 양쪽 뚜껑
-  )
+    new Vec3(0, -1, 0), // 밑면 중심
+    new Vec3(0, 1, 0), // 축 방향
+    2, // 높이
+    0.6, // 반지름
+    "both", // 양쪽 뚜껑
+  ),
 );
 
 // 원뿔
 scene.add(
   new Cone(
     "cone",
-    new Vec3(1.5, 1, 0),   // 꼭짓점
-    new Vec3(0, -1, 0),    // 축 방향 (아래로)
-    1.5,                    // 높이
-    0.8,                    // 밑면 반지름
-    "base"                  // 밑면만 뚜껑
-  )
+    new Vec3(1.5, 1, 0), // 꼭짓점
+    new Vec3(0, -1, 0), // 축 방향 (아래로)
+    1.5, // 높이
+    0.8, // 밑면 반지름
+    "base", // 밑면만 뚜껑
+  ),
 );
 
 // 박스
 scene.add(
   new BoxAabb(
     "box",
-    new Vec3(0, 0, 1),     // 최소 좌표
-    new Vec3(1, 1, 2)      // 최대 좌표
-  )
+    new Vec3(0, 0, 1), // 최소 좌표
+    new Vec3(1, 1, 2), // 최대 좌표
+  ),
 );
 
 const camera = Camera.from({
@@ -136,15 +132,15 @@ const svg = renderer.render(scene, camera);
 const renderer = new SvgRenderer({
   width: 800,
   height: 600,
-  background: true,  // 배경 추가
+  background: true, // 배경 추가
   style: {
     // 보이는 선 스타일
     strokeWidthVisible: 2,
-    strokeColorVisible: "#000000",
-    
+    strokeVisible: "#000000",
+
     // 숨겨진 선 스타일 (점선)
     strokeWidthHidden: 1.5,
-    strokeColorHidden: "#000000",
+    strokeHidden: "#000000",
     dashArrayHidden: "4 4",
     opacityHidden: 0.4,
   },
@@ -160,11 +156,11 @@ const renderer = new SvgRenderer({
   width: 800,
   height: 600,
   include: {
-    silhouettes: true,    // 실루엣 커브 (구, 원기둥, 원뿔)
-    rims: true,           // 뚜껑 원 (원기둥, 원뿔)
-    borders: true,        // PlaneRect 외곽선
-    boxEdges: true,       // BoxAabb 12개 엣지
-    intersections: true,  // 도형 간 교차선
+    silhouettes: true, // 실루엣 커브 (구, 원기둥, 원뿔)
+    rims: true, // 뚜껑 원 (원기둥, 원뿔)
+    borders: true, // PlaneRect 외곽선
+    boxEdges: true, // BoxAabb 12개 엣지
+    intersections: true, // 도형 간 교차선
   },
 });
 

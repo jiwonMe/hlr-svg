@@ -61,7 +61,6 @@ export class Cylinder implements Primitive {
       // cap at top: plane (base + axis*height, axis)
       const top = Vec3.add(this.base, Vec3.mulScalar(this.axis, this.height));
       best = this.hitCap(ray, top, this.axis, tMin, bestT, best) ?? best;
-      if (best) bestT = best.t;
     }
 
     return best;
@@ -87,5 +86,3 @@ export class Cylinder implements Primitive {
     return { t, point: p, normal: n, primitiveId: this.id };
   }
 }
-
-

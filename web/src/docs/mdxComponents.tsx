@@ -32,7 +32,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "mt-8 mb-4 first:mt-0",
         // 색상
         "text-[hsl(220,9%,18%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -51,7 +51,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "text-[hsl(220,9%,18%)]",
         // 보더
         "border-b border-[hsl(220,13%,91%)] pb-3",
-        className
+        className,
       )}
     >
       {children}
@@ -68,7 +68,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "mt-8 mb-3",
         // 색상
         "text-[hsl(220,9%,18%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -85,7 +85,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "mt-6 mb-2",
         // 색상
         "text-[hsl(220,9%,18%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -102,7 +102,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "my-4",
         // 색상
         "text-[hsl(220,9%,35%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -125,11 +125,12 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
       "hover:underline underline-offset-4",
       // 트랜지션
       "transition-colors",
-      className
+      className,
     );
 
     // 내부 링크 (/로 시작하고 외부 프로토콜이 아닌 경우)
-    const isInternalLink = href && href.startsWith("/") && !href.startsWith("//");
+    const isInternalLink =
+      href && href.startsWith("/") && !href.startsWith("//");
 
     if (isInternalLink) {
       return (
@@ -163,7 +164,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "my-4 ml-6",
         // 간격
         "space-y-2",
-        className
+        className,
       )}
     >
       {children}
@@ -179,7 +180,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "my-4 ml-6",
         // 간격
         "space-y-2",
-        className
+        className,
       )}
     >
       {children}
@@ -193,7 +194,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "text-[15px] leading-7",
         // 색상
         "text-[hsl(220,9%,35%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -235,7 +236,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
           "text-[14px]",
           // 색상
           "text-[hsl(220,9%,30%)]",
-          className
+          className,
         )}
       >
         {children}
@@ -258,7 +259,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "text-[14px] leading-6",
         // 기본 텍스트 (토큰 컬러는 shiki inline style이 덮어씀)
         "text-[#c9d1d9]",
-        className
+        className,
       )}
     >
       {children}
@@ -272,7 +273,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
       className={cn(
         // 마진
         "my-5",
-        className
+        className,
       )}
     >
       {children}
@@ -291,7 +292,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "my-5",
         // 색상
         "text-[hsl(220,9%,46%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -312,7 +313,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
           "w-full",
           // 타이포그래피
           "text-[14px]",
-          className
+          className,
         )}
       >
         {children}
@@ -325,7 +326,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
       className={cn(
         // 보더
         "border-b border-[hsl(220,13%,91%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -341,7 +342,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "text-left font-medium",
         // 색상
         "text-[hsl(220,9%,35%)]",
-        className
+        className,
       )}
     >
       {children}
@@ -357,7 +358,7 @@ export const mdxComponents: Record<string, ComponentType<any>> = {
         "border-b border-[hsl(220,13%,91%)]",
         // 색상
         "text-[hsl(220,9%,35%)]",
-        className
+        className,
       )}
     >
       {children}

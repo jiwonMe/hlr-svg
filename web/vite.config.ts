@@ -26,6 +26,11 @@ export default defineConfig(({ command }) => {
     // repoRoot/web 를 Vite root로 사용 (index.html 기준)
     root: __dirname,
     base,
+    resolve: {
+      alias: {
+        "@hlr": path.resolve(__dirname, "../src"),
+      },
+    },
     plugins: [
       // MDX 플러그인 (React보다 먼저 등록)
       mdx({
@@ -77,11 +82,9 @@ export default defineConfig(({ command }) => {
     },
     server: {
       fs: {
-        // web/ 밖의 dist/를 import 해서 데모를 렌더링한다.
+        // web/ 밖의 src/를 직접 import 해서 데모를 렌더링한다.
         allow: [".."],
       },
     },
   };
 });
-
-

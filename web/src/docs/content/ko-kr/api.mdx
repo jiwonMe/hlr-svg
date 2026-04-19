@@ -35,26 +35,26 @@ import { Camera, Vec3 } from "hlr";
 
 const camera = Camera.from({
   kind: "perspective",
-  position: new Vec3(3, 2, 4),  // 카메라 위치
-  target: new Vec3(0, 0, 0),    // 바라보는 지점
-  up: new Vec3(0, 1, 0),        // 상단 방향
-  fovYRad: Math.PI / 4,         // 수직 시야각 (라디안)
-  aspect: 16 / 9,               // 화면 비율
-  near: 0.1,                    // 근평면
-  far: 100,                     // 원평면
+  position: new Vec3(3, 2, 4), // 카메라 위치
+  target: new Vec3(0, 0, 0), // 바라보는 지점
+  up: new Vec3(0, 1, 0), // 상단 방향
+  fovYRad: Math.PI / 4, // 수직 시야각 (라디안)
+  aspect: 16 / 9, // 화면 비율
+  near: 0.1, // 근평면
+  far: 100, // 원평면
 });
 ```
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
-| `kind` | `"perspective"` | 카메라 종류 |
-| `position` | `Vec3` | 카메라 월드 좌표 |
-| `target` | `Vec3` | 바라보는 지점 |
-| `up` | `Vec3` | 상단 방향 벡터 |
-| `fovYRad` | `number` | 수직 시야각 (라디안) |
-| `aspect` | `number` | 화면 가로/세로 비율 |
-| `near` | `number` | 근평면 거리 |
-| `far` | `number` | 원평면 거리 |
+| 속성       | 타입            | 설명                 |
+| ---------- | --------------- | -------------------- |
+| `kind`     | `"perspective"` | 카메라 종류          |
+| `position` | `Vec3`          | 카메라 월드 좌표     |
+| `target`   | `Vec3`          | 바라보는 지점        |
+| `up`       | `Vec3`          | 상단 방향 벡터       |
+| `fovYRad`  | `number`        | 수직 시야각 (라디안) |
+| `aspect`   | `number`        | 화면 가로/세로 비율  |
+| `near`     | `number`        | 근평면 거리          |
+| `far`      | `number`        | 원평면 거리          |
 
 ### SvgRenderer
 
@@ -67,8 +67,12 @@ const renderer = new SvgRenderer({
   width: 800,
   height: 600,
   background: true,
-  style: { /* ... */ },
-  include: { /* ... */ },
+  style: {
+    /* ... */
+  },
+  include: {
+    /* ... */
+  },
 });
 
 const svg = renderer.render(scene, camera);
@@ -76,34 +80,34 @@ const svg = renderer.render(scene, camera);
 
 #### SvgRenderer 생성자 옵션
 
-| 속성 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `width` | `number` | 필수 | SVG 너비 (px) |
-| `height` | `number` | 필수 | SVG 높이 (px) |
+| 속성         | 타입      | 기본값  | 설명                |
+| ------------ | --------- | ------- | ------------------- |
+| `width`      | `number`  | 필수    | SVG 너비 (px)       |
+| `height`     | `number`  | 필수    | SVG 높이 (px)       |
 | `background` | `boolean` | `false` | 배경 rect 추가 여부 |
-| `style` | `object` | - | 선 스타일 옵션 |
-| `include` | `object` | - | 렌더링할 커브 종류 |
+| `style`      | `object`  | -       | 선 스타일 옵션      |
+| `include`    | `object`  | -       | 렌더링할 커브 종류  |
 
 #### style 옵션
 
-| 속성 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `strokeWidthVisible` | `number` | `2` | 보이는 선 두께 |
-| `strokeColorVisible` | `string` | `"#000"` | 보이는 선 색상 |
-| `strokeWidthHidden` | `number` | `1.5` | 숨겨진 선 두께 |
-| `strokeColorHidden` | `string` | `"#000"` | 숨겨진 선 색상 |
-| `dashArrayHidden` | `string` | `"4 4"` | 숨겨진 선 점선 패턴 |
-| `opacityHidden` | `number` | `0.4` | 숨겨진 선 불투명도 |
+| 속성                 | 타입     | 기본값   | 설명                |
+| -------------------- | -------- | -------- | ------------------- |
+| `strokeWidthVisible` | `number` | `2`      | 보이는 선 두께      |
+| `strokeVisible`      | `string` | `"#000"` | 보이는 선 색상      |
+| `strokeWidthHidden`  | `number` | `1.5`    | 숨겨진 선 두께      |
+| `strokeHidden`       | `string` | `"#000"` | 숨겨진 선 색상      |
+| `dashArrayHidden`    | `string` | `"4 4"`  | 숨겨진 선 점선 패턴 |
+| `opacityHidden`      | `number` | `0.4`    | 숨겨진 선 불투명도  |
 
 #### include 옵션
 
-| 속성 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `silhouettes` | `boolean` | `true` | Sphere, Cylinder, Cone 실루엣 |
-| `rims` | `boolean` | `true` | Cylinder, Cone 뚜껑 원 |
-| `borders` | `boolean` | `true` | PlaneRect 외곽선 |
-| `boxEdges` | `boolean` | `true` | BoxAabb 12개 엣지 |
-| `intersections` | `boolean` | `true` | 도형 간 교차선 |
+| 속성            | 타입      | 기본값 | 설명                          |
+| --------------- | --------- | ------ | ----------------------------- |
+| `silhouettes`   | `boolean` | `true` | Sphere, Cylinder, Cone 실루엣 |
+| `rims`          | `boolean` | `true` | Cylinder, Cone 뚜껑 원        |
+| `borders`       | `boolean` | `true` | PlaneRect 외곽선              |
+| `boxEdges`      | `boolean` | `true` | BoxAabb 12개 엣지             |
+| `intersections` | `boolean` | `true` | 도형 간 교차선                |
 
 ---
 
@@ -117,17 +121,17 @@ const svg = renderer.render(scene, camera);
 import { Sphere, Vec3 } from "hlr";
 
 const sphere = new Sphere(
-  "my-sphere",           // id
-  new Vec3(0, 0, 0),     // center (중심)
-  1.5                     // radius (반지름)
+  "my-sphere", // id
+  new Vec3(0, 0, 0), // center (중심)
+  1.5, // radius (반지름)
 );
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `id` | `string` | 고유 식별자 |
-| `center` | `Vec3` | 중심 좌표 |
-| `radius` | `number` | 반지름 |
+| 파라미터 | 타입     | 설명        |
+| -------- | -------- | ----------- |
+| `id`     | `string` | 고유 식별자 |
+| `center` | `Vec3`   | 중심 좌표   |
+| `radius` | `number` | 반지름      |
 
 ### Cylinder
 
@@ -137,23 +141,23 @@ const sphere = new Sphere(
 import { Cylinder, Vec3 } from "hlr";
 
 const cylinder = new Cylinder(
-  "my-cylinder",         // id
-  new Vec3(0, -1, 0),    // base (밑면 중심)
-  new Vec3(0, 1, 0),     // axis (축 방향, 정규화 필요 없음)
-  2,                      // height (높이)
-  0.5,                    // radius (반지름)
-  "both"                  // caps ("none" | "top" | "base" | "both")
+  "my-cylinder", // id
+  new Vec3(0, -1, 0), // base (밑면 중심)
+  new Vec3(0, 1, 0), // axis (축 방향, 정규화 필요 없음)
+  2, // height (높이)
+  0.5, // radius (반지름)
+  "both", // caps ("none" | "top" | "base" | "both")
 );
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `id` | `string` | 고유 식별자 |
-| `base` | `Vec3` | 밑면 중심 좌표 |
-| `axis` | `Vec3` | 축 방향 벡터 |
-| `height` | `number` | 높이 |
-| `radius` | `number` | 반지름 |
-| `caps` | `"none" \| "top" \| "base" \| "both"` | 뚜껑 옵션 |
+| 파라미터 | 타입                                  | 설명           |
+| -------- | ------------------------------------- | -------------- |
+| `id`     | `string`                              | 고유 식별자    |
+| `base`   | `Vec3`                                | 밑면 중심 좌표 |
+| `axis`   | `Vec3`                                | 축 방향 벡터   |
+| `height` | `number`                              | 높이           |
+| `radius` | `number`                              | 반지름         |
+| `caps`   | `"none" \| "top" \| "base" \| "both"` | 뚜껑 옵션      |
 
 ### Cone
 
@@ -163,23 +167,23 @@ const cylinder = new Cylinder(
 import { Cone, Vec3 } from "hlr";
 
 const cone = new Cone(
-  "my-cone",             // id
-  new Vec3(0, 2, 0),     // apex (꼭짓점)
-  new Vec3(0, -1, 0),    // axis (축 방향, 꼭짓점에서 밑면 방향)
-  2,                      // height (높이)
-  1,                      // baseRadius (밑면 반지름)
-  "base"                  // caps ("none" | "base")
+  "my-cone", // id
+  new Vec3(0, 2, 0), // apex (꼭짓점)
+  new Vec3(0, -1, 0), // axis (축 방향, 꼭짓점에서 밑면 방향)
+  2, // height (높이)
+  1, // baseRadius (밑면 반지름)
+  "base", // caps ("none" | "base")
 );
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `id` | `string` | 고유 식별자 |
-| `apex` | `Vec3` | 꼭짓점 좌표 |
-| `axis` | `Vec3` | 축 방향 벡터 |
-| `height` | `number` | 높이 |
-| `baseRadius` | `number` | 밑면 반지름 |
-| `caps` | `"none" \| "base"` | 밑면 뚜껑 옵션 |
+| 파라미터     | 타입               | 설명           |
+| ------------ | ------------------ | -------------- |
+| `id`         | `string`           | 고유 식별자    |
+| `apex`       | `Vec3`             | 꼭짓점 좌표    |
+| `axis`       | `Vec3`             | 축 방향 벡터   |
+| `height`     | `number`           | 높이           |
+| `baseRadius` | `number`           | 밑면 반지름    |
+| `caps`       | `"none" \| "base"` | 밑면 뚜껑 옵션 |
 
 ### BoxAabb
 
@@ -189,17 +193,17 @@ const cone = new Cone(
 import { BoxAabb, Vec3 } from "hlr";
 
 const box = new BoxAabb(
-  "my-box",              // id
-  new Vec3(-1, -1, -1),  // min (최소 좌표)
-  new Vec3(1, 1, 1)      // max (최대 좌표)
+  "my-box", // id
+  new Vec3(-1, -1, -1), // min (최소 좌표)
+  new Vec3(1, 1, 1), // max (최대 좌표)
 );
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `id` | `string` | 고유 식별자 |
-| `min` | `Vec3` | 최소 좌표 (x, y, z 모두 작은 쪽) |
-| `max` | `Vec3` | 최대 좌표 (x, y, z 모두 큰 쪽) |
+| 파라미터 | 타입     | 설명                             |
+| -------- | -------- | -------------------------------- |
+| `id`     | `string` | 고유 식별자                      |
+| `min`    | `Vec3`   | 최소 좌표 (x, y, z 모두 작은 쪽) |
+| `max`    | `Vec3`   | 최대 좌표 (x, y, z 모두 큰 쪽)   |
 
 ### PlaneRect
 
@@ -209,12 +213,12 @@ const box = new BoxAabb(
 import { PlaneRect, Vec3 } from "hlr";
 
 const plane = new PlaneRect(
-  "my-plane",            // id
-  new Vec3(0, 0, 0),     // center
-  new Vec3(0, 1, 0),     // normal (법선 방향)
-  new Vec3(1, 0, 0),     // u (가로 방향)
-  2,                      // halfWidth (가로 절반 길이)
-  1.5                     // halfHeight (세로 절반 길이)
+  "my-plane", // id
+  new Vec3(0, 0, 0), // center
+  new Vec3(0, 1, 0), // normal (법선 방향)
+  new Vec3(1, 0, 0), // u (가로 방향)
+  2, // halfWidth (가로 절반 길이)
+  1.5, // halfHeight (세로 절반 길이)
 );
 ```
 
@@ -226,10 +230,10 @@ const plane = new PlaneRect(
 import { Disk, Vec3 } from "hlr";
 
 const disk = new Disk(
-  "my-disk",             // id
-  new Vec3(0, 0, 0),     // center
-  new Vec3(0, 1, 0),     // normal (법선 방향)
-  1.5                     // radius
+  "my-disk", // id
+  new Vec3(0, 0, 0), // center
+  new Vec3(0, 1, 0), // normal (법선 방향)
+  1.5, // radius
 );
 ```
 
@@ -248,15 +252,15 @@ import { Vec3 } from "hlr";
 const v = new Vec3(1, 2, 3);
 
 // 정적 메서드
-Vec3.add(a, b);           // 벡터 덧셈
-Vec3.sub(a, b);           // 벡터 뺄셈
-Vec3.mulScalar(v, s);     // 스칼라 곱
-Vec3.dot(a, b);           // 내적
-Vec3.cross(a, b);         // 외적
-Vec3.normalize(v);        // 정규화
-Vec3.length(v);           // 길이
-Vec3.lengthSq(v);         // 길이의 제곱
-Vec3.distance(a, b);      // 두 점 사이 거리
+Vec3.add(a, b); // 벡터 덧셈
+Vec3.sub(a, b); // 벡터 뺄셈
+Vec3.mulScalar(v, s); // 스칼라 곱
+Vec3.dot(a, b); // 내적
+Vec3.cross(a, b); // 외적
+Vec3.normalize(v); // 정규화
+Vec3.length(v); // 길이
+Vec3.lengthSq(v); // 길이의 제곱
+Vec3.distance(a, b); // 두 점 사이 거리
 ```
 
 ### Mat4
@@ -290,11 +294,11 @@ visibility 판정의 정밀도를 조절할 수 있습니다:
 ```typescript
 const svg = renderer.render(scene, camera, {
   hlr: {
-    samples: 192,       // 샘플링 개수 (↑ = 정밀, 느림)
-    refineIters: 22,    // 이분법 반복 횟수
-    epsVisible: 2e-4,   // 가시성 판정 epsilon
-    cutEps: 1e-6,       // 전환점 중복 제거 epsilon
-    minSegLenSq: 1e-6,  // 최소 세그먼트 길이 제곱
+    samples: 192, // 샘플링 개수 (↑ = 정밀, 느림)
+    refineIters: 22, // 이분법 반복 횟수
+    epsVisible: 2e-4, // 가시성 판정 epsilon
+    cutEps: 1e-6, // 전환점 중복 제거 epsilon
+    minSegLenSq: 1e-6, // 최소 세그먼트 길이 제곱
   },
 });
 ```
@@ -307,10 +311,7 @@ const svg = renderer.render(scene, camera, {
 import { lineToCubic3, Vec3 } from "hlr";
 
 // 직선을 Cubic Bezier로 변환
-const customLine = lineToCubic3(
-  new Vec3(0, 0, 0),
-  new Vec3(1, 1, 1)
-);
+const customLine = lineToCubic3(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
 
 const svg = renderer.render(scene, camera, {
   curves: [customLine],

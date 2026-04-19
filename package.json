@@ -4,6 +4,10 @@
   "description": "A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HLR) / Hidden Curve Removal (HCR) support",
   "private": false,
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": "20.x"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -31,11 +35,17 @@
   ],
   "license": "MIT",
   "scripts": {
+    "dev": "vite --config web/vite.config.ts",
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit && tsc -p web/tsconfig.node.json --noEmit",
+    "lint": "eslint src web/src web/vite.config.ts",
+    "format": "prettier --write .",
+    "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm web:build",
+    "clean": "rm -rf dist out demo.svg _tmp_*.svg",
     "demo": "node dist/demo/main.js",
     "demo:all": "node dist/demo/main.js --all",
-    "web:dev": "vite --config web/vite.config.ts",
-    "web:build": "npm run build && vite build --config web/vite.config.ts",
+    "web:dev": "pnpm dev",
+    "web:build": "vite build --config web/vite.config.ts",
     "web:preview": "vite preview --config web/vite.config.ts --port 4173"
   },
   "dependencies": {
@@ -62,15 +72,20 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.23",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
     "postcss": "^8.5.6",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.58.2",
     "vite": "^5.4.11"
   }
 }

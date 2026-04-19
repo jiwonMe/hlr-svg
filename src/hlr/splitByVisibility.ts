@@ -43,9 +43,21 @@ export function splitCubicByVisibilityWithIgnore(
 }
 
 function pushIfNotTiny(out: StyledPiece[], b: CubicBezier3, visible: boolean, minSegLenSq: number): void {
-  const lenSq = Vec3.distanceSq(b.p0, b.p3);
-  if (lenSq < minSegLenSq) return;
+  const extentSq = cubicControlExtentSq(b);
+  if (extentSq < minSegLenSq) return;
   out.push({ bez: b, visible });
 }
 
+function cubicControlExtentSq(b: CubicBezier3): number {
+  const minX = Math.min(b.p0.x, b.p1.x, b.p2.x, b.p3.x);
+  const maxX = Math.max(b.p0.x, b.p1.x, b.p2.x, b.p3.x);
+  const minY = Math.min(b.p0.y, b.p1.y, b.p2.y, b.p3.y);
+  const maxY = Math.max(b.p0.y, b.p1.y, b.p2.y, b.p3.y);
+  const minZ = Math.min(b.p0.z, b.p1.z, b.p2.z, b.p3.z);
+  const maxZ = Math.max(b.p0.z, b.p1.z, b.p2.z, b.p3.z);
+  const dx = maxX - minX;
+  const dy = maxY - minY;
+  const dz = maxZ - minZ;
+  return dx * dx + dy * dy + dz * dz;
+}
 

@@ -1,13 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { Camera } from "../../dist/camera/camera.js";
-import { Vec3 } from "../../dist/math/vec3.js";
-import { Scene } from "../../dist/scene/scene.js";
-import { renderCaseToSvgString, renderCaseToSvgStringProfiled } from "../../dist/demo/renderCase.js";
-import type { DemoCase } from "../../dist/demo/types.js";
-import { formatProfileReport, type ProfileReport } from "../../dist/core/profiler.js";
+import { Camera } from "@hlr/camera/camera.js";
+import { formatProfileReport, type ProfileReport } from "@hlr/core/profiler.js";
+import {
+  renderCaseToSvgString,
+  renderCaseToSvgStringProfiled,
+} from "@hlr/demo/renderCase.js";
+import type { DemoCase } from "@hlr/demo/types.js";
+import { Scene } from "@hlr/scene/scene.js";
 
-import { orbitFromCamera, orbitPosition, type OrbitState, clamp } from "./runtime/orbit";
+import {
+  orbitFromCamera,
+  orbitPosition,
+  type OrbitState,
+  clamp,
+} from "./runtime/orbit";
 import { useRafTick } from "./runtime/useRaf";
 import { StylePanel, type LineStyleState } from "./StylePanel";
 
@@ -26,10 +39,15 @@ type CoarsePresetIndex = 0 | 1 | 2 | 3;
 export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const baseOrbit = useMemo(() => orbitFromCamera(demo.camera.position, demo.camera.target), [demo]);
+  const baseOrbit = useMemo(
+    () => orbitFromCamera(demo.camera.position, demo.camera.target),
+    [demo],
+  );
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
   const [projection, setProjection] = useState<Projection>("perspective");
-  const [orthoHalfHeight, setOrthoHalfHeight] = useState(() => clamp(0.2, baseOrbit.radius * 0.55, 10));
+  const [orthoHalfHeight, setOrthoHalfHeight] = useState(() =>
+    clamp(0.2, baseOrbit.radius * 0.55, 10),
+  );
   const [profileOn, setProfileOn] = useState(false);
   const [profileText, setProfileText] = useState("");
   const [coarseIdx, setCoarseIdx] = useState<CoarsePresetIndex>(2); // default: 64
@@ -61,11 +79,19 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     lineCap: "butt",
   }));
 
-  const [drag, setDrag] = useState<null | { x: number; y: number; az: number; pol: number; id: number }>(null);
+  const [drag, setDrag] = useState<null | {
+    x: number;
+    y: number;
+    az: number;
+    pol: number;
+    id: number;
+  }>(null);
   const [dirty, setDirty] = useState(0);
   const tick = useRafTick(playing);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(null);
+  const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(
+    null,
+  );
 
   // auto orbit
   useEffect(() => {
@@ -107,15 +133,34 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
 
   const coarseSamples = COARSE_PRESETS[coarseIdx] ?? 64;
 
-  const profiled = useMemo((): { svg: string; report: ProfileReport | null } => {
+  const profiled = useMemo((): {
+    svg: string;
+    report: ProfileReport | null;
+  } => {
     if (!profileOn) {
       return {
-        svg: renderCaseToSvgString(runtimeDemo, { svgStyle: style, hlr: { coarseSamples }, intersections: { angularSamples, useBezierFit, fitMode } }),
+        svg: renderCaseToSvgString(runtimeDemo, {
+          svgStyle: style,
+          hlr: { coarseSamples },
+          intersections: { angularSamples, useBezierFit, fitMode },
+        }),
         report: null,
       };
     }
-    return renderCaseToSvgStringProfiled(runtimeDemo, { svgStyle: style, hlr: { coarseSamples }, intersections: { angularSamples, useBezierFit, fitMode } });
-  }, [coarseSamples, profileOn, runtimeDemo, style, angularSamples, useBezierFit, fitMode]);
+    return renderCaseToSvgStringProfiled(runtimeDemo, {
+      svgStyle: style,
+      hlr: { coarseSamples },
+      intersections: { angularSamples, useBezierFit, fitMode },
+    });
+  }, [
+    coarseSamples,
+    profileOn,
+    runtimeDemo,
+    style,
+    angularSamples,
+    useBezierFit,
+    fitMode,
+  ]);
 
   const svg = profiled.svg;
 
@@ -163,7 +208,6 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     // 한 번에 보기 좋게 콘솔에도 찍어둔다(렌더 1회마다 1로그)
     // 개발 모드에서만 콘솔 출력
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.log(`[hlr-svg profile] ${demo.name}\n${text}`);
     }
   }, [demo.name, profileOn, profiled.report]);
@@ -173,7 +217,12 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
       <div className="caseHeader">
         <div className="caseName">{demo.name}</div>
         <div className="caseActions">
-          <button className="btn" type="button" onClick={() => setOrbit(baseOrbit)} title="카메라 리셋">
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setOrbit(baseOrbit)}
+            title="카메라 리셋"
+          >
             리셋
           </button>
           <button
@@ -189,7 +238,12 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           >
             등각
           </button>
-          <button className="btn" type="button" onClick={() => setPlaying((p) => !p)} title="자동 회전">
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setPlaying((p) => !p)}
+            title="자동 회전"
+          >
             {playing ? "정지" : "재생"}
           </button>
           <button
@@ -209,7 +263,12 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             Profile
           </button>
           <StylePanel value={style} onChange={setStyle} />
-          <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(svg)} title="SVG 문자열 복사">
+          <button
+            className="btn"
+            type="button"
+            onClick={() => void navigator.clipboard.writeText(svg)}
+            title="SVG 문자열 복사"
+          >
             SVG 복사
           </button>
         </div>
@@ -217,7 +276,9 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
 
       <div className="viewerBar">
         <div className="viewerHint">
-          드래그: 회전 · 휠: {projection === "perspective" ? "줌(거리)" : "줌(스케일)"} · 클릭: 객체 선택
+          드래그: 회전 · 휠:{" "}
+          {projection === "perspective" ? "줌(거리)" : "줌(스케일)"} · 클릭:
+          객체 선택
         </div>
         {selectedId && (
           <div className="selectedBadge">
@@ -234,7 +295,9 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
         )}
         <div className="segmented" role="tablist" aria-label="투영 모드">
           <button
-            className={projection === "perspective" ? "segBtn segBtnActive" : "segBtn"}
+            className={
+              projection === "perspective" ? "segBtn segBtnActive" : "segBtn"
+            }
             type="button"
             role="tab"
             aria-selected={projection === "perspective"}
@@ -243,7 +306,9 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             Perspective
           </button>
           <button
-            className={projection === "isometric" ? "segBtn segBtnActive" : "segBtn"}
+            className={
+              projection === "isometric" ? "segBtn segBtnActive" : "segBtn"
+            }
             type="button"
             role="tab"
             aria-selected={projection === "isometric"}
@@ -270,7 +335,10 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           />
         </label>
 
-        <label className="viewerLabel" title="HLR coarseSamples(0=끔, 값이 클수록 더 정확/느림)">
+        <label
+          className="viewerLabel"
+          title="HLR coarseSamples(0=끔, 값이 클수록 더 정확/느림)"
+        >
           coarse
           <input
             className="viewerRange"
@@ -279,12 +347,17 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             max={3}
             step={1}
             value={coarseIdx}
-            onChange={(e) => setCoarseIdx(Number(e.target.value) as CoarsePresetIndex)}
+            onChange={(e) =>
+              setCoarseIdx(Number(e.target.value) as CoarsePresetIndex)
+            }
           />
           <span className="viewerPovValue">{coarseSamples}</span>
         </label>
 
-        <label className="viewerLabel" title="교선(곡면×곡면/평면×곡면) 샘플링 분해능 (값이 클수록 더 촘촘/느림)">
+        <label
+          className="viewerLabel"
+          title="교선(곡면×곡면/평면×곡면) 샘플링 분해능 (값이 클수록 더 촘촘/느림)"
+        >
           samples
           <input
             className="viewerRange"
@@ -298,9 +371,15 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           <span className="viewerPovValue">{angularSamples}</span>
         </label>
 
-        <div className="segmented" role="tablist" aria-label="교선 bezier fitting 모드">
+        <div
+          className="segmented"
+          role="tablist"
+          aria-label="교선 bezier fitting 모드"
+        >
           <button
-            className={fitMode === "stitchThenFit" ? "segBtn segBtnActive" : "segBtn"}
+            className={
+              fitMode === "stitchThenFit" ? "segBtn segBtnActive" : "segBtn"
+            }
             type="button"
             role="tab"
             aria-selected={fitMode === "stitchThenFit"}
@@ -336,7 +415,13 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           if (!el) return;
           el.setPointerCapture(e.pointerId);
           setClickStart({ x: e.clientX, y: e.clientY });
-          setDrag({ x: e.clientX, y: e.clientY, az: orbit.azimuth, pol: orbit.polar, id: e.pointerId });
+          setDrag({
+            x: e.clientX,
+            y: e.clientY,
+            az: orbit.azimuth,
+            pol: orbit.polar,
+            id: e.pointerId,
+          });
         }}
         onClick={handleClick}
         onPointerMove={(e) => {
@@ -371,5 +456,3 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     </section>
   );
 }
-
-

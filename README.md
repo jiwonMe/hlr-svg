@@ -11,10 +11,18 @@ A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HL
 - **three.js-style API**: Familiar API design similar to three.js
 - **SVG Output**: All curves are output as SVG cubic Bezier paths
 
-## Installation
+## Tooling
+
+- **Package manager**: `pnpm 10.33.0`
+- **Node runtime**: `20.x`
+- **Primary validation**: `pnpm check`
+
+## Local Development
 
 ```bash
-npm install
+corepack enable
+nvm use 20
+pnpm install
 ```
 
 ## Quick Start
@@ -125,11 +133,11 @@ Fine-tune visibility detection:
 ```typescript
 renderer.render(scene, camera, {
   hlr: {
-    samples: 192,        // Number of samples for visibility detection
-    refineIters: 22,     // Bisection refinement iterations
-    epsVisible: 2e-4,    // Epsilon for visibility raycasting
-    cutEps: 1e-6,        // Epsilon for transition point deduplication
-    minSegLenSq: 1e-6,   // Minimum segment length squared
+    samples: 192, // Number of samples for visibility detection
+    refineIters: 22, // Bisection refinement iterations
+    epsVisible: 2e-4, // Epsilon for visibility raycasting
+    cutEps: 1e-6, // Epsilon for transition point deduplication
+    minSegLenSq: 1e-6, // Minimum segment length squared
   },
 });
 ```
@@ -141,10 +149,7 @@ Add your own curves to the scene:
 ```typescript
 import { lineToCubic3 } from "hlr-svg";
 
-const customCurve = lineToCubic3(
-  new Vec3(0, 0, 0),
-  new Vec3(1, 1, 1)
-);
+const customCurve = lineToCubic3(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
 
 renderer.render(scene, camera, {
   curves: [customCurve],
@@ -156,33 +161,45 @@ renderer.render(scene, camera, {
 ### Build
 
 ```bash
-npm run build
+pnpm build
 ```
 
 ### Run Demo
 
 ```bash
-# Build first
-npm run build
+# Run the full validation stack first
+pnpm check
 
 # Run single demo case
-npm run demo
+pnpm demo
 
 # Run all demo cases
-npm run demo:all
+pnpm demo:all
 ```
 
 ### Web Demo
 
 ```bash
-# Development server
-npm run web:dev
+# Development server (no library prebuild required)
+pnpm dev
 
 # Build for production
-npm run web:build
+pnpm web:build
 
 # Preview production build
-npm run web:preview
+pnpm web:preview
+```
+
+### Common Commands
+
+```bash
+pnpm dev
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm format
+pnpm check
+pnpm clean
 ```
 
 ## Architecture
@@ -197,6 +214,7 @@ The library is organized into several key modules:
 - **`svg/`**: SVG output generation
 
 For detailed design notes, see:
+
 - [`src/curves/README.md`](src/curves/README.md) - Curve generation and Bezier utilities
 - [`src/hlr/README.md`](src/hlr/README.md) - HLR/HCR implementation
 - [`src/scene/intersections/README.md`](src/scene/intersections/README.md) - Intersection curve computation

@@ -1,37 +1,33 @@
-# Node modules
+# Dependencies
 node_modules/
+.pnpm-store/
 
 # Build outputs
 dist/
 build/
 out/
-*.js
-*.js.map
-*.d.ts
+coverage/
+demo.svg
+_tmp_*.svg
 
 # TypeScript cache
 *.tsbuildinfo
 
 # Logs
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+
+# Package manager lockfiles
+package-lock.json
 
 # OS / Editor folders
 .DS_Store
 .env
+.env.*
 .vscode/
 .idea/
-# End of OS/Editor folders
-
-# Optional: test coverage/shorthands
-coverage/
-*.log
-
-# Temporary files
-_tmp_*.svg
-
-# Build outputs
-demo.svg
 
 .vercel

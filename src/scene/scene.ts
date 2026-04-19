@@ -1,4 +1,3 @@
-import { EPS } from "../math/eps.js";
 import { Vec3 } from "../math/vec3.js";
 import type { Camera } from "../camera/camera.js";
 import type { Hit, Ray } from "./ray.js";
@@ -32,7 +31,8 @@ export class Scene {
 
     for (const p of this.primitives) {
       if (opts.ignorePrimitiveId && p.id === opts.ignorePrimitiveId) continue;
-      if (opts.ignorePrimitiveIds && opts.ignorePrimitiveIds.includes(p.id)) continue;
+      if (opts.ignorePrimitiveIds && opts.ignorePrimitiveIds.includes(p.id))
+        continue;
       if (prof) prof.inc("primitive.intersect.calls");
       const h = p.intersect(ray, tMin, bestT);
       if (!h) continue;
@@ -45,7 +45,10 @@ export class Scene {
     return closest;
   }
 
-  visibleAtPoint(worldPoint: Vec3, opts?: { eps?: number; ignorePrimitiveIds?: readonly string[] }): boolean {
+  visibleAtPoint(
+    worldPoint: Vec3,
+    opts?: { eps?: number; ignorePrimitiveIds?: readonly string[] },
+  ): boolean {
     const prof = this.profiler;
     if (prof) {
       prof.inc("visibleAtPoint.calls");
@@ -58,10 +61,10 @@ export class Scene {
         const origin = this.camera.position;
         const dir = Vec3.normalize(Vec3.sub(worldPoint, origin));
         const targetDist = Vec3.distance(worldPoint, origin);
-        const eps = Math.max(epsAbs, targetDist * 1e-6);
+        const rayGap = visibilityRayGap(epsAbs, origin, worldPoint);
         const ray: Ray = { origin, dir };
         // Check only slightly before targetDist to exclude self-hit of "the point itself"
-        const tMax = Math.max(0, targetDist - eps * 10);
+        const tMax = Math.max(0, targetDist - rayGap);
         const hit = this.raycastClosest(ray, {
           tMin: 0,
           tMax,
@@ -76,29 +79,33 @@ export class Scene {
         // Mitigates cases where hits occurring "very close to target point (intersection)" due to
         // intersection/tangent/numerical errors are mistaken for occluders, causing solid lines to become dashed.
         // Important: don't ignore entire primitives, only ignore "nearby hits"
-        const snap = Math.max(epsAbs * 8, targetDist * 2e-6);
+        const snap = nearbyHitSnap(epsAbs, origin, worldPoint, hit.point);
+        const gapToTarget = Math.max(0, targetDist - hit.t);
         const allow = opts?.ignorePrimitiveIds;
         // If ignore list doesn't exist, we still treat "nearby hits" as noise (self-hit / numeric)
         if (!allow) {
-          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
+          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap)
+            return true;
           // Also allow small along-ray tolerance: point distance can be inflated by tiny angular error.
-          if (hit.t >= tMax - snap * 2) return true;
+          if (gapToTarget <= snap) return true;
         } else if (allow.includes(hit.primitiveId)) {
           // Intersection curves: for participating primitives, ignore only "nearby" hits.
-          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
-          if (hit.t >= tMax - snap * 2) return true;
+          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap)
+            return true;
+          if (gapToTarget <= snap) return true;
         }
         return false;
       }
 
       // orthographic: parallel ray along viewDir
       const viewDir = Vec3.normalize(this.camera.forward);
-      const far = 1e6;
-      const origin = Vec3.sub(worldPoint, Vec3.mulScalar(viewDir, far));
+      const raySpan = Math.max(this.camera.far, epsAbs * 2);
+      const origin = Vec3.sub(worldPoint, Vec3.mulScalar(viewDir, raySpan));
       const dir = viewDir;
       const ray: Ray = { origin, dir };
-      const targetDist = far;
-      const tMax = Math.max(0, targetDist - epsAbs);
+      const targetDist = raySpan;
+      const rayGap = visibilityRayGap(epsAbs, origin, worldPoint);
+      const tMax = Math.max(0, targetDist - rayGap);
       const hit = this.raycastClosest(ray, {
         tMin: 0,
         tMax,
@@ -106,14 +113,15 @@ export class Scene {
         ignorePrimitiveIds: undefined,
       });
       if (hit === null) return true;
-      const snap = Math.max(epsAbs * 8, 2e-6 * far);
+      const snap = nearbyHitSnap(epsAbs, origin, worldPoint, hit.point);
+      const gapToTarget = Math.max(0, targetDist - hit.t);
       const allow = opts?.ignorePrimitiveIds;
       if (!allow) {
         if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
-        if (hit.t >= tMax - snap * 2) return true;
+        if (gapToTarget <= snap) return true;
       } else if (allow.includes(hit.primitiveId)) {
         if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
-        if (hit.t >= tMax - snap * 2) return true;
+        if (gapToTarget <= snap) return true;
       }
       return false;
     } finally {
@@ -122,4 +130,18 @@ export class Scene {
   }
 }
 
+function visibilityRayGap(epsAbs: number, ...points: Vec3[]): number {
+  return Math.max(epsAbs, floatingPointTolerance(points, 64));
+}
 
+function nearbyHitSnap(epsAbs: number, ...points: Vec3[]): number {
+  return Math.max(epsAbs * 8, floatingPointTolerance(points, 512));
+}
+
+function floatingPointTolerance(points: readonly Vec3[], ulps: number): number {
+  let scale = 1;
+  for (const p of points) {
+    scale = Math.max(scale, Math.abs(p.x), Math.abs(p.y), Math.abs(p.z));
+  }
+  return scale * Number.EPSILON * ulps;
+}

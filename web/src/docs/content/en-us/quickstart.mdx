@@ -7,14 +7,10 @@ order: 1
 
 ## Installation
 
-You can install using npm or yarn:
+Install the package with pnpm:
 
 ```bash
-npm install hlr
-```
-
-```bash
-yarn add hlr
+pnpm add hlr
 ```
 
 ## Basic Usage
@@ -79,33 +75,33 @@ scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
 scene.add(
   new Cylinder(
     "cylinder",
-    new Vec3(0, -1, 0),    // base center
-    new Vec3(0, 1, 0),     // axis direction
-    2,                      // height
-    0.6,                    // radius
-    "both"                  // both caps
-  )
+    new Vec3(0, -1, 0), // base center
+    new Vec3(0, 1, 0), // axis direction
+    2, // height
+    0.6, // radius
+    "both", // both caps
+  ),
 );
 
 // Cone
 scene.add(
   new Cone(
     "cone",
-    new Vec3(1.5, 1, 0),   // apex
-    new Vec3(0, -1, 0),    // axis direction (downward)
-    1.5,                    // height
-    0.8,                    // base radius
-    "base"                  // base cap only
-  )
+    new Vec3(1.5, 1, 0), // apex
+    new Vec3(0, -1, 0), // axis direction (downward)
+    1.5, // height
+    0.8, // base radius
+    "base", // base cap only
+  ),
 );
 
 // Box
 scene.add(
   new BoxAabb(
     "box",
-    new Vec3(0, 0, 1),     // min coordinates
-    new Vec3(1, 1, 2)      // max coordinates
-  )
+    new Vec3(0, 0, 1), // min coordinates
+    new Vec3(1, 1, 2), // max coordinates
+  ),
 );
 
 const camera = Camera.from({
@@ -135,15 +131,15 @@ You can customize the styles of visible and hidden lines:
 const renderer = new SvgRenderer({
   width: 800,
   height: 600,
-  background: true,  // Add background
+  background: true, // Add background
   style: {
     // Visible line styles
     strokeWidthVisible: 2,
-    strokeColorVisible: "#000000",
-    
+    strokeVisible: "#000000",
+
     // Hidden line styles (dashed)
     strokeWidthHidden: 1.5,
-    strokeColorHidden: "#000000",
+    strokeHidden: "#000000",
     dashArrayHidden: "4 4",
     opacityHidden: 0.4,
   },
@@ -159,11 +155,11 @@ const renderer = new SvgRenderer({
   width: 800,
   height: 600,
   include: {
-    silhouettes: true,    // Silhouette curves (Sphere, Cylinder, Cone)
-    rims: true,           // Cap circles (Cylinder, Cone)
-    borders: true,        // PlaneRect outlines
-    boxEdges: true,       // BoxAabb 12 edges
-    intersections: true,  // Intersection curves between primitives
+    silhouettes: true, // Silhouette curves (Sphere, Cylinder, Cone)
+    rims: true, // Cap circles (Cylinder, Cone)
+    borders: true, // PlaneRect outlines
+    boxEdges: true, // BoxAabb 12 edges
+    intersections: true, // Intersection curves between primitives
   },
 });
 

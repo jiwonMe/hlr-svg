@@ -1,24 +1,36 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { Button } from "./components/ui/button";
 import { Letter3DSwap } from "./components/ui/letter-3d-swap";
 import { cn } from "./lib/utils";
 import { Github, BookOpen } from "lucide-react";
 
-import { Camera } from "../../dist/camera/camera.js";
-import { Vec3 } from "../../dist/math/vec3.js";
-import { Sphere } from "../../dist/scene/primitives/sphere.js";
-import { Cylinder } from "../../dist/scene/primitives/cylinder.js";
-import { Cone } from "../../dist/scene/primitives/cone.js";
-import { BoxAabb } from "../../dist/scene/primitives/boxAabb.js";
-import type { DemoCase } from "../../dist/demo/types.js";
+import { Camera } from "@hlr/camera/camera.js";
 import {
-  sphereSilhouetteToCubics3,
-  cylinderSilhouetteToCubics3,
   coneSilhouetteToCubics3,
-} from "../../dist/curves/builders.js";
-import { renderCaseToSvgString } from "../../dist/demo/renderCase.js";
-import { orbitFromCamera, orbitPosition, type OrbitState, clamp } from "./runtime/orbit";
+  cylinderSilhouetteToCubics3,
+  sphereSilhouetteToCubics3,
+} from "@hlr/curves/builders.js";
+import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
+import type { DemoCase } from "@hlr/demo/types.js";
+import { Vec3 } from "@hlr/math/vec3.js";
+import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
+import { Cone } from "@hlr/scene/primitives/cone.js";
+import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
+import { Sphere } from "@hlr/scene/primitives/sphere.js";
+
+import {
+  orbitFromCamera,
+  orbitPosition,
+  type OrbitState,
+  clamp,
+} from "./runtime/orbit";
 import { useRafTick } from "./runtime/useRaf";
 
 type PrimitiveType = "sphere" | "cylinder" | "cone" | "box";
@@ -28,7 +40,11 @@ function randomFloat(min: number, max: number): number {
 }
 
 function randomVec3(min: number, max: number): Vec3 {
-  return new Vec3(randomFloat(min, max), randomFloat(min, max), randomFloat(min, max));
+  return new Vec3(
+    randomFloat(min, max),
+    randomFloat(min, max),
+    randomFloat(min, max),
+  );
 }
 
 function randomUnitVec3(): Vec3 {
@@ -49,15 +65,28 @@ function boxEdgesAsCubics(min: Vec3, max: Vec3) {
   const [x0, y0, z0] = [min.x, min.y, min.z];
   const [x1, y1, z1] = [max.x, max.y, max.z];
   const v = [
-    new Vec3(x0, y0, z0), new Vec3(x1, y0, z0),
-    new Vec3(x0, y1, z0), new Vec3(x1, y1, z0),
-    new Vec3(x0, y0, z1), new Vec3(x1, y0, z1),
-    new Vec3(x0, y1, z1), new Vec3(x1, y1, z1),
+    new Vec3(x0, y0, z0),
+    new Vec3(x1, y0, z0),
+    new Vec3(x0, y1, z0),
+    new Vec3(x1, y1, z0),
+    new Vec3(x0, y0, z1),
+    new Vec3(x1, y0, z1),
+    new Vec3(x0, y1, z1),
+    new Vec3(x1, y1, z1),
   ];
   const edges: [Vec3, Vec3][] = [
-    [v[0], v[1]], [v[2], v[3]], [v[4], v[5]], [v[6], v[7]],
-    [v[0], v[2]], [v[1], v[3]], [v[4], v[6]], [v[5], v[7]],
-    [v[0], v[4]], [v[1], v[5]], [v[2], v[6]], [v[3], v[7]],
+    [v[0], v[1]],
+    [v[2], v[3]],
+    [v[4], v[5]],
+    [v[6], v[7]],
+    [v[0], v[2]],
+    [v[1], v[3]],
+    [v[4], v[6]],
+    [v[5], v[7]],
+    [v[0], v[4]],
+    [v[1], v[5]],
+    [v[2], v[6]],
+    [v[3], v[7]],
   ];
   return edges.map(([a, b]) => lineToCubic3(a, b));
 }
@@ -75,14 +104,35 @@ function createRandomPrimitives(count: number) {
       primitives.push(new Sphere(id, pos, randomFloat(0.4, 1.2)));
     } else if (type === "cylinder") {
       const axis = randomUnitVec3();
-      primitives.push(new Cylinder(id, pos, axis, randomFloat(1.0, 2.5), randomFloat(0.3, 0.8), "both"));
+      primitives.push(
+        new Cylinder(
+          id,
+          pos,
+          axis,
+          randomFloat(1.0, 2.5),
+          randomFloat(0.3, 0.8),
+          "both",
+        ),
+      );
     } else if (type === "cone") {
       const axis = randomUnitVec3();
-      primitives.push(new Cone(id, pos, axis, randomFloat(1.0, 2.5), randomFloat(0.4, 1.0), "base"));
+      primitives.push(
+        new Cone(
+          id,
+          pos,
+          axis,
+          randomFloat(1.0, 2.5),
+          randomFloat(0.4, 1.0),
+          "base",
+        ),
+      );
     } else {
       const size = randomFloat(0.4, 1.0);
       const min = pos;
-      const max = Vec3.add(pos, new Vec3(size, size * randomFloat(0.5, 1.5), size));
+      const max = Vec3.add(
+        pos,
+        new Vec3(size, size * randomFloat(0.5, 1.5), size),
+      );
       primitives.push(new BoxAabb(id, min, max));
     }
   }
@@ -115,20 +165,36 @@ function createRandomDemoCase(): DemoCase {
     primitives,
     includeIntersections: true,
     curves: ({ camera }) => {
-      const curves: ReturnType<typeof sphereSilhouetteToCubics3>[] = [];
+      const curves: ReturnType<typeof sphereSilhouetteToCubics3> = [];
       for (const p of primitives) {
         if (p instanceof Sphere) {
-          curves.push(...sphereSilhouetteToCubics3({
-            cameraPos: camera.position, center: p.center, radius: p.radius
-          }));
+          curves.push(
+            ...sphereSilhouetteToCubics3({
+              cameraPos: camera.position,
+              center: p.center,
+              radius: p.radius,
+            }),
+          );
         } else if (p instanceof Cylinder) {
-          curves.push(...cylinderSilhouetteToCubics3({
-            cameraPos: camera.position, base: p.base, axis: p.axis, height: p.height, radius: p.radius
-          }));
+          curves.push(
+            ...cylinderSilhouetteToCubics3({
+              cameraPos: camera.position,
+              base: p.base,
+              axis: p.axis,
+              height: p.height,
+              radius: p.radius,
+            }),
+          );
         } else if (p instanceof Cone) {
-          curves.push(...coneSilhouetteToCubics3({
-            cameraPos: camera.position, apex: p.apex, axis: p.axis, height: p.height, baseRadius: p.baseRadius
-          }));
+          curves.push(
+            ...coneSilhouetteToCubics3({
+              cameraPos: camera.position,
+              apex: p.apex,
+              axis: p.axis,
+              height: p.height,
+              baseRadius: p.baseRadius,
+            }),
+          );
         } else if (p instanceof BoxAabb) {
           curves.push(...boxEdgesAsCubics(p.min, p.max));
         }
@@ -140,16 +206,22 @@ function createRandomDemoCase(): DemoCase {
 
 export function LandingPage(): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [demoCase, setDemoCase] = useState<DemoCase>(() => createRandomDemoCase());
+  const [demoCase, setDemoCase] = useState<DemoCase>(() =>
+    createRandomDemoCase(),
+  );
 
   const baseOrbit = useMemo(
     () => orbitFromCamera(demoCase.camera.position, demoCase.camera.target),
-    [demoCase]
+    [demoCase],
   );
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
   const [playing, setPlaying] = useState(true);
   const [drag, setDrag] = useState<null | {
-    x: number; y: number; az: number; pol: number; id: number
+    x: number;
+    y: number;
+    az: number;
+    pol: number;
+    id: number;
   }>(null);
   const [dirty, setDirty] = useState(0);
 
@@ -182,25 +254,26 @@ export function LandingPage(): React.ReactElement {
 
   const runtimeDemo = useMemo<DemoCase>(
     () => ({ ...demoCase, camera }),
-    [demoCase, camera]
+    [demoCase, camera],
   );
 
   const svg = useMemo(
-    () => renderCaseToSvgString(runtimeDemo, {
-      background: false,
-      svgStyle: {
-        strokeWidthVisible: 2,
-        strokeWidthHidden: 2,
-        dashArrayHidden: "6 6",
-        strokeColorVisible: "#000000",
-        strokeColorHidden: "#000000",
-        opacityHidden: 0.4,
-      },
-      hlr: {
-        coarseSamples: 12,
-      },
-    }),
-    [runtimeDemo]
+    () =>
+      renderCaseToSvgString(runtimeDemo, {
+        background: false,
+        svgStyle: {
+          strokeWidthVisible: 2,
+          strokeWidthHidden: 2,
+          dashArrayHidden: "6 6",
+          strokeVisible: "#000000",
+          strokeHidden: "#000000",
+          opacityHidden: 0.4,
+        },
+        hlr: {
+          coarseSamples: 12,
+        },
+      }),
+    [runtimeDemo],
   );
 
   // 5초마다 자동으로 새 케이스 생성
@@ -226,30 +299,45 @@ export function LandingPage(): React.ReactElement {
     URL.revokeObjectURL(url);
   }, [svg]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    const el = wrapRef.current;
-    if (!el) return;
-    el.setPointerCapture(e.pointerId);
-    setDrag({ x: e.clientX, y: e.clientY, az: orbit.azimuth, pol: orbit.polar, id: e.pointerId });
-    setPlaying(false);
-  }, [orbit]);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      const el = wrapRef.current;
+      if (!el) return;
+      el.setPointerCapture(e.pointerId);
+      setDrag({
+        x: e.clientX,
+        y: e.clientY,
+        az: orbit.azimuth,
+        pol: orbit.polar,
+        id: e.pointerId,
+      });
+      setPlaying(false);
+    },
+    [orbit],
+  );
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!drag || drag.id !== e.pointerId) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    const s = 0.005;
-    const az = drag.az + dx * s;
-    const pol = clamp(0.1, drag.pol + dy * s, Math.PI - 0.1);
-    setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
-    setDirty((x) => x + 1);
-  }, [drag]);
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      const s = 0.005;
+      const az = drag.az + dx * s;
+      const pol = clamp(0.1, drag.pol + dy * s, Math.PI - 0.1);
+      setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
+      setDirty((x) => x + 1);
+    },
+    [drag],
+  );
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!drag || drag.id !== e.pointerId) return;
-    setDrag(null);
-    setPlaying(true);
-  }, [drag]);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      setDrag(null);
+      setPlaying(true);
+    },
+    [drag],
+  );
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -267,7 +355,7 @@ export function LandingPage(): React.ReactElement {
         // Cursor styles
         "cursor-grab active:cursor-grabbing",
         // Touch behavior
-        "touch-none select-none"
+        "touch-none select-none",
       )}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -282,7 +370,7 @@ export function LandingPage(): React.ReactElement {
           // Background color
           "bg-white",
           // Z-index to ensure it's below SVG
-          "z-0"
+          "z-0",
         )}
         style={{
           backgroundImage: `
@@ -302,12 +390,14 @@ export function LandingPage(): React.ReactElement {
           // Z-index to ensure it's above grid
           "z-10",
           // Ensure no background
-          "bg-transparent"
+          "bg-transparent",
         )}
         dangerouslySetInnerHTML={{ __html: svg }}
-        style={{
-          // Make SVG fill the entire viewport
-        }}
+        style={
+          {
+            // Make SVG fill the entire viewport
+          }
+        }
       />
 
       {/* Make SVG fill viewport */}
@@ -329,7 +419,7 @@ export function LandingPage(): React.ReactElement {
           // Pointer events for children only
           "pointer-events-none",
           // Z-index to ensure it's above SVG
-          "z-20"
+          "z-20",
         )}
       >
         {/* Title */}
@@ -345,7 +435,7 @@ export function LandingPage(): React.ReactElement {
             // Leading
             "leading-[0.85]",
             // Flex layout for vertical stacking
-            "flex flex-col"
+            "flex flex-col",
           )}
         >
           <Letter3DSwap
@@ -387,7 +477,9 @@ export function LandingPage(): React.ReactElement {
         </div>
 
         {/* Buttons */}
-        <div className={cn("flex flex-col items-center gap-2 pointer-events-auto")}>
+        <div
+          className={cn("flex flex-col items-center gap-2 pointer-events-auto")}
+        >
           <div className={cn("flex items-center gap-3")}>
             <Button
               asChild
@@ -396,13 +488,10 @@ export function LandingPage(): React.ReactElement {
               className={cn(
                 // Extra styling
                 "rounded-2xl",
-                "font-semibold tracking-wide"
+                "font-semibold tracking-wide",
               )}
             >
-              <Link
-                to="/docs"
-                onPointerDown={(e) => e.stopPropagation()}
-              >
+              <Link to="/docs" onPointerDown={(e) => e.stopPropagation()}>
                 <BookOpen className="w-5 h-5" />
                 docs
               </Link>
@@ -416,7 +505,7 @@ export function LandingPage(): React.ReactElement {
               // Text color
               "text-black/60 hover:text-black",
               // Underline
-              "underline-offset-4"
+              "underline-offset-4",
             )}
           >
             save as svg
@@ -431,7 +520,7 @@ export function LandingPage(): React.ReactElement {
             // Spacing
             "mt-8",
             // Width
-            "max-w-md text-center"
+            "max-w-md text-center",
           )}
         >
           Drag to rotate · Scroll to zoom
@@ -445,7 +534,7 @@ export function LandingPage(): React.ReactElement {
             // Spacing
             "mt-6",
             // Pointer events
-            "pointer-events-auto"
+            "pointer-events-auto",
           )}
         >
           <a
@@ -457,7 +546,7 @@ export function LandingPage(): React.ReactElement {
               // Color
               "text-black/40 hover:text-black",
               // Transition
-              "transition-colors"
+              "transition-colors",
             )}
             title="GitHub"
           >
@@ -472,15 +561,11 @@ export function LandingPage(): React.ReactElement {
               // Color
               "text-black/40 hover:text-black",
               // Transition
-              "transition-colors"
+              "transition-colors",
             )}
             title="npm"
           >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0v1.336H8.001V8.667h5.334v5.332h-2.669v-.001zm12.001 0h-1.33v-4h-1.336v4h-1.335v-4h-1.33v4h-2.671V8.667h8.002v5.331zM10.665 10H12v2.667h-1.335V10z" />
             </svg>
           </a>
@@ -489,4 +574,3 @@ export function LandingPage(): React.ReactElement {
     </div>
   );
 }
-

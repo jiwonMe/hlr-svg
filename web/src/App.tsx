@@ -1,18 +1,18 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
-// NOTE: src/는 .js 확장자 import를 사용하므로, 브라우저에서는 dist/를 직접 import한다.
-import { buildDemoCases } from "../../dist/demo/cases.js";
-import type { DemoCase } from "../../dist/demo/types.js";
-import { Camera } from "../../dist/camera/camera.js";
-import { Vec3 } from "../../dist/math/vec3.js";
-import { Sphere } from "../../dist/scene/primitives/sphere.js";
-import { Cylinder } from "../../dist/scene/primitives/cylinder.js";
-import { Cone } from "../../dist/scene/primitives/cone.js";
+import { Camera } from "@hlr/camera/camera.js";
 import {
-  sphereSilhouetteToCubics3,
-  cylinderSilhouetteToCubics3,
   coneSilhouetteToCubics3,
-} from "../../dist/curves/builders.js";
+  cylinderSilhouetteToCubics3,
+  sphereSilhouetteToCubics3,
+} from "@hlr/curves/builders.js";
+import { buildDemoCases } from "@hlr/demo/cases.js";
+import type { DemoCase } from "@hlr/demo/types.js";
+import { Vec3 } from "@hlr/math/vec3.js";
+import { Cone } from "@hlr/scene/primitives/cone.js";
+import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
+import { Sphere } from "@hlr/scene/primitives/sphere.js";
+
 import { Viewer } from "./Viewer";
 
 type Mode = "single" | "all";
@@ -22,7 +22,11 @@ function randomFloat(min: number, max: number): number {
 }
 
 function randomVec3(min: number, max: number): Vec3 {
-  return new Vec3(randomFloat(min, max), randomFloat(min, max), randomFloat(min, max));
+  return new Vec3(
+    randomFloat(min, max),
+    randomFloat(min, max),
+    randomFloat(min, max),
+  );
 }
 
 function randomUnitVec3(): Vec3 {
@@ -32,7 +36,7 @@ function randomUnitVec3(): Vec3 {
   return Vec3.normalize(new Vec3(x, y, z));
 }
 
-function createRandomDemoCase(seed: number): DemoCase {
+function createRandomDemoCase(_seed: number): DemoCase {
   // seed를 사용해 재현 가능한 랜덤 생성 (간단하게 Math.random 사용)
   const width = 700;
   const height = 520;
@@ -63,20 +67,48 @@ function createRandomDemoCase(seed: number): DemoCase {
     prim1 = new Sphere("random1", pos1, randomFloat(0.4, 1.0));
   } else if (type1 === "cylinder") {
     const axis = randomUnitVec3();
-    prim1 = new Cylinder("random1", pos1, axis, randomFloat(1.0, 2.5), randomFloat(0.3, 0.8), "both");
+    prim1 = new Cylinder(
+      "random1",
+      pos1,
+      axis,
+      randomFloat(1.0, 2.5),
+      randomFloat(0.3, 0.8),
+      "both",
+    );
   } else {
     const axis = randomUnitVec3();
-    prim1 = new Cone("random1", pos1, axis, randomFloat(1.0, 2.5), randomFloat(0.4, 1.0), "base");
+    prim1 = new Cone(
+      "random1",
+      pos1,
+      axis,
+      randomFloat(1.0, 2.5),
+      randomFloat(0.4, 1.0),
+      "base",
+    );
   }
 
   if (type2 === "sphere") {
     prim2 = new Sphere("random2", pos2, randomFloat(0.4, 1.0));
   } else if (type2 === "cylinder") {
     const axis = randomUnitVec3();
-    prim2 = new Cylinder("random2", pos2, axis, randomFloat(1.0, 2.5), randomFloat(0.3, 0.8), "both");
+    prim2 = new Cylinder(
+      "random2",
+      pos2,
+      axis,
+      randomFloat(1.0, 2.5),
+      randomFloat(0.3, 0.8),
+      "both",
+    );
   } else {
     const axis = randomUnitVec3();
-    prim2 = new Cone("random2", pos2, axis, randomFloat(1.0, 2.5), randomFloat(0.4, 1.0), "base");
+    prim2 = new Cone(
+      "random2",
+      pos2,
+      axis,
+      randomFloat(1.0, 2.5),
+      randomFloat(0.4, 1.0),
+      "base",
+    );
   }
 
   return {
@@ -87,20 +119,64 @@ function createRandomDemoCase(seed: number): DemoCase {
     primitives: [prim1, prim2],
     includeIntersections: true,
     curves: ({ camera }) => {
-      const curves: ReturnType<typeof sphereSilhouetteToCubics3>[] = [];
+      const curves: ReturnType<typeof sphereSilhouetteToCubics3> = [];
       if (prim1 instanceof Sphere) {
-        curves.push(...sphereSilhouetteToCubics3({ cameraPos: camera.position, center: prim1.center, radius: prim1.radius }));
+        curves.push(
+          ...sphereSilhouetteToCubics3({
+            cameraPos: camera.position,
+            center: prim1.center,
+            radius: prim1.radius,
+          }),
+        );
       } else if (prim1 instanceof Cylinder) {
-        curves.push(...cylinderSilhouetteToCubics3({ cameraPos: camera.position, base: prim1.base, axis: prim1.axis, height: prim1.height, radius: prim1.radius }));
+        curves.push(
+          ...cylinderSilhouetteToCubics3({
+            cameraPos: camera.position,
+            base: prim1.base,
+            axis: prim1.axis,
+            height: prim1.height,
+            radius: prim1.radius,
+          }),
+        );
       } else if (prim1 instanceof Cone) {
-        curves.push(...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: prim1.apex, axis: prim1.axis, height: prim1.height, baseRadius: prim1.baseRadius }));
+        curves.push(
+          ...coneSilhouetteToCubics3({
+            cameraPos: camera.position,
+            apex: prim1.apex,
+            axis: prim1.axis,
+            height: prim1.height,
+            baseRadius: prim1.baseRadius,
+          }),
+        );
       }
       if (prim2 instanceof Sphere) {
-        curves.push(...sphereSilhouetteToCubics3({ cameraPos: camera.position, center: prim2.center, radius: prim2.radius }));
+        curves.push(
+          ...sphereSilhouetteToCubics3({
+            cameraPos: camera.position,
+            center: prim2.center,
+            radius: prim2.radius,
+          }),
+        );
       } else if (prim2 instanceof Cylinder) {
-        curves.push(...cylinderSilhouetteToCubics3({ cameraPos: camera.position, base: prim2.base, axis: prim2.axis, height: prim2.height, radius: prim2.radius }));
+        curves.push(
+          ...cylinderSilhouetteToCubics3({
+            cameraPos: camera.position,
+            base: prim2.base,
+            axis: prim2.axis,
+            height: prim2.height,
+            radius: prim2.radius,
+          }),
+        );
       } else if (prim2 instanceof Cone) {
-        curves.push(...coneSilhouetteToCubics3({ cameraPos: camera.position, apex: prim2.apex, axis: prim2.axis, height: prim2.height, baseRadius: prim2.baseRadius }));
+        curves.push(
+          ...coneSilhouetteToCubics3({
+            cameraPos: camera.position,
+            apex: prim2.apex,
+            axis: prim2.axis,
+            height: prim2.height,
+            baseRadius: prim2.baseRadius,
+          }),
+        );
       }
       return curves.flat();
     },
@@ -153,7 +229,12 @@ export function App(): React.ReactElement {
             aria-label="케이스 검색"
           />
 
-          <button className="btn" type="button" onClick={generateRandom} title="랜덤 도형 2개 생성">
+          <button
+            className="btn"
+            type="button"
+            onClick={generateRandom}
+            title="랜덤 도형 2개 생성"
+          >
             🎲 랜덤
           </button>
 
@@ -183,7 +264,11 @@ export function App(): React.ReactElement {
       <div className="content">
         <aside className="sidebar">
           <div className="sidebarTitle">Cases ({filtered.length})</div>
-          <div className="caseList" role="listbox" aria-label="데모 케이스 목록">
+          <div
+            className="caseList"
+            role="listbox"
+            aria-label="데모 케이스 목록"
+          >
             {filtered.map((c) => {
               const active = c.name === selectedName;
               return (

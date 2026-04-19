@@ -3,7 +3,7 @@ import { renderCaseToSvgString, renderCasesToHtml } from "./renderCase.js";
 
 function main(): void {
   // Handle EPIPE to avoid dying in pipes like `node ... | head`
-  process.stdout.on("error", (err: any) => {
+  process.stdout.on("error", (err: NodeJS.ErrnoException) => {
     if (err?.code === "EPIPE") process.exit(0);
   });
 
@@ -17,14 +17,11 @@ function main(): void {
 
   const caseArgIdx = args.findIndex((x) => x === "--case");
   const caseName = caseArgIdx >= 0 ? args[caseArgIdx + 1] : undefined;
-  const selected =
-    caseName
-      ? cases.find((c) => c.name === caseName) ?? cases[0]!
-      : cases[cases.length - 1]!; // Default: Full scene
+  const selected = caseName
+    ? (cases.find((c) => c.name === caseName) ?? cases[0]!)
+    : cases[cases.length - 1]!; // Default: Full scene
 
   process.stdout.write(renderCaseToSvgString(selected));
 }
 
 main();
-
-
