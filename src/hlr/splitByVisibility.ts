@@ -1,4 +1,3 @@
-import { Vec3 } from "../math/vec3.js";
 import type { Scene } from "../scene/scene.js";
 import { splitCubic3, type CubicBezier3 } from "../curves/cubicBezier3.js";
 import { findVisibilityCutsOnCubicWithVisibility, type VisibilityParams } from "./visibilityCuts.js";
@@ -60,4 +59,3 @@ function cubicControlExtentSq(b: CubicBezier3): number {
   const dz = maxZ - minZ;
   return dx * dx + dy * dy + dz * dz;
 }
-

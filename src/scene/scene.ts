@@ -69,30 +69,27 @@ export class Scene {
           tMin: 0,
           tMax,
           ignorePrimitiveId: undefined,
-          // NOTE: In intersection visibility, "ignoring entire participating primitives"
-          //       would also release true self-occlusion.
-          //       So raycast targets all, and post-filters hit results.
+          // For owned intersection curves we still raycast against participating
+          // primitives so true self-occlusion remains possible; we only forgive
+          // hits that are very close to the target point.
           ignorePrimitiveIds: undefined,
         });
         if (hit === null) return true;
 
-        // Mitigates cases where hits occurring "very close to target point (intersection)" due to
-        // intersection/tangent/numerical errors are mistaken for occluders, causing solid lines to become dashed.
-        // Important: don't ignore entire primitives, only ignore "nearby hits"
-        const snap = nearbyHitSnap(epsAbs, origin, worldPoint, hit.point);
         const gapToTarget = Math.max(0, targetDist - hit.t);
         const allow = opts?.ignorePrimitiveIds;
-        // If ignore list doesn't exist, we still treat "nearby hits" as noise (self-hit / numeric)
         if (!allow) {
-          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap)
+          if (isHitNearTarget(hit.point, worldPoint, gapToTarget, rayGap))
             return true;
-          // Also allow small along-ray tolerance: point distance can be inflated by tiny angular error.
-          if (gapToTarget <= snap) return true;
         } else if (allow.includes(hit.primitiveId)) {
-          // Intersection curves: for participating primitives, ignore only "nearby" hits.
-          if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap)
+          const snap = intersectionNearbyHitSnap(
+            epsAbs,
+            origin,
+            worldPoint,
+            hit.point,
+          );
+          if (isHitNearTarget(hit.point, worldPoint, gapToTarget, snap))
             return true;
-          if (gapToTarget <= snap) return true;
         }
         return false;
       }
@@ -113,15 +110,20 @@ export class Scene {
         ignorePrimitiveIds: undefined,
       });
       if (hit === null) return true;
-      const snap = nearbyHitSnap(epsAbs, origin, worldPoint, hit.point);
       const gapToTarget = Math.max(0, targetDist - hit.t);
       const allow = opts?.ignorePrimitiveIds;
       if (!allow) {
-        if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
-        if (gapToTarget <= snap) return true;
+        if (isHitNearTarget(hit.point, worldPoint, gapToTarget, rayGap))
+          return true;
       } else if (allow.includes(hit.primitiveId)) {
-        if (Vec3.distanceSq(hit.point, worldPoint) <= snap * snap) return true;
-        if (gapToTarget <= snap) return true;
+        const snap = intersectionNearbyHitSnap(
+          epsAbs,
+          origin,
+          worldPoint,
+          hit.point,
+        );
+        if (isHitNearTarget(hit.point, worldPoint, gapToTarget, snap))
+          return true;
       }
       return false;
     } finally {
@@ -134,8 +136,21 @@ function visibilityRayGap(epsAbs: number, ...points: Vec3[]): number {
   return Math.max(epsAbs, floatingPointTolerance(points, 64));
 }
 
-function nearbyHitSnap(epsAbs: number, ...points: Vec3[]): number {
-  return Math.max(epsAbs * 8, floatingPointTolerance(points, 512));
+function intersectionNearbyHitSnap(epsAbs: number, ...points: Vec3[]): number {
+  // Owned intersection curves are Bezier fits over sampled surface points, so
+  // the represented point can drift more than a plain visibility epsilon while
+  // still being on the same local participant surface.
+  return Math.max(epsAbs * 24, floatingPointTolerance(points, 512));
+}
+
+function isHitNearTarget(
+  hitPoint: Vec3,
+  worldPoint: Vec3,
+  gapToTarget: number,
+  snap: number,
+): boolean {
+  if (Vec3.distanceSq(hitPoint, worldPoint) <= snap * snap) return true;
+  return gapToTarget <= snap;
 }
 
 function floatingPointTolerance(points: readonly Vec3[], ulps: number): number {

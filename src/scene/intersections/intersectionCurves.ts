@@ -66,7 +66,11 @@ export function intersectionCurvesToOwnedCubics(
   const explicitDisks = primitives.filter((p): p is Disk => p instanceof Disk);
   const planeSurfaces: Array<Disk | PlaneRect> = [...capDisks, ...explicitDisks, ...planeRects];
   const curved = primitives.filter((p): p is Sphere | Cylinder | Cone => p instanceof Sphere || p instanceof Cylinder || p instanceof Cone);
-  out.push(...planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved, { useBezierFit, fitMode }) as OwnedPlaneSurfaceCubic3[]);
+  out.push(...planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved, {
+    angularSamples: opts.angularSamples,
+    useBezierFit,
+    fitMode,
+  }) as OwnedPlaneSurfaceCubic3[]);
 
   // Disk (rim) × PlaneRect intersections (plane and rim)
   const allDisks: Disk[] = [...capDisks, ...explicitDisks];
@@ -192,4 +196,3 @@ function getCapDiskParentId(diskId: string): string | null {
   if (capIdx < 0) return null;
   return diskId.slice(0, capIdx);
 }
-

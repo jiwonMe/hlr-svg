@@ -56,35 +56,29 @@ export function findVisibilityCutsOnCubicWithVisibility(
   ignorePrimitiveIds?: readonly string[],
 ): VisibilityCuts {
   const samples = Math.max(2, Math.floor(params.samples));
+  const sampleVisibility = (t: number): boolean =>
+    scene.visibleAtPoint(evalCubic3(b, t), {
+      eps: params.epsVisible,
+      ignorePrimitiveIds,
+    });
 
   const coarseN = Math.max(0, Math.floor(params.coarseSamples ?? 0));
   const coarseSamples = coarseN >= 2 ? Math.min(coarseN, samples) : 0;
 
   // Optional coarse pre-pass: if no transitions detected, skip expensive full sampling.
   if (coarseSamples >= 2) {
-    let prev = scene.visibleAtPoint(evalCubic3(b, 0), {
-      eps: params.epsVisible,
-      ignorePrimitiveIds,
-    });
+    let prev = sampleVisibility(0);
     let any = false;
     for (let i = 1; i <= coarseSamples; i++) {
       const t = i / coarseSamples;
-      const p = evalCubic3(b, t);
-      const v = scene.visibleAtPoint(p, {
-        eps: params.epsVisible,
-        ignorePrimitiveIds,
-      });
+      const v = sampleVisibility(t);
       if (v !== prev) any = true;
       prev = v;
     }
     if (!any) {
       // No change at coarse resolution -> assume constant visibility.
       // Use the midpoint at coarse resolution as representative.
-      const pMid = evalCubic3(b, 0.5);
-      const vMid = scene.visibleAtPoint(pMid, {
-        eps: params.epsVisible,
-        ignorePrimitiveIds,
-      });
+      const vMid = sampleVisibility(0.5);
       return { cuts: [], segmentVisible: [vMid] };
     }
   }
@@ -92,21 +86,26 @@ export function findVisibilityCutsOnCubicWithVisibility(
   const vis: boolean[] = [];
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
-    const p = evalCubic3(b, t);
-    vis.push(
-      scene.visibleAtPoint(p, { eps: params.epsVisible, ignorePrimitiveIds }),
-    );
+    vis.push(sampleVisibility(t));
   }
 
-  // Reduce jitter: single-sample flips (T/F/T or F/T/F) often come from numerical noise near tangency/intersections.
-  // A 3-point majority filter preserves longer transitions while removing 1-sample toggles.
+  // Reduce jitter conservatively: only collapse a single-sample flip when
+  // re-sampling close to the flipped sample still agrees with the outer state.
+  // This preserves narrow real windows that happen to occupy only one sample.
   const visSmooth = vis.slice();
   for (let i = 1; i < visSmooth.length - 1; i++) {
-    const a = vis[i - 1]!;
-    const c = vis[i]!;
-    const d = vis[i + 1]!;
-    const ones = Number(a) + Number(c) + Number(d);
-    visSmooth[i] = ones >= 2;
+    const prev = vis[i - 1]!;
+    const mid = vis[i]!;
+    const next = vis[i + 1]!;
+    if (prev !== next || mid === prev) continue;
+
+    const step = 1 / samples;
+    const tMid = i / samples;
+    const leftProbe = sampleVisibility(clamp01(tMid - step * 0.25));
+    const rightProbe = sampleVisibility(clamp01(tMid + step * 0.25));
+    if (leftProbe === prev && rightProbe === prev) {
+      visSmooth[i] = prev;
+    }
   }
 
   const cuts: number[] = [];
