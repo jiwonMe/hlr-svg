@@ -180,3 +180,23 @@ function refineCutBisection(
   }
   return (lo + hi) / 2;
 }
+
+export function refineVisibilityCutBisection(
+  b: CubicBezier3,
+  scene: Scene,
+  params: VisibilityParams,
+  tLo: number,
+  tHi: number,
+  visLo: boolean,
+  ignorePrimitiveIds?: readonly string[],
+): number {
+  return refineCutBisection(
+    b,
+    scene,
+    params,
+    tLo,
+    tHi,
+    visLo,
+    ignorePrimitiveIds,
+  );
+}

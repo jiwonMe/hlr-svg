@@ -190,7 +190,7 @@ function boxEdgesToCubics3(b: BoxAabb): CubicBezier3[] {
   ];
 }
 
-function meshFeatureCurves(
+export function meshFeatureCurves(
   primitives: readonly Primitive[],
   camera: Camera,
   mesh: MeshCurveOptions,

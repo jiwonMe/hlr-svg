@@ -1,11 +1,18 @@
 import type { Camera } from "../camera/camera.js";
 import type { CubicBezier3 } from "../curves/cubicBezier3.js";
 import type { Primitive } from "../scene/primitive.js";
+import { TriangleMesh } from "../scene/primitives/triangleMesh.js";
 import { intersectionCurvesToOwnedCubics } from "../scene/intersections/intersectionCurves.js";
-import { splitCubicByVisibility, splitCubicByVisibilityWithIgnore, type StyledPiece } from "../hlr/splitByVisibility.js";
+import {
+  splitCubicByVisibility,
+  splitCubicByVisibilityWithIgnore,
+  splitLineCubicByVisibilityAdaptive,
+  type StyledPiece,
+} from "../hlr/splitByVisibility.js";
 import { piecesToSvg, type SvgRenderOptions, type SvgStyle } from "../svg/svgWriter.js";
 import {
   curvesFromPrimitives,
+  meshFeatureCurves,
   type CurveInclude,
   type MeshCurveOptions,
 } from "./curves.js";
@@ -110,16 +117,31 @@ export class SvgRenderer {
     if (profiler) profiler.begin("render.total");
 
     const include = { ...defaultInclude(), ...(this.base.include ?? {}), ...(opts.include ?? {}) };
-    const hlr = { ...DEFAULT_HLR_PARAMS, ...(this.base.hlr ?? {}), ...(opts.hlr ?? {}) };
     const ix = { ...DEFAULT_INTERSECTION_PARAMS, ...(this.base.intersections ?? {}), ...(opts.intersections ?? {}) };
     const mesh = { ...DEFAULT_MESH_PARAMS, ...(this.base.mesh ?? {}), ...(opts.mesh ?? {}) };
 
     const primitives = scene.primitives;
+    const hasTriangleMesh = primitives.some((p) => p instanceof TriangleMesh);
+    const hlrDefaults = hasTriangleMesh
+      ? { ...DEFAULT_HLR_PARAMS, coarseSamples: 24 }
+      : DEFAULT_HLR_PARAMS;
+    const hlr = { ...hlrDefaults, ...(this.base.hlr ?? {}), ...(opts.hlr ?? {}) };
     const cubics: CubicBezier3[] = [];
+    const meshCubics: CubicBezier3[] = [];
 
     // 1) Curves automatically generated from primitives (silhouettes/rims/borders/box edges)
     if (profiler) profiler.begin("render.curvesFromPrimitives");
-    cubics.push(...curvesFromPrimitives(primitives, camera, include, mesh));
+    cubics.push(
+      ...curvesFromPrimitives(
+        primitives,
+        camera,
+        { ...include, meshEdges: false },
+        mesh,
+      ),
+    );
+    if (include.meshEdges) {
+      meshCubics.push(...meshFeatureCurves(primitives, camera, mesh));
+    }
     if (profiler) profiler.end("render.curvesFromPrimitives");
 
     // 2) Curves provided by the user
@@ -139,6 +161,18 @@ export class SvgRenderer {
     if (profiler) profiler.begin("render.visibilitySplit");
     for (const b of cubics) {
       for (const p of splitCubicByVisibility(b, rayScene, hlr)) (p.visible ? visiblePieces : hiddenPieces).push(p);
+    }
+    for (const b of meshCubics) {
+      for (const p of splitLineCubicByVisibilityAdaptive(
+        b,
+        rayScene,
+        camera,
+        width,
+        height,
+        hlr,
+      )) {
+        (p.visible ? visiblePieces : hiddenPieces).push(p);
+      }
     }
     for (const x of ownedIntersections) {
       for (const p of splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds)) {
