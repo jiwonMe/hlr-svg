@@ -15,7 +15,11 @@ import {
   lineToCubic3,
   sphereSilhouetteToCubics3,
 } from "@hlr/curves/builders.js";
-import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
+import {
+  renderCaseToGpuPreview,
+  renderCaseToSnapshot,
+  type RenderCaseSvgOptions,
+} from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { Scene } from "@hlr/scene/scene.js";
@@ -31,6 +35,9 @@ import {
   type OrbitState,
   clamp,
 } from "../../runtime/orbit";
+import { GpuPreviewCanvasHost } from "../../runtime/GpuPreviewCanvasHost";
+import { useInteractionPreview } from "../../runtime/useInteractionPreview";
+import { WebglCanvasHost } from "../../runtime/WebglCanvasHost";
 import { useRafTick } from "../../runtime/useRaf";
 import {
   EXAMPLES,
@@ -130,6 +137,7 @@ export function DocsExamplePage(): React.ReactElement {
   // animation
   const [playing, setPlaying] = useState(false);
   const tick = useRafTick(playing);
+  const [previewPulse, setPreviewPulse] = useState(0);
 
   useEffect(() => {
     setOrbit(baseOrbit);
@@ -175,23 +183,6 @@ export function DocsExamplePage(): React.ReactElement {
     () => ({ ...baseDemo, camera }),
     [baseDemo, camera],
   );
-
-  const svg = useMemo(
-    () =>
-      renderCaseToSvgString(runtimeDemo, {
-        background: false,
-        svgStyle: {
-          strokeWidthVisible: 2,
-          strokeWidthHidden: 2,
-          dashArrayHidden: "6 6",
-          strokeVisible: "#000000",
-          strokeHidden: "#000000",
-          opacityHidden: 0.4,
-        },
-      }),
-    [runtimeDemo],
-  );
-
   const [drag, setDrag] = useState<null | {
     x: number;
     y: number;
@@ -202,6 +193,39 @@ export function DocsExamplePage(): React.ReactElement {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(
     null,
+  );
+  const exactOptions = useMemo<RenderCaseSvgOptions>(
+    () => ({
+      background: false,
+      svgStyle: {
+        strokeWidthVisible: 2,
+        strokeWidthHidden: 2,
+        dashArrayHidden: "6 6",
+        strokeVisible: "#000000",
+        strokeHidden: "#000000",
+        opacityHidden: 0.4,
+      },
+    }),
+    [],
+  );
+  const previewing = useInteractionPreview(
+    playing || drag !== null,
+    140,
+    previewPulse,
+  );
+  const exactSnapshot = useMemo(
+    () => (previewing ? null : renderCaseToSnapshot(runtimeDemo, exactOptions)),
+    [exactOptions, previewing, runtimeDemo],
+  );
+  const previewFrame = useMemo(
+    () =>
+      previewing
+        ? renderCaseToGpuPreview(runtimeDemo, {
+            background: exactOptions.background,
+            svgStyle: exactOptions.svgStyle,
+          })
+        : null,
+    [exactOptions.background, exactOptions.svgStyle, previewing, runtimeDemo],
   );
 
   // Scene for picking
@@ -331,14 +355,6 @@ export function DocsExamplePage(): React.ReactElement {
           </a>
         </div>
       </header>
-
-      <style>{`
-        [data-example-svg] svg {
-          width: 100%;
-          height: auto;
-          display: block;
-        }
-      `}</style>
 
       {/* Viewer - Full width */}
       <section
@@ -637,9 +653,14 @@ export function DocsExamplePage(): React.ReactElement {
             e.preventDefault();
             const k = Math.exp(e.deltaY * 0.0012);
             setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
+            setPreviewPulse((x) => x + 1);
           }}
         >
-          <div data-example-svg dangerouslySetInnerHTML={{ __html: svg }} />
+          {previewing && previewFrame ? (
+            <GpuPreviewCanvasHost frame={previewFrame} />
+          ) : exactSnapshot ? (
+            <WebglCanvasHost snapshot={exactSnapshot} />
+          ) : null}
         </div>
       </section>
     </div>

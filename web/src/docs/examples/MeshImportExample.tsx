@@ -3,8 +3,12 @@ import { Link } from "react-router-dom";
 import { cn } from "../../lib/utils";
 
 import { Camera } from "@hlr/camera/camera.js";
+import { renderSceneToGpuPreview } from "@hlr/core/gpuPreview.js";
+import {
+  renderSceneToSnapshot,
+  type RenderSnapshotOptions,
+} from "@hlr/core/renderSnapshot.js";
 import { Scene } from "@hlr/core/scene.js";
-import { SvgRenderer } from "@hlr/core/svgRenderer.js";
 import { parseObj } from "@hlr/io/obj.js";
 import { parseStl } from "@hlr/io/stl.js";
 import { Vec3 } from "@hlr/math/vec3.js";
@@ -16,6 +20,9 @@ import {
   orbitPosition,
   type OrbitState,
 } from "../../runtime/orbit";
+import { GpuPreviewCanvasHost } from "../../runtime/GpuPreviewCanvasHost";
+import { useInteractionPreview } from "../../runtime/useInteractionPreview";
+import { WebglCanvasHost } from "../../runtime/WebglCanvasHost";
 import { useElementSize } from "./useElementSize";
 
 type Locale = "ko-kr" | "en-us";
@@ -135,6 +142,7 @@ export function MeshImportExample({
     pol: number;
     id: number;
   }>(null);
+  const [previewPulse, setPreviewPulse] = useState(0);
 
   const baseOrbit = useMemo(() => orbitFromBounds(model.bounds), [model.bounds]);
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
@@ -176,9 +184,8 @@ export function MeshImportExample({
   }, [diag, orbit, projection, viewportHeight, viewportWidth]);
 
   const scene = useMemo(() => new Scene(model.meshes), [model.meshes]);
-
-  const svg = useMemo(() => {
-    const renderer = new SvgRenderer({
+  const exactOptions = useMemo<RenderSnapshotOptions>(
+    () => ({
       width: viewportWidth,
       height: viewportHeight,
       include: {
@@ -196,15 +203,35 @@ export function MeshImportExample({
         strokeHidden: "#000000",
         opacityHidden: 0.35,
       },
-    });
-
-    return renderer.render(scene, camera, {
-      include: {
-        intersections: false,
-        meshEdges: true,
-      },
-    });
-  }, [camera, creaseAngleDeg, scene, viewportHeight, viewportWidth]);
+    }),
+    [creaseAngleDeg, viewportHeight, viewportWidth],
+  );
+  const previewing = useInteractionPreview(drag !== null, 140, previewPulse);
+  const exactSnapshot = useMemo(
+    () => (previewing ? null : renderSceneToSnapshot(scene, camera, exactOptions)),
+    [camera, exactOptions, previewing, scene],
+  );
+  const previewFrame = useMemo(
+    () =>
+      previewing
+        ? renderSceneToGpuPreview(scene, camera, {
+            width: viewportWidth,
+            height: viewportHeight,
+            include: {
+              silhouettes: false,
+              rims: false,
+              borders: false,
+              boxEdges: false,
+              meshEdges: true,
+            },
+            mesh: {
+              creaseAngleDeg,
+            },
+            style: exactOptions.style,
+          })
+        : null,
+    [camera, creaseAngleDeg, exactOptions.style, previewing, scene, viewportHeight, viewportWidth],
+  );
 
   const totalTriangles = useMemo(
     () => model.meshes.reduce((sum, mesh) => sum + mesh.triangleCount, 0),
@@ -310,14 +337,6 @@ export function MeshImportExample({
           </a>
         </div>
       </header>
-
-      <style>{`
-        [data-example-svg] svg {
-          width: 100%;
-          height: auto;
-          display: block;
-        }
-      `}</style>
 
       <section
         className={cn(
@@ -474,9 +493,14 @@ export function MeshImportExample({
               ...current,
               radius: clamp(0.25, current.radius * scale, Math.max(60, diag * 8)),
             }));
+            setPreviewPulse((x) => x + 1);
           }}
         >
-          <div data-example-svg dangerouslySetInnerHTML={{ __html: svg }} />
+          {previewing && previewFrame ? (
+            <GpuPreviewCanvasHost frame={previewFrame} />
+          ) : exactSnapshot ? (
+            <WebglCanvasHost snapshot={exactSnapshot} />
+          ) : null}
 
           {dragActive ? (
             <div

@@ -27,7 +27,8 @@ export * from "./svg/svgWriter.js";
 // User-facing (three.js style) API
 export * from "./core/scene.js";
 export * from "./core/curves.js";
+export * from "./core/gpuPreview.js";
+export * from "./core/renderSnapshot.js";
 export * from "./core/svgRenderer.js";
 export * from "./core/profiler.js";
 export * from "./io/index.js";
-

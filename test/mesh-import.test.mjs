@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { Camera } from "../dist/camera/camera.js";
+import {
+  renderSceneToSnapshot,
+  snapshotToSvg,
+} from "../dist/core/renderSnapshot.js";
 import { lineToCubic3 } from "../dist/curves/builders.js";
 import { Scene as CoreScene } from "../dist/core/scene.js";
 import { SvgRenderer } from "../dist/core/svgRenderer.js";
@@ -10,6 +14,9 @@ import { parseObj } from "../dist/io/obj.js";
 import { parseStl } from "../dist/io/stl.js";
 import { Vec3 } from "../dist/math/vec3.js";
 import { Scene as RayScene } from "../dist/scene/scene.js";
+import { BoxAabb } from "../dist/scene/primitives/boxAabb.js";
+import { Cone } from "../dist/scene/primitives/cone.js";
+import { PlaneRect } from "../dist/scene/primitives/planeRect.js";
 import { Sphere } from "../dist/scene/primitives/sphere.js";
 import { TriangleMesh } from "../dist/scene/primitives/triangleMesh.js";
 
@@ -177,6 +184,104 @@ test("mesh occlusion participates in visibility checks with meshes and analytic 
 
   const mixedScene = new RayScene([frontCube, sphere], camera);
   assert.equal(mixedScene.visibleAtPoint(new Vec3(0, 0, -2.5), { eps: 1e-6 }), false);
+});
+
+test("snapshotToSvg matches SvgRenderer for analytic primitives", () => {
+  const scene = new CoreScene([
+    new Sphere("sphere", new Vec3(-0.8, 0.1, 0), 1),
+    new BoxAabb("box", new Vec3(0.2, -0.8, 0.7), new Vec3(1.4, 0.4, 1.9)),
+  ]);
+  const camera = Camera.from({
+    kind: "perspective",
+    position: new Vec3(3.5, 2.1, 4.8),
+    target: new Vec3(0.1, -0.1, 0.4),
+    up: new Vec3(0, 1, 0),
+    fovYRad: (55 * Math.PI) / 180,
+    aspect: 240 / 180,
+    near: 0.1,
+    far: 100,
+  });
+  const opts = {
+    width: 240,
+    height: 180,
+    style: {
+      strokeWidthVisible: 1.7,
+      strokeWidthHidden: 1.7,
+      dashArrayHidden: "5 4",
+      opacityHidden: 0.45,
+    },
+  };
+
+  const snapshotSvg = snapshotToSvg(renderSceneToSnapshot(scene, camera, opts));
+  const rendererSvg = new SvgRenderer(opts).render(scene, camera);
+
+  assert.equal(snapshotSvg, rendererSvg);
+});
+
+test("snapshotToSvg matches SvgRenderer for intersection rendering", () => {
+  const scene = new CoreScene([
+    new Cone("cone", new Vec3(0, -1.2, 0), new Vec3(0.1, 1, -0.15), 2.6, 1, "base"),
+    new PlaneRect(
+      "plane",
+      new Vec3(0.15, 0.1, -0.1),
+      new Vec3(0, 1, 0.25),
+      new Vec3(1, 0, 0),
+      2.6,
+      1.9,
+    ),
+  ]);
+  const camera = Camera.from({
+    kind: "perspective",
+    position: new Vec3(3.8, 2.4, 5.2),
+    target: new Vec3(0, 0.1, 0),
+    up: new Vec3(0, 1, 0),
+    fovYRad: (55 * Math.PI) / 180,
+    aspect: 700 / 520,
+    near: 0.1,
+    far: 100,
+  });
+  const opts = {
+    width: 700,
+    height: 520,
+    style: {
+      strokeWidthVisible: 1.8,
+      strokeWidthHidden: 1.8,
+      dashArrayHidden: "4 4",
+    },
+  };
+
+  const snapshotSvg = snapshotToSvg(renderSceneToSnapshot(scene, camera, opts));
+  const rendererSvg = new SvgRenderer(opts).render(scene, camera);
+
+  assert.equal(snapshotSvg, rendererSvg);
+});
+
+test("snapshotToSvg matches SvgRenderer for mesh feature edges", () => {
+  const mesh = createCubeMesh();
+  const scene = new CoreScene([mesh]);
+  const camera = createCamera(new Vec3(0, 0, 5));
+  const opts = {
+    width: 240,
+    height: 240,
+    include: {
+      intersections: false,
+      meshEdges: true,
+    },
+    mesh: {
+      creaseAngleDeg: 30,
+    },
+    style: {
+      strokeWidthVisible: 1.8,
+      strokeWidthHidden: 1.8,
+      dashArrayHidden: "6 6",
+      opacityHidden: 0.35,
+    },
+  };
+
+  const snapshotSvg = snapshotToSvg(renderSceneToSnapshot(scene, camera, opts));
+  const rendererSvg = new SvgRenderer(opts).render(scene, camera);
+
+  assert.equal(snapshotSvg, rendererSvg);
 });
 
 function createCamera(position) {

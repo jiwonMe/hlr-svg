@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "hlr": ["./src/index.ts"],
+      "hlr/webgl": ["./src/webgl/index.ts"]
+    },
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node", "react", "react-dom"]
+  },
+  "include": ["test/webgl-public-api.tsx"]
+}

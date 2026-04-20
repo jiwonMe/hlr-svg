@@ -7,20 +7,27 @@ import React, {
 } from "react";
 
 import { Camera } from "@hlr/camera/camera.js";
+import { snapshotToSvg } from "@hlr/core/renderSnapshot.js";
 import { formatProfileReport, type ProfileReport } from "@hlr/core/profiler.js";
 import {
-  renderCaseToSvgString,
-  renderCaseToSvgStringProfiled,
+  renderCaseToGpuPreview,
+  renderCaseToSnapshot,
+  renderCaseToSnapshotProfiled,
+  type RenderCaseSvgOptions,
 } from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
 import { Scene } from "@hlr/scene/scene.js";
+import type { WebglCanvasHandle } from "@hlr/webgl/index.js";
 
+import { GpuPreviewCanvasHost } from "./runtime/GpuPreviewCanvasHost";
 import {
   orbitFromCamera,
   orbitPosition,
   type OrbitState,
   clamp,
 } from "./runtime/orbit";
+import { useInteractionPreview } from "./runtime/useInteractionPreview";
+import { WebglCanvasHost } from "./runtime/WebglCanvasHost";
 import { useRafTick } from "./runtime/useRaf";
 import { StylePanel, type LineStyleState } from "./StylePanel";
 
@@ -38,6 +45,7 @@ type CoarsePresetIndex = 0 | 1 | 2 | 3;
 
 export function Viewer({ demo }: ViewerProps): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<WebglCanvasHandle | null>(null);
 
   const baseOrbit = useMemo(
     () => orbitFromCamera(demo.camera.position, demo.camera.target),
@@ -86,6 +94,7 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
     pol: number;
     id: number;
   }>(null);
+  const [previewPulse, setPreviewPulse] = useState(0);
   const [dirty, setDirty] = useState(0);
   const tick = useRafTick(playing);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -132,37 +141,41 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   }, [demo, camera]);
 
   const coarseSamples = COARSE_PRESETS[coarseIdx] ?? 64;
-
-  const profiled = useMemo((): {
-    svg: string;
-    report: ProfileReport | null;
-  } => {
-    if (!profileOn) {
-      return {
-        svg: renderCaseToSvgString(runtimeDemo, {
-          svgStyle: style,
-          hlr: { coarseSamples },
-          intersections: { angularSamples, useBezierFit, fitMode },
-        }),
-        report: null,
-      };
-    }
-    return renderCaseToSvgStringProfiled(runtimeDemo, {
+  const exactOptions = useMemo<RenderCaseSvgOptions>(
+    () => ({
       svgStyle: style,
       hlr: { coarseSamples },
       intersections: { angularSamples, useBezierFit, fitMode },
-    });
-  }, [
-    coarseSamples,
-    profileOn,
-    runtimeDemo,
-    style,
-    angularSamples,
-    useBezierFit,
-    fitMode,
-  ]);
+    }),
+    [angularSamples, coarseSamples, fitMode, style, useBezierFit],
+  );
+  const previewing = useInteractionPreview(
+    playing || drag !== null,
+    140,
+    previewPulse,
+  );
 
-  const svg = profiled.svg;
+  const exactResult = useMemo((): {
+    snapshot: ReturnType<typeof renderCaseToSnapshot>;
+    report: ProfileReport | null;
+  } | null => {
+    if (previewing) return null;
+    if (!profileOn) {
+      return {
+        snapshot: renderCaseToSnapshot(runtimeDemo, exactOptions),
+        report: null,
+      };
+    }
+    return renderCaseToSnapshotProfiled(runtimeDemo, exactOptions);
+  }, [exactOptions, previewing, profileOn, runtimeDemo]);
+
+  const previewFrame = useMemo(() => {
+    if (!previewing) return null;
+    return renderCaseToGpuPreview(runtimeDemo, {
+      svgStyle: exactOptions.svgStyle,
+      background: exactOptions.background,
+    });
+  }, [exactOptions.background, exactOptions.svgStyle, previewing, runtimeDemo]);
 
   // Scene for picking
   const scene = useMemo(
@@ -199,18 +212,30 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
   );
 
   useEffect(() => {
-    if (!profileOn || !profiled.report) {
+    if (!profileOn || previewing || !exactResult?.report) {
       setProfileText("");
       return;
     }
-    const text = formatProfileReport(profiled.report);
+    const text = formatProfileReport(exactResult.report);
     setProfileText(text);
     // 한 번에 보기 좋게 콘솔에도 찍어둔다(렌더 1회마다 1로그)
     // 개발 모드에서만 콘솔 출력
     if (import.meta.env.DEV) {
       console.log(`[hlr-svg profile] ${demo.name}\n${text}`);
     }
-  }, [demo.name, profileOn, profiled.report]);
+  }, [demo.name, exactResult?.report, previewing, profileOn]);
+
+  const exportSvg = useCallback(() => {
+    if (!previewing) {
+      return (
+        canvasRef.current?.exportSvg() ??
+        (exactResult
+          ? snapshotToSvg(exactResult.snapshot)
+          : snapshotToSvg(renderCaseToSnapshot(runtimeDemo, exactOptions)))
+      );
+    }
+    return snapshotToSvg(renderCaseToSnapshot(runtimeDemo, exactOptions));
+  }, [exactOptions, exactResult, previewing, runtimeDemo]);
 
   return (
     <section className="caseCard">
@@ -266,7 +291,11 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
           <button
             className="btn"
             type="button"
-            onClick={() => void navigator.clipboard.writeText(svg)}
+            onClick={() => {
+              const svg = exportSvg();
+              if (!svg) return;
+              void navigator.clipboard.writeText(svg);
+            }}
             title="SVG 문자열 복사"
           >
             SVG 복사
@@ -449,9 +478,14 @@ export function Viewer({ demo }: ViewerProps): React.ReactElement {
             setOrthoHalfHeight((h) => clamp(0.15, h * k, 50));
           }
           setDirty((x) => x + 1);
+          setPreviewPulse((x) => x + 1);
         }}
       >
-        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        {previewing && previewFrame ? (
+          <GpuPreviewCanvasHost frame={previewFrame} />
+        ) : exactResult ? (
+          <WebglCanvasHost ref={canvasRef} snapshot={exactResult.snapshot} />
+        ) : null}
       </div>
     </section>
   );

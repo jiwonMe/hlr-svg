@@ -10,6 +10,16 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./webgl": {
+      "types": "./dist/webgl/index.d.ts",
+      "import": "./dist/webgl/index.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",
@@ -36,10 +46,10 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite --config web/vite.config.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.webgl.json",
     "pretest": "pnpm build",
     "test": "node --test test/hlr-regressions.test.mjs test/mesh-import.test.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit && tsc -p web/tsconfig.node.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webgl.json --noEmit && tsc -p tsconfig.public-api.json --noEmit && tsc -p web/tsconfig.json --noEmit && tsc -p web/tsconfig.node.json --noEmit",
     "lint": "eslint src web/src web/vite.config.ts",
     "format": "prettier --write .",
     "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm web:build",
@@ -61,6 +71,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
     "motion": "^12.23.26",
+    "pixi.js": "^8.18.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.10.1",

@@ -12,18 +12,24 @@ import { cn } from "./lib/utils";
 import { Github, BookOpen } from "lucide-react";
 
 import { Camera } from "@hlr/camera/camera.js";
+import { snapshotToSvg } from "@hlr/core/renderSnapshot.js";
 import {
   coneSilhouetteToCubics3,
   cylinderSilhouetteToCubics3,
   sphereSilhouetteToCubics3,
 } from "@hlr/curves/builders.js";
-import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
+import {
+  renderCaseToGpuPreview,
+  renderCaseToSnapshot,
+  type RenderCaseSvgOptions,
+} from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
 import { Cone } from "@hlr/scene/primitives/cone.js";
 import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
 import { Sphere } from "@hlr/scene/primitives/sphere.js";
+import type { WebglCanvasHandle } from "@hlr/webgl/index.js";
 
 import {
   orbitFromCamera,
@@ -31,6 +37,9 @@ import {
   type OrbitState,
   clamp,
 } from "./runtime/orbit";
+import { GpuPreviewCanvasHost } from "./runtime/GpuPreviewCanvasHost";
+import { useInteractionPreview } from "./runtime/useInteractionPreview";
+import { WebglCanvasHost } from "./runtime/WebglCanvasHost";
 import { useRafTick } from "./runtime/useRaf";
 
 type PrimitiveType = "sphere" | "cylinder" | "cone" | "box";
@@ -206,6 +215,7 @@ function createRandomDemoCase(): DemoCase {
 
 export function LandingPage(): React.ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<WebglCanvasHandle | null>(null);
   const [demoCase, setDemoCase] = useState<DemoCase>(() =>
     createRandomDemoCase(),
   );
@@ -223,6 +233,7 @@ export function LandingPage(): React.ReactElement {
     pol: number;
     id: number;
   }>(null);
+  const [previewPulse, setPreviewPulse] = useState(0);
   const [dirty, setDirty] = useState(0);
 
   const tick = useRafTick(playing);
@@ -256,24 +267,41 @@ export function LandingPage(): React.ReactElement {
     () => ({ ...demoCase, camera }),
     [demoCase, camera],
   );
-
-  const svg = useMemo(
+  const exactOptions = useMemo<RenderCaseSvgOptions>(
+    () => ({
+      background: false,
+      svgStyle: {
+        strokeWidthVisible: 2,
+        strokeWidthHidden: 2,
+        dashArrayHidden: "6 6",
+        strokeVisible: "#000000",
+        strokeHidden: "#000000",
+        opacityHidden: 0.4,
+      },
+      hlr: {
+        coarseSamples: 12,
+      },
+    }),
+    [],
+  );
+  const previewing = useInteractionPreview(
+    playing || drag !== null,
+    140,
+    previewPulse,
+  );
+  const exactSnapshot = useMemo(
+    () => (previewing ? null : renderCaseToSnapshot(runtimeDemo, exactOptions)),
+    [exactOptions, previewing, runtimeDemo],
+  );
+  const previewFrame = useMemo(
     () =>
-      renderCaseToSvgString(runtimeDemo, {
-        background: false,
-        svgStyle: {
-          strokeWidthVisible: 2,
-          strokeWidthHidden: 2,
-          dashArrayHidden: "6 6",
-          strokeVisible: "#000000",
-          strokeHidden: "#000000",
-          opacityHidden: 0.4,
-        },
-        hlr: {
-          coarseSamples: 12,
-        },
-      }),
-    [runtimeDemo],
+      previewing
+        ? renderCaseToGpuPreview(runtimeDemo, {
+            background: exactOptions.background,
+            svgStyle: exactOptions.svgStyle,
+          })
+        : null,
+    [exactOptions.background, exactOptions.svgStyle, previewing, runtimeDemo],
   );
 
   // 5초마다 자동으로 새 케이스 생성
@@ -288,6 +316,11 @@ export function LandingPage(): React.ReactElement {
   }, []);
 
   const handleSaveSvg = useCallback(() => {
+    const svg = previewing
+      ? snapshotToSvg(renderCaseToSnapshot(runtimeDemo, exactOptions))
+      : canvasRef.current?.exportSvg() ??
+        (exactSnapshot ? snapshotToSvg(exactSnapshot) : null);
+    if (!svg) return;
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -297,7 +330,7 @@ export function LandingPage(): React.ReactElement {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [svg]);
+  }, [exactOptions, exactSnapshot, previewing, runtimeDemo]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -344,6 +377,7 @@ export function LandingPage(): React.ReactElement {
     const k = Math.exp(e.deltaY * 0.001);
     setOrbit((o) => ({ ...o, radius: clamp(3, o.radius * k, 20) }));
     setDirty((x) => x + 1);
+    setPreviewPulse((x) => x + 1);
   }, []);
 
   return (
@@ -381,9 +415,8 @@ export function LandingPage(): React.ReactElement {
         }}
       />
 
-      {/* Background SVG */}
+      {/* Background WebGL canvas */}
       <div
-        data-svg-container
         className={cn(
           // Full coverage
           "absolute inset-0",
@@ -392,22 +425,13 @@ export function LandingPage(): React.ReactElement {
           // Ensure no background
           "bg-transparent",
         )}
-        dangerouslySetInnerHTML={{ __html: svg }}
-        style={
-          {
-            // Make SVG fill the entire viewport
-          }
-        }
-      />
-
-      {/* Make SVG fill viewport */}
-      <style>{`
-        [data-svg-container] svg {
-          width: 100vw;
-          height: 100vh;
-          display: block;
-        }
-      `}</style>
+      >
+        {previewing && previewFrame ? (
+          <GpuPreviewCanvasHost frame={previewFrame} />
+        ) : exactSnapshot ? (
+          <WebglCanvasHost ref={canvasRef} snapshot={exactSnapshot} />
+        ) : null}
+      </div>
 
       {/* Content overlay */}
       <div
