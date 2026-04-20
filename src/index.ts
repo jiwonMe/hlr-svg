@@ -12,6 +12,7 @@ export * from "./scene/primitives/cone.js";
 export * from "./scene/primitives/boxAabb.js";
 export * from "./scene/primitives/planeRect.js";
 export * from "./scene/primitives/disk.js";
+export * from "./scene/primitives/triangleMesh.js";
 export * from "./scene/intersections/intersectionCurves.js";
 export * from "./scene/intersections/bezierFit.js";
 
@@ -28,5 +29,5 @@ export * from "./core/scene.js";
 export * from "./core/curves.js";
 export * from "./core/svgRenderer.js";
 export * from "./core/profiler.js";
-
+export * from "./io/index.js";
 

@@ -87,6 +87,7 @@ const svg = renderer.render(scene, camera);
 | `background` | `boolean` | `false`  | Whether to add background rect |
 | `style`      | `object`  | -        | Line style options             |
 | `include`    | `object`  | -        | Curve types to render          |
+| `mesh`       | `object`  | -        | Triangle mesh feature-line options |
 
 #### style Options
 
@@ -107,7 +108,14 @@ const svg = renderer.render(scene, camera);
 | `rims`          | `boolean` | `true`  | Cylinder, Cone cap circles             |
 | `borders`       | `boolean` | `true`  | PlaneRect outlines                     |
 | `boxEdges`      | `boolean` | `true`  | BoxAabb 12 edges                       |
+| `meshEdges`     | `boolean` | `true`  | `TriangleMesh` boundary / crease / silhouette edges |
 | `intersections` | `boolean` | `true`  | Intersection curves between primitives |
+
+#### mesh Options
+
+| Property         | Type     | Default | Description |
+| ---------------- | -------- | ------- | ----------- |
+| `creaseAngleDeg` | `number` | `30`    | Angle threshold for turning adjacent triangle faces into feature edges |
 
 ---
 
@@ -236,6 +244,59 @@ const disk = new Disk(
   1.5, // radius
 );
 ```
+
+### TriangleMesh
+
+Triangle mesh primitive for imported OBJ/STL geometry.
+
+```typescript
+import { TriangleMesh, Vec3 } from "hlr";
+
+const mesh = new TriangleMesh(
+  "mesh",
+  [
+    new Vec3(0, 0, 0),
+    new Vec3(1, 0, 0),
+    new Vec3(0, 1, 0),
+  ],
+  [[0, 1, 2]],
+);
+```
+
+| Parameter   | Type                              | Description |
+| ----------- | --------------------------------- | ----------- |
+| `id`        | `string`                          | Unique identifier |
+| `vertices`  | `Vec3[]`                          | Mesh vertex positions |
+| `triangles` | `Array<[number, number, number]>` | Triangle index list |
+
+### OBJ / STL Import
+
+```typescript
+import { parseObj, parseStl } from "hlr";
+
+const obj = parseObj(
+  await fetch("/model.obj").then((res) => res.arrayBuffer()),
+);
+const stl = parseStl(
+  await fetch("/model.stl").then((res) => res.arrayBuffer()),
+);
+```
+
+Both functions return:
+
+```typescript
+type ImportedModel = {
+  meshes: TriangleMesh[];
+  bounds: { min: Vec3; max: Vec3 };
+  warnings: string[];
+};
+```
+
+Notes:
+
+- OBJ supports `v`, `vn`, `f`, `o`, `g`, and comments.
+- `mtllib`, `usemtl`, `vt`, `l`, `p`, and `curv` are ignored with warnings.
+- Meshes participate in HLR raycasting, but analytic intersection curves are still limited to the built-in analytic primitives.
 
 ---
 

@@ -4,7 +4,11 @@ import type { Primitive } from "../scene/primitive.js";
 import { intersectionCurvesToOwnedCubics } from "../scene/intersections/intersectionCurves.js";
 import { splitCubicByVisibility, splitCubicByVisibilityWithIgnore, type StyledPiece } from "../hlr/splitByVisibility.js";
 import { piecesToSvg, type SvgRenderOptions, type SvgStyle } from "../svg/svgWriter.js";
-import { curvesFromPrimitives, type CurveInclude } from "./curves.js";
+import {
+  curvesFromPrimitives,
+  type CurveInclude,
+  type MeshCurveOptions,
+} from "./curves.js";
 import { Scene } from "./scene.js";
 import type { Profiler } from "./profiler.js";
 
@@ -27,6 +31,8 @@ export type RenderInclude = CurveInclude & {
   intersections?: boolean; // default: true
 };
 
+export type MeshRenderParams = Required<MeshCurveOptions>;
+
 export type RenderOptions = {
   width: number;
   height: number;
@@ -35,6 +41,7 @@ export type RenderOptions = {
   include?: RenderInclude;
   hlr?: Partial<HlrParams>;
   intersections?: Partial<IntersectionParams>;
+  mesh?: Partial<MeshRenderParams>;
   curves?: readonly CubicBezier3[]; // User curves (additional)
   profiler?: Profiler;
 };
@@ -54,12 +61,17 @@ export const DEFAULT_INTERSECTION_PARAMS: IntersectionParams = {
   fitMode: "stitchThenFit",
 };
 
+export const DEFAULT_MESH_PARAMS: MeshRenderParams = {
+  creaseAngleDeg: 30,
+};
+
 function defaultInclude(): Required<RenderInclude> {
   return {
     silhouettes: true,
     rims: true,
     borders: true,
     boxEdges: true,
+    meshEdges: true,
     intersections: true,
   };
 }
@@ -73,7 +85,18 @@ function defaultInclude(): Required<RenderInclude> {
  * ```
  */
 export class SvgRenderer {
-  private readonly base: Pick<RenderOptions, "width" | "height" | "background" | "style" | "include" | "hlr" | "intersections" | "profiler">;
+  private readonly base: Pick<
+    RenderOptions,
+    | "width"
+    | "height"
+    | "background"
+    | "style"
+    | "include"
+    | "hlr"
+    | "intersections"
+    | "mesh"
+    | "profiler"
+  >;
 
   constructor(opts: Omit<RenderOptions, "curves">) {
     this.base = opts;
@@ -89,13 +112,14 @@ export class SvgRenderer {
     const include = { ...defaultInclude(), ...(this.base.include ?? {}), ...(opts.include ?? {}) };
     const hlr = { ...DEFAULT_HLR_PARAMS, ...(this.base.hlr ?? {}), ...(opts.hlr ?? {}) };
     const ix = { ...DEFAULT_INTERSECTION_PARAMS, ...(this.base.intersections ?? {}), ...(opts.intersections ?? {}) };
+    const mesh = { ...DEFAULT_MESH_PARAMS, ...(this.base.mesh ?? {}), ...(opts.mesh ?? {}) };
 
     const primitives = scene.primitives;
     const cubics: CubicBezier3[] = [];
 
     // 1) Curves automatically generated from primitives (silhouettes/rims/borders/box edges)
     if (profiler) profiler.begin("render.curvesFromPrimitives");
-    cubics.push(...curvesFromPrimitives(primitives, camera, include));
+    cubics.push(...curvesFromPrimitives(primitives, camera, include, mesh));
     if (profiler) profiler.end("render.curvesFromPrimitives");
 
     // 2) Curves provided by the user
@@ -157,4 +181,3 @@ export function renderPrimitivesToSvg(
 ): string {
   return renderToSvg(new Scene(primitives), camera, opts);
 }
-

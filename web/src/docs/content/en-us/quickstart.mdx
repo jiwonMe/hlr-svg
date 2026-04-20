@@ -159,12 +159,64 @@ const renderer = new SvgRenderer({
     rims: true, // Cap circles (Cylinder, Cone)
     borders: true, // PlaneRect outlines
     boxEdges: true, // BoxAabb 12 edges
+    meshEdges: true, // TriangleMesh feature edges
     intersections: true, // Intersection curves between primitives
   },
 });
 
 const svg = renderer.render(scene, camera);
 ```
+
+## Import OBJ / STL
+
+`parseObj()` and `parseStl()` let you bring triangle meshes into the same SVG HLR pipeline:
+
+```typescript
+import {
+  Camera,
+  Scene,
+  SvgRenderer,
+  Vec3,
+  parseObj,
+} from "hlr";
+
+const bytes = await fetch("/models/example.obj").then((res) =>
+  res.arrayBuffer(),
+);
+const imported = parseObj(bytes);
+
+const scene = new Scene(imported.meshes);
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(4, 3, 5),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (50 * Math.PI) / 180,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+const renderer = new SvgRenderer({
+  width: 960,
+  height: 540,
+  include: {
+    intersections: false,
+    meshEdges: true,
+  },
+  mesh: {
+    creaseAngleDeg: 30,
+  },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+### Current limitations
+
+- OBJ/STL import is geometry-only in v1.
+- OBJ accepts `v`, `vn`, `f`, `o`, `g`, and comments.
+- `MTL`, textures, UVs, `glTF`, and mesh intersection curves are not supported yet.
 
 ## Next Steps
 

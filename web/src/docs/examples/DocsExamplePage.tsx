@@ -38,6 +38,7 @@ import {
   getGithubUrl,
   type ExampleId,
 } from "./examplesRegistry";
+import { MeshImportExample } from "./MeshImportExample";
 import { useElementSize } from "./useElementSize";
 
 type Locale = "ko-kr" | "en-us";
@@ -92,6 +93,14 @@ export function DocsExamplePage(): React.ReactElement {
   const ex = exampleId ? getExampleById(exampleId) : undefined;
   if (!ex) {
     return <Navigate to={`/docs/${lang}/examples`} replace />;
+  }
+
+  const info = ex.text[lang];
+  const githubUrl = getGithubUrl(ex.githubPath);
+  if (ex.id === "mesh-import") {
+    return (
+      <MeshImportExample lang={lang} info={info} githubUrl={githubUrl} />
+    );
   }
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -233,9 +242,6 @@ export function DocsExamplePage(): React.ReactElement {
     },
     [camera, clickStart, runtimeDemo.height, runtimeDemo.width, scene],
   );
-
-  const info = ex.text[lang];
-  const githubUrl = getGithubUrl(ex.githubPath);
 
   return (
     <div

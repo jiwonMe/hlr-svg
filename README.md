@@ -6,6 +6,7 @@ A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HL
 
 - **HLR/HCR**: Automatically determines which curve segments are visible and renders them as solid/dashed lines
 - **Multiple Primitives**: Supports Sphere, Cylinder, Cone, BoxAabb, PlaneRect, and Disk
+- **Triangle Mesh Import**: Parse OBJ/STL into `TriangleMesh` and render SVG feature lines with HLR
 - **Intersection Curves**: Computes intersection curves between overlapping primitives
 - **Silhouette Generation**: Automatically generates silhouette curves for curved surfaces
 - **three.js-style API**: Familiar API design similar to three.js
@@ -64,6 +65,7 @@ console.log(svg);
 - **BoxAabb**: `new BoxAabb(id, min, max)`
 - **PlaneRect**: `new PlaneRect(id, center, normal, u, halfWidth, halfHeight)`
 - **Disk**: `new Disk(id, center, normal, radius)`
+- **TriangleMesh**: `new TriangleMesh(id, vertices, triangles)`
 
 ## API Overview
 
@@ -124,6 +126,7 @@ Control which curves are automatically generated:
 - `rims`: Rim circles for cylinders and cones
 - `borders`: Border outlines for PlaneRect
 - `boxEdges`: All 12 edges for BoxAabb
+- `meshEdges`: Feature edges for TriangleMesh (boundary / crease / silhouette)
 - `intersections`: Intersection curves between overlapping primitives
 
 ### HLR Parameters
@@ -155,6 +158,59 @@ renderer.render(scene, camera, {
   curves: [customCurve],
 });
 ```
+
+## OBJ/STL Import
+
+You can import geometry-only OBJ/STL data and send it through the same SVG HLR pipeline:
+
+```typescript
+import {
+  Camera,
+  Scene,
+  SvgRenderer,
+  Vec3,
+  parseObj,
+} from "hlr-svg";
+
+const bytes = await fetch("/models/example.obj").then((res) =>
+  res.arrayBuffer(),
+);
+const imported = parseObj(bytes);
+
+const scene = new Scene(imported.meshes);
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(4, 3, 5),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (50 * Math.PI) / 180,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+const renderer = new SvgRenderer({
+  width: 960,
+  height: 540,
+  include: {
+    intersections: false,
+    meshEdges: true,
+  },
+  mesh: {
+    creaseAngleDeg: 30,
+  },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+### OBJ/STL v1 Limitations
+
+- Geometry only: `MTL`, materials, textures, UVs, and `glTF/GLB` are out of scope.
+- OBJ supports `v`, `vn`, `f`, `o`, `g`, and comments.
+- `mtllib`, `usemtl`, `vt`, `l`, `p`, and `curv` are ignored with warnings.
+- Triangle meshes participate in raycast/HLR, but analytic intersection curves still apply only to the built-in analytic primitives.
+- The parser API accepts in-memory data (`string`, `ArrayBuffer`, `Uint8Array`), not file paths.
 
 ## Build & Development
 

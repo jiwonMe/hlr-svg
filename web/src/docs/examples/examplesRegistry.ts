@@ -1,8 +1,13 @@
 import simpleCode from "../samples/simple-primitives.ts?raw";
 import randomCode from "../samples/random-primitives.ts?raw";
 import conicCode from "../samples/conic-section.ts?raw";
+import meshImportCode from "../samples/mesh-import.ts?raw";
 
-export type ExampleId = "simple-primitives" | "random-primitives" | "conic-section";
+export type ExampleId =
+  | "simple-primitives"
+  | "random-primitives"
+  | "conic-section"
+  | "mesh-import";
 
 type Locale = "ko-kr" | "en-us";
 
@@ -67,6 +72,21 @@ export const EXAMPLES: readonly ExampleSpec[] = [
       "en-us": {
         title: "Conic section (Plane × Cone)",
         description: "A plane slicing a cone produces a conic section (ellipse/parabola/hyperbola).",
+      },
+    },
+  },
+  {
+    id: "mesh-import",
+    githubPath: "web/src/docs/samples/mesh-import.ts",
+    code: meshImportCode,
+    text: {
+      "ko-kr": {
+        title: "OBJ/STL 메시 임포트",
+        description: "OBJ/STL 파일을 업로드하거나 드롭해서 feature-line 기반 SVG HLR 결과를 바로 확인합니다.",
+      },
+      "en-us": {
+        title: "OBJ/STL mesh import",
+        description: "Upload or drop an OBJ/STL file to preview feature-line SVG HLR output.",
       },
     },
   },

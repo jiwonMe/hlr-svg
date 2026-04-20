@@ -15,12 +15,18 @@ import { Cylinder } from "../scene/primitives/cylinder.js";
 import { Disk } from "../scene/primitives/disk.js";
 import { PlaneRect } from "../scene/primitives/planeRect.js";
 import { Sphere } from "../scene/primitives/sphere.js";
+import { TriangleMesh } from "../scene/primitives/triangleMesh.js";
 
 export type CurveInclude = {
   silhouettes?: boolean; // default: true
   rims?: boolean; // default: true
   borders?: boolean; // default: true
   boxEdges?: boolean; // default: true
+  meshEdges?: boolean; // default: true
+};
+
+export type MeshCurveOptions = {
+  creaseAngleDeg?: number; // default: 30
 };
 
 export function defaultCurveInclude(): Required<CurveInclude> {
@@ -29,6 +35,7 @@ export function defaultCurveInclude(): Required<CurveInclude> {
     rims: true,
     borders: true,
     boxEdges: true,
+    meshEdges: true,
   };
 }
 
@@ -36,6 +43,7 @@ export function curvesFromPrimitives(
   primitives: readonly Primitive[],
   camera: Camera,
   include: CurveInclude = {},
+  mesh: MeshCurveOptions = {},
 ): CubicBezier3[] {
   const inc = { ...defaultCurveInclude(), ...include };
   const out: CubicBezier3[] = [];
@@ -44,6 +52,7 @@ export function curvesFromPrimitives(
   if (inc.rims) out.push(...rimsForPrimitives(primitives));
   if (inc.borders) out.push(...bordersForPrimitives(primitives));
   if (inc.boxEdges) out.push(...boxEdgesForPrimitives(primitives));
+  if (inc.meshEdges) out.push(...meshFeatureCurves(primitives, camera, mesh));
 
   return out;
 }
@@ -181,3 +190,20 @@ function boxEdgesToCubics3(b: BoxAabb): CubicBezier3[] {
   ];
 }
 
+function meshFeatureCurves(
+  primitives: readonly Primitive[],
+  camera: Camera,
+  mesh: MeshCurveOptions,
+): CubicBezier3[] {
+  const out: CubicBezier3[] = [];
+  const creaseAngleDeg = mesh.creaseAngleDeg ?? 30;
+
+  for (const p of primitives) {
+    if (!(p instanceof TriangleMesh)) continue;
+    for (const edge of p.featureEdges(camera, { creaseAngleDeg })) {
+      out.push(lineToCubic3(edge.start, edge.end));
+    }
+  }
+
+  return out;
+}

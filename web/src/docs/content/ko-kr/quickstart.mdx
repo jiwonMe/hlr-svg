@@ -160,12 +160,64 @@ const renderer = new SvgRenderer({
     rims: true, // 뚜껑 원 (원기둥, 원뿔)
     borders: true, // PlaneRect 외곽선
     boxEdges: true, // BoxAabb 12개 엣지
+    meshEdges: true, // TriangleMesh feature edge
     intersections: true, // 도형 간 교차선
   },
 });
 
 const svg = renderer.render(scene, camera);
 ```
+
+## OBJ / STL 임포트
+
+`parseObj()`와 `parseStl()`로 triangle mesh를 같은 SVG HLR 파이프라인에 넣을 수 있습니다:
+
+```typescript
+import {
+  Camera,
+  Scene,
+  SvgRenderer,
+  Vec3,
+  parseObj,
+} from "hlr";
+
+const bytes = await fetch("/models/example.obj").then((res) =>
+  res.arrayBuffer(),
+);
+const imported = parseObj(bytes);
+
+const scene = new Scene(imported.meshes);
+const camera = Camera.from({
+  kind: "perspective",
+  position: new Vec3(4, 3, 5),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (50 * Math.PI) / 180,
+  aspect: 16 / 9,
+  near: 0.1,
+  far: 100,
+});
+
+const renderer = new SvgRenderer({
+  width: 960,
+  height: 540,
+  include: {
+    intersections: false,
+    meshEdges: true,
+  },
+  mesh: {
+    creaseAngleDeg: 30,
+  },
+});
+
+const svg = renderer.render(scene, camera);
+```
+
+### 현재 제한 사항
+
+- v1 OBJ/STL 임포트는 geometry-only 범위입니다.
+- OBJ는 `v`, `vn`, `f`, `o`, `g`, comment를 지원합니다.
+- `MTL`, 텍스처, UV, `glTF`, mesh 교차곡선은 아직 지원하지 않습니다.
 
 ## 다음 단계
 

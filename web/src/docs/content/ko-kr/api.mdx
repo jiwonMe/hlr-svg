@@ -87,6 +87,7 @@ const svg = renderer.render(scene, camera);
 | `background` | `boolean` | `false` | 배경 rect 추가 여부 |
 | `style`      | `object`  | -       | 선 스타일 옵션      |
 | `include`    | `object`  | -       | 렌더링할 커브 종류  |
+| `mesh`       | `object`  | -       | triangle mesh feature-line 옵션 |
 
 #### style 옵션
 
@@ -107,7 +108,14 @@ const svg = renderer.render(scene, camera);
 | `rims`          | `boolean` | `true` | Cylinder, Cone 뚜껑 원        |
 | `borders`       | `boolean` | `true` | PlaneRect 외곽선              |
 | `boxEdges`      | `boolean` | `true` | BoxAabb 12개 엣지             |
+| `meshEdges`     | `boolean` | `true` | `TriangleMesh`의 boundary / crease / silhouette edge |
 | `intersections` | `boolean` | `true` | 도형 간 교차선                |
+
+#### mesh 옵션
+
+| 속성             | 타입     | 기본값 | 설명 |
+| ---------------- | -------- | ------ | ---- |
+| `creaseAngleDeg` | `number` | `30`   | 인접 triangle face를 feature edge로 승격시키는 각도 임계값 |
 
 ---
 
@@ -236,6 +244,59 @@ const disk = new Disk(
   1.5, // radius
 );
 ```
+
+### TriangleMesh
+
+OBJ/STL에서 가져온 geometry를 담는 triangle mesh primitive입니다.
+
+```typescript
+import { TriangleMesh, Vec3 } from "hlr";
+
+const mesh = new TriangleMesh(
+  "mesh",
+  [
+    new Vec3(0, 0, 0),
+    new Vec3(1, 0, 0),
+    new Vec3(0, 1, 0),
+  ],
+  [[0, 1, 2]],
+);
+```
+
+| 파라미터    | 타입                              | 설명 |
+| ----------- | --------------------------------- | ---- |
+| `id`        | `string`                          | 고유 식별자 |
+| `vertices`  | `Vec3[]`                          | 메시 정점 위치 |
+| `triangles` | `Array<[number, number, number]>` | triangle 인덱스 목록 |
+
+### OBJ / STL 임포트
+
+```typescript
+import { parseObj, parseStl } from "hlr";
+
+const obj = parseObj(
+  await fetch("/model.obj").then((res) => res.arrayBuffer()),
+);
+const stl = parseStl(
+  await fetch("/model.stl").then((res) => res.arrayBuffer()),
+);
+```
+
+두 함수는 다음 형태를 반환합니다:
+
+```typescript
+type ImportedModel = {
+  meshes: TriangleMesh[];
+  bounds: { min: Vec3; max: Vec3 };
+  warnings: string[];
+};
+```
+
+참고:
+
+- OBJ는 `v`, `vn`, `f`, `o`, `g`, comment를 지원합니다.
+- `mtllib`, `usemtl`, `vt`, `l`, `p`, `curv`는 warning과 함께 무시됩니다.
+- mesh도 HLR raycasting에는 참여하지만, analytic intersection curve는 기존 analytic primitive에만 적용됩니다.
 
 ---
 

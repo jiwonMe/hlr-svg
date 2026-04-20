@@ -38,7 +38,7 @@
     "dev": "vite --config web/vite.config.ts",
     "build": "tsc -p tsconfig.json",
     "pretest": "pnpm build",
-    "test": "node --test test/hlr-regressions.test.mjs",
+    "test": "node --test test/hlr-regressions.test.mjs test/mesh-import.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit && tsc -p web/tsconfig.node.json --noEmit",
     "lint": "eslint src web/src web/vite.config.ts",
     "format": "prettier --write .",
