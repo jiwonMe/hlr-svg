@@ -54,9 +54,14 @@ test("both authored section curves stay on their true sphere-plane sections", ()
 test("vector export retains mathematical labels, hidden arcs and camera-dependent guides", () => {
   const demo = buildSpherePlaneSectionsDemo(900, 560);
   const initial = renderSpherePlaneSectionsSvg(demo.camera, 900, 560);
-  for (const label of ["O", "P", "Q", "R", "A", "α", "β", "45°", "√6"]) {
+  for (const label of ["O", "P", "Q", "R", "A", "α", "β", "45°"]) {
     assert.ok(initial.includes(`>${label}<`), label);
   }
+  // AH = √6/2: a radical with its bar over 6, on a dashed arc broken for it.
+  const height = initial.match(/<g data-label="height"[^>]*>(.*?)<\/g>/)?.[1] ?? "";
+  for (const part of [">√<", ">6<", ">2<"]) assert.ok(height.includes(part), part);
+  const arc = initial.match(/data-label="height-arc" d="([^"]+)"/)?.[1] ?? "";
+  assert.equal((arc.match(/Q/g) ?? []).length, 2, "the arc is broken in the middle");
   assert.ok(initial.includes('baseline-shift="sub"'));
   assert.ok(initial.includes('stroke-dasharray="3 3"'));
   assert.ok(initial.includes('data-diagram="sphere-plane-sections"'));

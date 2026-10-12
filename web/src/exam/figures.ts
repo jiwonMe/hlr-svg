@@ -78,10 +78,11 @@ function frameOrthographic(opts: {
     Vec3.mulScalar(forward, depth),
   );
   const aspect = opts.width / opts.height;
-  // Fixed room for labels on small figures, proportional room on large ones.
+  // Room for labels: proportional on small figures, at most 36px on large
+  // ones, where labels do not grow with the figure.
   const padding = Math.max(
     opts.padding,
-    Math.min(opts.width, opts.height) * 0.11,
+    Math.min(36, Math.min(opts.width, opts.height) * 0.11),
   );
   const usableY = Math.max(0.5, 1 - (2 * padding) / opts.height);
   const usableX = Math.max(0.5, 1 - (2 * padding) / opts.width);

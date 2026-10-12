@@ -11,7 +11,6 @@ import {
   ExamProvider,
   PenMark,
   Question,
-  QuestionFigure,
   useExam,
 } from "./exam/exam";
 import {
@@ -28,8 +27,7 @@ import "./site/site.css";
 import "./landing.css";
 
 const DOCS = "/docs/ko-kr";
-const ALL_QUESTIONS = [...PAPER_QUESTIONS, LEAD_QUESTION];
-const TOTAL_POINTS = ALL_QUESTIONS.reduce((sum, q) => sum + q.points, 0);
+const TOTAL_POINTS = PAPER_QUESTIONS.reduce((sum, q) => sum + q.points, 0);
 
 const HIDDEN_MODES: readonly { mode: HiddenLineMode; label: string }[] = [
   { mode: "dashed", label: "점선" },
@@ -143,7 +141,6 @@ export function LandingPage(): React.ReactElement {
           <SiteHeader />
           <main id="main" tabIndex={-1} className="frame">
             <Hero schoolYear={schoolYear} />
-            <Showcase hidden={hidden} onHidden={setHidden} />
             <Features />
             <Paper
               schoolYear={schoolYear}
@@ -170,7 +167,7 @@ function Hero({ schoolYear }: { schoolYear: number }) {
         <ArrowRight aria-hidden="true" size={14} strokeWidth={1.8} />
       </Link>
       <h1 id="hero-title" className="hero-title">
-        보이는 선은 실선으로,
+        보이는 선은 실선으로,{" "}
         <br />
         가려진 선은 점선으로.
       </h1>
@@ -187,8 +184,16 @@ function Hero({ schoolYear }: { schoolYear: number }) {
         <Link className="btn btn-secondary btn-lg" to={`${DOCS}/examples`}>
           예제 갤러리
         </Link>
+        <InstallCommand className="hero-install" />
       </div>
-      <InstallCommand className="hero-install" />
+      <figure className="hero-figure" id="lead-figure">
+        <ExamFigure
+          id={LEAD_QUESTION.figure.id}
+          label={LEAD_QUESTION.figure.label}
+          ratio={0.74}
+          eager
+        />
+      </figure>
     </section>
   );
 }
@@ -216,38 +221,6 @@ function HiddenLineSwitch({
         ))}
       </div>
     </div>
-  );
-}
-
-function Showcase({
-  hidden,
-  onHidden,
-}: {
-  hidden: HiddenLineMode;
-  onHidden: (mode: HiddenLineMode) => void;
-}) {
-  return (
-    <section className="band showcase" aria-label="28번 문항">
-      <div className="showcase-head">
-        <span className="sheet-period">제 2 교시</span>
-        <p className="showcase-subject">
-          수학 영역<small>(기하)</small>
-        </p>
-        <span className="sheet-type">홀수형</span>
-      </div>
-      <div className="showcase-body">
-        <div className="showcase-question">
-          <Question spec={LEAD_QUESTION} eager showFigure={false} />
-        </div>
-        <div className="showcase-figure">
-          <QuestionFigure spec={LEAD_QUESTION} eager />
-          <div className="showcase-tools">
-            <p className="showcase-hint">끌거나 방향키로 돌려 보세요.</p>
-            <HiddenLineSwitch value={hidden} onChange={onHidden} />
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -373,7 +346,7 @@ function Paper({
 
 function AnswerKey() {
   const { picks } = useExam();
-  const answered = ALL_QUESTIONS.filter((q) => picks[q.no] !== undefined);
+  const answered = PAPER_QUESTIONS.filter((q) => picks[q.no] !== undefined);
   const score = answered
     .filter((q) => picks[q.no] === q.answer)
     .reduce((sum, q) => sum + q.points, 0);
@@ -393,7 +366,7 @@ function AnswerKey() {
         <thead>
           <tr>
             <th scope="row">문항</th>
-            {ALL_QUESTIONS.map((q) => (
+            {PAPER_QUESTIONS.map((q) => (
               <th key={q.no} scope="col">
                 {q.no}
               </th>
@@ -403,19 +376,19 @@ function AnswerKey() {
         <tbody>
           <tr>
             <th scope="row">정답</th>
-            {ALL_QUESTIONS.map((q) => (
+            {PAPER_QUESTIONS.map((q) => (
               <td key={q.no}>{CIRCLED[q.answer - 1]}</td>
             ))}
           </tr>
           <tr>
             <th scope="row">배점</th>
-            {ALL_QUESTIONS.map((q) => (
+            {PAPER_QUESTIONS.map((q) => (
               <td key={q.no}>{q.points}</td>
             ))}
           </tr>
           <tr>
             <th scope="row">내 답</th>
-            {ALL_QUESTIONS.map((q) => {
+            {PAPER_QUESTIONS.map((q) => {
               const mine = picks[q.no];
               if (mine === undefined)
                 return (

@@ -134,7 +134,7 @@ export function Question({
 }: {
   spec: QuestionSpec;
   eager?: boolean;
-  /** Layouts that place the figure beside the stem render it themselves. */
+  /** Layouts that place the figure elsewhere render it themselves. */
   showFigure?: boolean;
   /** Adds a link to the example page under the figure. */
   linkLabel?: string;

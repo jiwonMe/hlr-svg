@@ -115,6 +115,77 @@ export function buildSpherePlaneSectionsDemo(
   };
 }
 
+type Point2 = { x: number; y: number };
+
+/**
+ * A stacked fraction with a square root on top (√6 over 2), centred on
+ * (x, y). The radical gets its bar over the radicand, as typeset in exams.
+ */
+function rootFraction(
+  radicand: string,
+  denominator: string,
+  x: number,
+  y: number,
+  size: number,
+): string {
+  const n = (v: number) => v.toFixed(2);
+  const signWidth = 0.6 * size;
+  const radicandWidth = 0.55 * size * radicand.length;
+  const left = x - (signWidth + radicandWidth) / 2;
+  const top = y - 0.24 * size; // numerator baseline
+  const bottom = y + 0.92 * size; // denominator baseline
+  const half = (signWidth + radicandWidth) / 2 + 0.12 * size;
+  const ink = 'fill="#292929"';
+  return (
+    `<text x="${n(left)}" y="${n(top)}" text-anchor="start" ${ink}>√</text>` +
+    `<text x="${n(left + signWidth)}" y="${n(top)}" text-anchor="start" ${ink}>${radicand}</text>` +
+    `<path d="M ${n(left + 0.5 * size)} ${n(top - 0.8 * size)} H ${n(left + signWidth + radicandWidth + 0.04 * size)}" fill="none" stroke="#292929" stroke-width="${n(Math.max(0.8, size * 0.055))}"/>` +
+    `<path d="M ${n(x - half)} ${n(y)} H ${n(x + half)}" fill="none" stroke="#292929" stroke-width="${n(Math.max(0.8, size * 0.06))}"/>` +
+    `<text x="${n(x)}" y="${n(bottom)}" text-anchor="middle" ${ink}>${denominator}</text>`
+  );
+}
+
+/**
+ * A length as exam figures mark it: a dashed arc from end to end that bulges
+ * to one side and breaks in the middle, where the value goes. `side` picks
+ * the bulge direction: +1 turns a → b by +90° in SVG coordinates (y down).
+ */
+function lengthArc(
+  a: Point2,
+  b: Point2,
+  side: 1 | -1,
+  labelHalfSize: { across: number; along: number },
+  fontSize: number,
+): { path: string; apex: Point2 } {
+  const n = (v: number) => v.toFixed(2);
+  const chord = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const d = { x: (b.x - a.x) / chord, y: (b.y - a.y) / chord };
+  const normal = { x: d.y * side, y: -d.x * side };
+  const bulge = Math.max(
+    Math.min(36, Math.max(8, chord * 0.2)),
+    labelHalfSize.across + fontSize * 0.4,
+  );
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const c = { x: mid.x + normal.x * bulge * 2, y: mid.y + normal.y * bulge * 2 };
+  const at = (t: number): Point2 => ({
+    x: (1 - t) ** 2 * a.x + 2 * (1 - t) * t * c.x + t ** 2 * b.x,
+    y: (1 - t) ** 2 * a.y + 2 * (1 - t) * t * c.y + t ** 2 * b.y,
+  });
+  // Through its middle the curve moves `chord` pixels per unit t.
+  const dt = Math.min(0.45, (labelHalfSize.along + fontSize * 0.3) / chord);
+  const [t0, t1] = [0.5 - dt, 0.5 + dt];
+  const c0 = { x: a.x + (c.x - a.x) * t0, y: a.y + (c.y - a.y) * t0 };
+  const c1 = { x: c.x + (b.x - c.x) * t1, y: c.y + (b.y - c.y) * t1 };
+  const e0 = at(t0);
+  const s1 = at(t1);
+  return {
+    path:
+      `M ${n(a.x)} ${n(a.y)} Q ${n(c0.x)} ${n(c0.y)} ${n(e0.x)} ${n(e0.y)} ` +
+      `M ${n(s1.x)} ${n(s1.y)} Q ${n(c1.x)} ${n(c1.y)} ${n(b.x)} ${n(b.y)}`,
+    apex: at(0.5),
+  };
+}
+
 function svgChildren(svg: string): string {
   return svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
 }
@@ -237,10 +308,21 @@ export function renderSpherePlaneSectionsAnnotations(
     const q = project(p);
     return `<text x="${(q.x + dx).toFixed(3)}" y="${(q.y + dy).toFixed(3)}">${label}${sub ? `<tspan baseline-shift="sub" font-size="70%">${sub}</tspan>` : ""}</text>`;
   };
-  const heightMid = project(Vec3.mulScalar(Vec3.add(A, H), 0.5));
-  const hx = heightMid.x - fontSize * 0.9;
-  const hy = heightMid.y;
-  const fraction = `<g data-label="height" transform="translate(${hx.toFixed(3)} ${hy.toFixed(3)})" text-anchor="middle" font-size="${fontSize * 0.8}"><text y="-5">√6</text><path d="M ${(-fontSize * 0.55).toFixed(3)} 0 H ${(fontSize * 0.55).toFixed(3)}" stroke="#555" stroke-width="1"/><text y="${fontSize * 0.8}">2</text></g>`;
+  // AH = √6/2: a dashed arc beside the dashed perpendicular, the value in its gap.
+  const fractionSize = fontSize * 0.78;
+  const toA = project(A);
+  const toH = project(H);
+  const heightMark = lengthArc(
+    toA,
+    toH,
+    // Bulge into triangle AHE, clear of the labels Q and O on the other side.
+    toH.y >= toA.y ? 1 : -1,
+    { across: fractionSize * 0.75, along: fractionSize * 1.15 },
+    fontSize,
+  );
+  const fraction =
+    `<path data-label="height-arc" d="${heightMark.path}" fill="none" stroke="#555" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>` +
+    `<g data-label="height" font-size="${fractionSize.toFixed(2)}">${rootFraction("6", "2", heightMark.apex.x, heightMark.apex.y, fractionSize)}</g>`;
   const c1Anchor = new Vec3(1.7, 0, 1);
   const c2Anchor = Vec3.add(
     A,
