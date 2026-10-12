@@ -33,6 +33,8 @@ export type SurfaceShadingOptions = {
   lightDirection: Vec3;
   ambient?: number;
   selectedId?: string | null;
+  /** Opaque white guide surfaces, unaffected by lighting or selection tint. */
+  unlitPrimitiveIds?: readonly string[];
 };
 
 export type SurfaceClipPath = {
@@ -612,7 +614,7 @@ export function shadeSurfaceBuffer(
       rgba[colorOffset + 2] = value;
       rgba[colorOffset + 3] = 255;
     }
-    return rgba;
+    return applyUnlitSurfaces(buffer, rgba, options.unlitPrimitiveIds);
   }
   const selectedOwners = Uint8Array.from(buffer.primitiveIds, (id) =>
     options.selectedId != null && id === options.selectedId ? 1 : 0,
@@ -639,6 +641,24 @@ export function shadeSurfaceBuffer(
     rgba[colorOffset + 3] = 255;
   }
 
+  return applyUnlitSurfaces(buffer, rgba, options.unlitPrimitiveIds);
+}
+
+function applyUnlitSurfaces(
+  buffer: SurfaceBuffer,
+  rgba: Uint8ClampedArray,
+  primitiveIds?: readonly string[],
+): Uint8ClampedArray {
+  if (!primitiveIds?.length) return rgba;
+  const ids = new Set(primitiveIds);
+  const unlitOwners = Uint8Array.from(buffer.primitiveIds, (id) =>
+    ids.has(id) ? 1 : 0,
+  );
+  for (let pixel = 0; pixel < buffer.primitiveIndices.length; pixel++) {
+    const owner = buffer.primitiveIndices[pixel]!;
+    if (owner >= 0 && unlitOwners[owner])
+      rgba.fill(255, pixel * 4, pixel * 4 + 4);
+  }
   return rgba;
 }
 

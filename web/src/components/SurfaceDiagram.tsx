@@ -25,6 +25,8 @@ export type SurfaceDiagramProps = {
   width: number;
   height: number;
   lineSvg: string;
+  /** Surfaces that occlude geometry while retaining an opaque white fill. */
+  unlitPrimitiveIds?: readonly string[];
   lighting: {
     enabled: boolean;
     azimuth: number;
@@ -69,6 +71,7 @@ export const SurfaceDiagram = forwardRef<
     width,
     height,
     lineSvg,
+    unlitPrimitiveIds,
     lighting,
     selectedId = null,
     onSelect,
@@ -111,9 +114,10 @@ export const SurfaceDiagram = forwardRef<
             lightDirection: lightDirectionFromAngles(azimuth, elevation),
             ambient,
             selectedId,
+            unlitPrimitiveIds,
           })
         : null,
-    [buffer, azimuth, elevation, ambient, selectedId],
+    [buffer, azimuth, elevation, ambient, selectedId, unlitPrimitiveIds],
   );
   const lines = useMemo(() => withoutBackground(lineSvg), [lineSvg]);
   const pickingScene = useMemo(
@@ -190,6 +194,7 @@ export const SurfaceDiagram = forwardRef<
               lightDirection: lightDirectionFromAngles(azimuth, elevation),
               ambient,
               selectedId,
+              unlitPrimitiveIds,
             });
             ctx.putImageData(
               new ImageData(
@@ -242,6 +247,7 @@ export const SurfaceDiagram = forwardRef<
       elevation,
       ambient,
       selectedId,
+      unlitPrimitiveIds,
       rasterWidth,
       rasterHeight,
       width,

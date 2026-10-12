@@ -80,6 +80,7 @@ const TANGENT_SPHERES_RENDER_OPTIONS = {
   background: false,
   svgStyle: TANGENT_SPHERES_STYLE,
 };
+const TANGENT_SPHERES_UNLIT_IDS = ["beta"] as const;
 type DragState = { x: number; y: number; az: number; pol: number; id: number };
 
 const TEXT = {
@@ -838,6 +839,11 @@ function InteractiveExample({
             height={runtimeDemo.height}
             lineSvg={lineSvg}
             lighting={lightSettings}
+            unlitPrimitiveIds={
+              ex.id === "tangent-spheres"
+                ? TANGENT_SPHERES_UNLIT_IDS
+                : undefined
+            }
             selectedId={selectedId}
             onSelect={setSelectedId}
             ariaLabel={t.hint}

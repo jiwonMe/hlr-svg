@@ -2,13 +2,28 @@ import { Camera } from "../camera/camera.js";
 import { Scene } from "../core/scene.js";
 import { SvgRenderer, DEFAULT_HLR_PARAMS } from "../core/svgRenderer.js";
 import { lineToCubic3, sphereSilhouetteToCubics3 } from "../curves/builders.js";
-import { splitCubicByVisibility } from "../hlr/splitByVisibility.js";
+import {
+  splitCubicByVisibility,
+  splitCubicByVisibilityWithIgnore,
+} from "../hlr/splitByVisibility.js";
 import { Vec3 } from "../math/vec3.js";
 import { Scene as RaycastScene } from "../scene/scene.js";
+import { planeSurfaceCurvesToOwnedCubics } from "../scene/intersections/planeSurfaceCurves.js";
 import { PlaneRect } from "../scene/primitives/planeRect.js";
 import { Sphere } from "../scene/primitives/sphere.js";
 import { piecesToSvg, type SvgStyle } from "../svg/svgWriter.js";
 import type { DemoCase } from "./types.js";
+
+const right = new Vec3(1 / Math.sqrt(2), 0, -1 / Math.sqrt(2));
+const back = new Vec3(-1 / Math.sqrt(2), 0, -1 / Math.sqrt(2));
+const onFloor = (x: number, depth: number) =>
+  Vec3.add(Vec3.mulScalar(right, x), Vec3.mulScalar(back, depth));
+const alphaCorners = [
+  onFloor(-13.6, -4.3),
+  onFloor(4.2, -4.3),
+  onFloor(10.1, 6.58),
+  onFloor(-7.7, 6.58),
+];
 
 /** Four externally tangent spheres, all resting on α: y=0. */
 export function tangentSpheresGeometry() {
@@ -43,7 +58,28 @@ export function tangentSpheresGeometry() {
     20,
     20,
   );
-  const beta = new PlaneRect("beta", O2, normalBeta, betaDirection, 20, 20);
+  const betaFloorAnchor = new Vec3(O2.x, 0, O2.z);
+  const betaUpStep = -(betaDirection.x + betaDirection.z) / Math.sqrt(6);
+  const betaAnchorUp = -(betaFloorAnchor.x + betaFloorAnchor.z) / Math.sqrt(6);
+  const betaAtFloorUp = (up: number) =>
+    Vec3.add(
+      betaFloorAnchor,
+      Vec3.mulScalar(betaDirection, (up - betaAnchorUp) / betaUpStep),
+    );
+  const betaFront = betaAtFloorUp(-4.3 / Math.sqrt(3));
+  const betaRear = betaAtFloorUp(6.58 / Math.sqrt(3));
+  const betaHeight = 10.4;
+  const beta = new PlaneRect(
+    "beta",
+    Vec3.add(
+      Vec3.lerp(betaFront, betaRear, 0.5),
+      new Vec3(0, betaHeight / 2, 0),
+    ),
+    normalBeta,
+    betaDirection,
+    Vec3.distance(betaFront, betaRear) / 2,
+    betaHeight / 2,
+  );
   const sectionPlane = new PlaneRect(
     "section-plane",
     O3,
@@ -64,40 +100,24 @@ export function tangentSpheresGeometry() {
     beta,
     sectionPlane,
     betaDirection,
+    betaFront,
+    betaRear,
+    betaHeight,
     angleStep,
   };
 }
 
 const geometry = tangentSpheresGeometry();
 const spheres = [geometry.S, geometry.S1, geometry.S2, geometry.S3];
-const right = new Vec3(1 / Math.sqrt(2), 0, -1 / Math.sqrt(2));
-const back = new Vec3(-1 / Math.sqrt(2), 0, -1 / Math.sqrt(2));
-const onFloor = (x: number, depth: number) =>
-  Vec3.add(Vec3.mulScalar(right, x), Vec3.mulScalar(back, depth));
-const alphaCorners = [
-  onFloor(-13.6, -4.3),
-  onFloor(4.2, -4.3),
-  onFloor(10.1, 6.58),
-  onFloor(-7.7, 6.58),
-];
-const betaFloorAnchor = new Vec3(geometry.O2.x, 0, geometry.O2.z);
-const betaUpStep =
-  -(geometry.betaDirection.x + geometry.betaDirection.z) / Math.sqrt(6);
-const betaAnchorUp = -(betaFloorAnchor.x + betaFloorAnchor.z) / Math.sqrt(6);
-const betaAtFloorUp = (up: number) =>
-  Vec3.add(
-    betaFloorAnchor,
-    Vec3.mulScalar(geometry.betaDirection, (up - betaAnchorUp) / betaUpStep),
-  );
-const betaFront = betaAtFloorUp(-4.3 / Math.sqrt(3));
-const betaRear = betaAtFloorUp(6.58 / Math.sqrt(3));
-const betaHeight = 10.4;
-const betaCorners = [
-  betaFront,
-  betaRear,
-  Vec3.add(betaRear, new Vec3(0, betaHeight, 0)),
-  Vec3.add(betaFront, new Vec3(0, betaHeight, 0)),
-];
+const primitives = [...spheres, geometry.beta];
+const { betaRear, betaHeight } = geometry;
+
+/** Actual β–sphere sections, carrying both surface IDs for self-hit handling. */
+export function tangentSpheresSectionCurves() {
+  const { S, S1, S2, S3, beta } = tangentSpheresGeometry();
+  return planeSurfaceCurvesToOwnedCubics([beta], [S, S1, S2, S3]);
+}
+const sections = tangentSpheresSectionCurves();
 
 export const TANGENT_SPHERES_STYLE: Partial<SvgStyle> = {
   strokeVisible: "#555",
@@ -105,7 +125,7 @@ export const TANGENT_SPHERES_STYLE: Partial<SvgStyle> = {
   strokeWidthVisible: 1.5,
   strokeWidthHidden: 1,
   dashArrayHidden: "3 3",
-  opacityHidden: 0,
+  opacityHidden: 0.45,
 };
 
 export function buildTangentSpheresDemo(
@@ -127,9 +147,9 @@ export function buildTangentSpheresDemo(
       near: 0.1,
       far: 100,
     }),
-    primitives: spheres,
-    // Contact points are not intersection curves. Transparent guide planes
-    // do not participate in surface shading or occlude the spheres.
+    primitives,
+    // β is an opaque occluder. Its owned section curves are rendered in the
+    // annotation layer with their own solid/dashed styles, avoiding duplicates.
     includeIntersections: false,
     curves: ({ camera }) =>
       spheres.flatMap((sphere) =>
@@ -148,14 +168,14 @@ function svgChildren(svg: string): string {
   return svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
 }
 
-/** Outline guides are clipped by the same four spheres as the shaded layer. */
+/** Floor guides and owned β sections share the shaded layer's occlusion scene. */
 export function renderTangentSpheresAnnotations(
   camera: Camera,
   width: number,
   height: number,
 ): string {
-  const scene = new RaycastScene(spheres, camera, undefined, true);
-  const edges = [alphaCorners, betaCorners].flatMap((corners) =>
+  const scene = new RaycastScene(primitives, camera, undefined, true);
+  const edges = [alphaCorners].flatMap((corners) =>
     corners.map((p, i) => lineToCubic3(p, corners[(i + 1) % corners.length]!)),
   );
   const visibleEdges = edges
@@ -174,6 +194,41 @@ export function renderTangentSpheresAnnotations(
       style: { strokeVisible: "#777", strokeWidthVisible: 1.35 },
     }),
   );
+  const sectionSvg = [geometry.S1, geometry.S2]
+    .map((sphere) => {
+      const pieces = sections
+        .filter((section) => section.ignorePrimitiveIds.includes(sphere.id))
+        .flatMap((section) =>
+          splitCubicByVisibilityWithIgnore(
+            section.bez,
+            scene,
+            { ...DEFAULT_HLR_PARAMS, coarseSamples: 64 },
+            section.ignorePrimitiveIds,
+          ),
+        );
+      const paths = svgChildren(
+        piecesToSvg(
+          [
+            ...pieces.filter((p) => !p.visible),
+            ...pieces.filter((p) => p.visible),
+          ],
+          camera,
+          {
+            width,
+            height,
+            background: false,
+            style: {
+              ...TANGENT_SPHERES_STYLE,
+              strokeWidthVisible: 1.3,
+              strokeWidthHidden: 1,
+              opacityHidden: 0.7,
+            },
+          },
+        ),
+      );
+      return `<g data-section="beta" data-sphere="${sphere.id}">${paths}</g>`;
+    })
+    .join("");
   const fontSize = Math.min(
     24,
     Math.max(13, Math.min(height * 0.04, width * 0.045)),
@@ -209,6 +264,7 @@ export function renderTangentSpheresAnnotations(
   return (
     `<g data-diagram="tangent-spheres">` +
     planes +
+    sectionSvg +
     `<g fill="#333" font-family="Georgia, 'Times New Roman', serif" font-size="${fontSize}" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">` +
     text("S", sLabel, 6, 0) +
     text("S", s1Label, -fontSize, -3, "1") +

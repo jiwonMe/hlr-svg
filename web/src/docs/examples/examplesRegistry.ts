@@ -109,12 +109,12 @@ export const EXAMPLES: readonly ExampleSpec[] = [
       "ko-kr": {
         title: "구에 접하는 세 구",
         description:
-          "반지름 3인 구 S와 평면 α 위의 반지름 1인 세 구 S₁·S₂·S₃를 배치합니다. 세 구는 모두 S에 접하고 S₁–S₂, S₂–S₃가 서로 접합니다.",
+          "반지름 3인 구 S와 평면 α 위의 반지름 1인 세 구 S₁·S₂·S₃를 배치합니다. 세 구는 모두 S에 접하고 S₁–S₂, S₂–S₃가 서로 접합니다. 평면 β가 S₁·S₂를 자르며, 교선과 구의 윤곽을 앞뒤 관계에 따라 실선·점선으로 표시합니다.",
       },
       "en-us": {
         title: "Three spheres tangent to a sphere",
         description:
-          "A sphere S of radius 3 and three spheres S₁, S₂, S₃ of radius 1 resting on plane α. All three touch S; S₁ touches S₂ and S₂ touches S₃.",
+          "A sphere S of radius 3 and three spheres S₁, S₂, S₃ of radius 1 resting on plane α. All three touch S; S₁ touches S₂ and S₂ touches S₃. Plane β cuts S₁ and S₂; visible curves are solid and hidden curves are dashed.",
       },
     },
   },
