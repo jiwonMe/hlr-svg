@@ -952,6 +952,7 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
           canRotate={targets.some(isRotated) || targets.length > 1}
           scaleAxes={axesForScale}
           labels={laid}
+          showLabels={labels}
           ghosts={ghosts}
         />
       </div>
@@ -1003,6 +1004,7 @@ function Overlay({
   canRotate,
   scaleAxes,
   labels,
+  showLabels,
   ghosts,
 }: {
   objects: readonly EditorObject[];
@@ -1016,6 +1018,7 @@ function Overlay({
   canRotate: boolean;
   scaleAxes: (Tuple3 | null)[] | null;
   labels: readonly LaidLabel[];
+  showLabels: boolean;
   ghosts: readonly { id: string; d: string; strong: boolean }[];
 }) {
   const project = (p: Tuple3) => camera.projectToSvg(vec(p), width, height);
@@ -1088,14 +1091,14 @@ function Overlay({
         marks.push(<path key={`sel-${object.id}`} className="ed-selected-line" d={d} />);
       hits.push(<path key={`hit-${object.id}`} className="ed-hit-line" data-pick={object.id} d={d} />);
     } else if (object.kind === "measure") {
-      const mark = measureMark(object, scene, camera, width, height);
+      const mark = measureMark(object, scene, camera, width, height, showLabels);
       if (!mark) continue;
       if (selected.has(object.id))
         marks.push(
           <path
             key={`sel-${object.id}`}
             className="ed-selected-measure"
-            d={mark.d}
+            d={mark.path}
           />,
         );
       if (object.arc !== false)
@@ -1104,7 +1107,7 @@ function Overlay({
             key={`hit-${object.id}`}
             className="ed-hit-line"
             data-pick={object.id}
-            d={mark.d}
+            d={mark.full}
           />,
         );
     } else if (object.kind === "face" && selected.has(object.id)) {

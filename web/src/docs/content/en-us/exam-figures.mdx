@@ -18,7 +18,7 @@ mark and length labels.
 | Hidden lines    | same colour, width 1.1, dashes `3.2 2.6`, opacity 0.9   |
 | Point names     | upright serif (O, H, A), outside the point              |
 | Shape names     | italic (S, α, β)                                        |
-| Lengths         | a dashed arc from end to end, the value upright past it; radicals as `√3` |
+| Lengths         | a dashed arc from end to end, broken in the middle where the value (upright) is written; radicals as `√3` |
 | Behind labels   | a white halo so they read over lines                    |
 | Hidden points   | dimmed (opacity 0.45)                                   |
 
@@ -131,24 +131,35 @@ notes.push(
   `<path d="M ${f(p1!.x)} ${f(p1!.y)} L ${f(p2!.x)} ${f(p2!.y)} L ${f(p3!.x)} ${f(p3!.y)}" fill="none" stroke="#0a0a0a" stroke-width="1"/>`,
 );
 
-// lengths: a dashed arc from end to end, bulging to one side, with the value past it
-function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1) {
+// lengths: a dashed arc from end to end, bulging to one side, broken in the middle for the value
+function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1, gap: number) {
   const p = at(a);
   const q = at(b);
   const chord = Math.hypot(q.x - p.x, q.y - p.y);
   const nx = (-(q.y - p.y) / chord) * side; // screen direction across the segment
   const ny = ((q.x - p.x) / chord) * side;
-  const bulge = Math.min(36, Math.max(8, chord * 0.2));
-  const mx = (p.x + q.x) / 2;
-  const my = (p.y + q.y) / 2;
+  const bulge = Math.min(36, Math.max(16, chord * 0.2));
+  const c = { x: (p.x + q.x) / 2 + nx * 2 * bulge, y: (p.y + q.y) / 2 + ny * 2 * bulge }; // the quadratic Bézier's control point
+  const point = (t: number) => ({
+    x: (1 - t) ** 2 * p.x + 2 * (1 - t) * t * c.x + t ** 2 * q.x,
+    y: (1 - t) ** 2 * p.y + 2 * (1 - t) * t * c.y + t ** 2 * q.y,
+  });
+  // leave `gap` pixels on each side of the middle; there the curve moves `chord` pixels per unit t
+  const t0 = 0.5 - gap / chord;
+  const t1 = 0.5 + gap / chord;
+  // control points of the two remaining pieces (de Casteljau)
+  const c0 = { x: p.x + (c.x - p.x) * t0, y: p.y + (c.y - p.y) * t0 };
+  const c1 = { x: c.x + (q.x - c.x) * t1, y: c.y + (q.y - c.y) * t1 };
+  const [e0, s1, top] = [point(t0), point(t1), point(0.5)];
   notes.push(
-    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(mx + nx * 2 * bulge)} ${f(my + ny * 2 * bulge)} ${f(q.x)} ${f(q.y)}"` +
+    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(c0.x)} ${f(c0.y)} ${f(e0.x)} ${f(e0.y)}` +
+      ` M ${f(s1.x)} ${f(s1.y)} Q ${f(c1.x)} ${f(c1.y)} ${f(q.x)} ${f(q.y)}"` +
       ` fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
   );
-  text(label, mx + nx * (bulge + 12), my + ny * (bulge + 12));
+  text(label, top.x, top.y);
 }
-lengthMark("1", O, H, 1);
-lengthMark("√3", H, A, 1);
+lengthMark("1", O, H, 1, 10);
+lengthMark("√3", H, A, 1, 16);
 
 // shape names
 const sRight = at(Vec3.add(O, new Vec3(1.45, 1.45, 0)));
@@ -171,8 +182,8 @@ writeFileSync("exam-figure.svg", svg);
 - **Segments OH and OA** run inside the sphere, so they are dashed. **HA** lies on α, so it carries
   `ignorePrimitiveIds: ["alpha"]` to keep α from hiding it; it runs under the sphere and ends up dashed.
 - **Point O** is inside the sphere: `visibleAtPoint` is false, so it is dimmed.
-- **Lengths 1 and √3** get a dashed arc from end to end, bulging away from the figure, with the value past
-  the arc's middle. Putting a quadratic Bézier's control point at twice the bulge puts the middle exactly at the bulge.
+- **Lengths 1 and √3** get a dashed arc from end to end, bulging away from the figure and broken in the
+  middle, where the value is written. Putting a quadratic Bézier's control point at twice the bulge puts the middle exactly at the bulge.
 
 ## Checking the answer
 

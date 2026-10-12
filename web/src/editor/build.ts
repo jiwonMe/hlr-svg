@@ -641,7 +641,8 @@ function figureCenter(
 
 /**
  * A length mark as exam figures draw it: a dashed arc from end to end that
- * bulges away from the figure, with the value just past its middle.
+ * bulges away from the figure, broken in the middle where the value is
+ * written. With labels off (or an empty label) the arc is unbroken.
  */
 export function measureMark(
   object: Extract<EditorObject, { kind: "measure" }>,
@@ -649,6 +650,7 @@ export function measureMark(
   camera: Camera,
   width: number,
   height: number,
+  labels: boolean,
 ) {
   const a = scene.points.get(object.from);
   const b = scene.points.get(object.to);
@@ -663,16 +665,59 @@ export function measureMark(
     normal = { x: -normal.x, y: -normal.y };
   const chord = Math.hypot(pb.x - pa.x, pb.y - pa.y);
   // Scenes saved before arcs existed have no flag; they get the arc too.
-  const bulge = object.arc !== false ? Math.min(36, Math.max(8, chord * 0.2)) : 0;
+  const arc = object.arc !== false;
+  const size = annotationFontSize(width, height);
+  const box = labels && object.label ? labelBoxEm(object.label) : null;
+  // Half the label's reach across the chord and along it, in pixels.
+  const across = box
+    ? ((Math.abs(normal.x) * box.width + Math.abs(normal.y) * box.height) * size) / 2
+    : 0;
+  const along = box
+    ? ((Math.abs(d.x) * box.width + Math.abs(d.y) * box.height) * size) / 2
+    : 0;
+  // Deep enough that the value in the middle clears the segment itself.
+  const bulge = arc
+    ? Math.max(Math.min(36, Math.max(8, chord * 0.2)), across + size * 0.4)
+    : 0;
   // A quadratic curve reaches half way to its control point at the middle.
   const control = {
     x: mid.x + normal.x * bulge * 2,
     y: mid.y + normal.y * bulge * 2,
   };
+  const p = (q: Point2) => `${fmt(q.x)} ${fmt(q.y)}`;
+  const full = `M ${p(pa)} Q ${p(control)} ${p(pb)}`;
+  let path = full;
+  if (arc && box) {
+    // The curve moves at `chord` pixels per unit t through its middle.
+    const dt = Math.min(0.45, (along + size * 0.3) / Math.max(1, chord));
+    const t0 = 0.5 - dt;
+    const t1 = 0.5 + dt;
+    const at = (t: number): Point2 => {
+      const u = 1 - t;
+      return {
+        x: u * u * pa.x + 2 * u * t * control.x + t * t * pb.x,
+        y: u * u * pa.y + 2 * u * t * control.y + t * t * pb.y,
+      };
+    };
+    // Control points of the two remaining pieces, by de Casteljau.
+    const c0 = {
+      x: pa.x + (control.x - pa.x) * t0,
+      y: pa.y + (control.y - pa.y) * t0,
+    };
+    const c1 = {
+      x: control.x + (pb.x - control.x) * t1,
+      y: control.y + (pb.y - control.y) * t1,
+    };
+    path = `M ${p(pa)} Q ${p(c0)} ${p(at(t0))} M ${p(at(t1))} Q ${p(c1)} ${p(pb)}`;
+  }
   return {
+    arc,
     normal,
     apex: { x: mid.x + normal.x * bulge, y: mid.y + normal.y * bulge },
-    d: `M ${fmt(pa.x)} ${fmt(pa.y)} Q ${fmt(control.x)} ${fmt(control.y)} ${fmt(pb.x)} ${fmt(pb.y)}`,
+    /** What is drawn: the arc with its gap. */
+    path,
+    /** The whole arc, for hit testing. */
+    full,
   };
 }
 
@@ -770,8 +815,12 @@ export function layoutLabels(
         break;
       }
       case "measure": {
-        const mark = measureMark(object, scene, camera, width, height);
+        const mark = measureMark(object, scene, camera, width, height, true);
         if (!mark || !text) continue;
+        if (mark.arc) {
+          at = mark.apex; // in the gap at the middle of the arc
+          break;
+        }
         const box = labelBoxEm(text);
         const gap =
           size *
@@ -860,10 +909,10 @@ export function annotationSvg(
   for (const object of objects) {
     if (object.kind !== "measure" || object.hidden || object.arc === false)
       continue;
-    const mark = measureMark(object, scene, camera, width, height);
+    const mark = measureMark(object, scene, camera, width, height, settings.labels);
     if (mark)
       parts.push(
-        `<path d="${mark.d}" fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
+        `<path d="${mark.path}" fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
       );
   }
 

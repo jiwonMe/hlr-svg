@@ -277,9 +277,10 @@ test("annotations draw angle marks, radicals and dimmed hidden points", { skip }
   const occluders = new RaycastScene(scene.primitives, camera, undefined, true);
   const svg = annotationSvg(doc.objects, doc.settings, scene, camera, 600, 400, occluders);
   assert.match(svg, />√</, "the √3 label");
-  // Each length gets a dashed arc from end to end.
-  const arcs = svg.match(/<path d="M [^"]+ Q [^"]+" fill="none"[^>]*stroke-dasharray="2.2 2.2"/g) ?? [];
-  assert.equal(arcs.length, 2, "dashed arcs for OH and HA");
+  // Each length gets a dashed arc from end to end, broken in the middle for its label.
+  const arcs =
+    svg.match(/<path d="M [^"M]+ Q [^"M]+ M [^"M]+ Q [^"M]+" fill="none"[^>]*stroke-dasharray="2.2 2.2"/g) ?? [];
+  assert.equal(arcs.length, 2, "broken dashed arcs for OH and HA");
   assert.match(svg, /30°/, "the measured angle");
   const labels = layoutLabels(doc.objects, doc.settings, scene, camera, 600, 400);
   const ids = labels.map((l) => l.id);

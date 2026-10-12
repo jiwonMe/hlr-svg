@@ -17,7 +17,7 @@ order: 10
 | 가려진 선     | 같은 색, 두께 1.1, 점선 `3.2 2.6`, 불투명도 0.9         |
 | 점 이름       | 명조체 정자(O, H, A), 점 옆 바깥쪽                      |
 | 도형 이름     | 이탤릭(S, α, β)                                         |
-| 길이          | 두 끝을 잇는 점선 호, 수치는 호 바깥에 정자로. 근호는 `√3` |
+| 길이          | 두 끝을 잇는 점선 호, 가운데를 비우고 그 자리에 수치(정자). 근호는 `√3` |
 | 라벨 뒤       | 흰 테두리로 선과 겹쳐도 읽히게                           |
 | 가려진 점     | 흐리게(불투명도 0.45)                                    |
 
@@ -130,24 +130,35 @@ notes.push(
   `<path d="M ${f(p1!.x)} ${f(p1!.y)} L ${f(p2!.x)} ${f(p2!.y)} L ${f(p3!.x)} ${f(p3!.y)}" fill="none" stroke="#0a0a0a" stroke-width="1"/>`,
 );
 
-// 길이: 두 끝을 잇는 점선 호를 바깥쪽(side)으로 그리고, 호 바깥에 수치를 씁니다.
-function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1) {
+// 길이: 두 끝을 잇는 점선 호를 바깥쪽(side)으로 그리고, 호 가운데를 비워 그 자리에 수치를 씁니다.
+function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1, gap: number) {
   const p = at(a);
   const q = at(b);
   const chord = Math.hypot(q.x - p.x, q.y - p.y);
   const nx = (-(q.y - p.y) / chord) * side; // 선분에 수직인 화면 방향
   const ny = ((q.x - p.x) / chord) * side;
-  const bulge = Math.min(36, Math.max(8, chord * 0.2));
-  const mx = (p.x + q.x) / 2;
-  const my = (p.y + q.y) / 2;
+  const bulge = Math.min(36, Math.max(16, chord * 0.2));
+  const c = { x: (p.x + q.x) / 2 + nx * 2 * bulge, y: (p.y + q.y) / 2 + ny * 2 * bulge }; // 2차 베지어의 조절점
+  const point = (t: number) => ({
+    x: (1 - t) ** 2 * p.x + 2 * (1 - t) * t * c.x + t ** 2 * q.x,
+    y: (1 - t) ** 2 * p.y + 2 * (1 - t) * t * c.y + t ** 2 * q.y,
+  });
+  // 가운데에서 gap 픽셀만큼 비웁니다. 곡선은 가운데에서 t 1당 chord 픽셀씩 움직입니다.
+  const t0 = 0.5 - gap / chord;
+  const t1 = 0.5 + gap / chord;
+  // 남은 두 조각의 조절점 (de Casteljau)
+  const c0 = { x: p.x + (c.x - p.x) * t0, y: p.y + (c.y - p.y) * t0 };
+  const c1 = { x: c.x + (q.x - c.x) * t1, y: c.y + (q.y - c.y) * t1 };
+  const [e0, s1, top] = [point(t0), point(t1), point(0.5)];
   notes.push(
-    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(mx + nx * 2 * bulge)} ${f(my + ny * 2 * bulge)} ${f(q.x)} ${f(q.y)}"` +
+    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(c0.x)} ${f(c0.y)} ${f(e0.x)} ${f(e0.y)}` +
+      ` M ${f(s1.x)} ${f(s1.y)} Q ${f(c1.x)} ${f(c1.y)} ${f(q.x)} ${f(q.y)}"` +
       ` fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
   );
-  text(label, mx + nx * (bulge + 12), my + ny * (bulge + 12));
+  text(label, top.x, top.y);
 }
-lengthMark("1", O, H, 1);
-lengthMark("√3", H, A, 1);
+lengthMark("1", O, H, 1, 10);
+lengthMark("√3", H, A, 1, 16);
 
 // 도형 이름
 const sRight = at(Vec3.add(O, new Vec3(1.45, 1.45, 0)));
@@ -170,8 +181,8 @@ writeFileSync("exam-figure.svg", svg);
 - **선분 OH, OA**는 구 안을 지나므로 점선입니다. **HA**는 α 위에 놓인 선이라 `ignorePrimitiveIds:
   ["alpha"]`로 α 자신에게 가려지지 않게 했고, 구 아래를 지나므로 결국 점선입니다.
 - **점 O**는 구 안에 있어 `visibleAtPoint`가 거짓이므로 흐리게 그렸습니다.
-- **길이 1과 √3**은 두 끝을 잇는 점선 호를 그림 바깥쪽으로 그리고, 호의 가운데 바깥에 수치를 썼습니다.
-  2차 베지어의 조절점을 호 높이의 두 배만큼 띄우면 가운데가 정확히 그 높이에 옵니다.
+- **길이 1과 √3**은 두 끝을 잇는 점선 호를 그림 바깥쪽으로 그리고, 호 가운데를 비워 그 자리에 수치를
+  썼습니다. 2차 베지어의 조절점을 호 높이의 두 배만큼 띄우면 가운데가 정확히 그 높이에 옵니다.
 
 ## 정답 검산하기
 

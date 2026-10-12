@@ -539,7 +539,7 @@ function ObjectPanel({
           />
           <Toggle
             label="점선 호"
-            description="두 끝을 잇는 점선 호 바깥에 길이를 씁니다"
+            description="두 끝을 잇는 점선 호 가운데에 길이를 씁니다"
             checked={object.arc !== false}
             onChange={(arc) => update({ arc })}
           />
