@@ -5,13 +5,20 @@ A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HL
 ## Features
 
 - **HLR/HCR**: Automatically determines which curve segments are visible and renders them as solid/dashed lines
-- **Multiple Primitives**: Supports Sphere, Cylinder, Cone, BoxAabb, PlaneRect, and Disk
+- **Multiple Primitives**: Supports Sphere, Cylinder, Cone, BoxAabb, OrientedBox, PlaneRect, and Disk
+- **Boolean Solids**: `Csg` unions, subtracts and intersects solids (drilled spheres, notched boxes)
 - **Triangle Mesh Import**: Parse OBJ/STL into `TriangleMesh` and render SVG feature lines with HLR
 - **Intersection Curves**: Computes intersection curves between overlapping primitives
 - **Silhouette Generation**: Automatically generates silhouette curves for curved surfaces
 - **three.js-style API**: Familiar API design similar to three.js
 - **SVG Output**: All curves are output as SVG cubic Bezier paths
 - **Surface lighting**: Cached nearest-surface normals support curved shading and overlapping opaque objects in the web playground
+
+## Documentation
+
+Full documentation (English and Korean) lives at [hlr.js.org](https://hlr.js.org/#/docs/en-us/quickstart).
+For AI assistants there is an [llms.txt](https://hlr.js.org/llms.txt) index and the whole documentation in
+one file: [llms-full.txt](https://hlr.js.org/llms-full.txt) (Korean: [llms-full.ko.txt](https://hlr.js.org/llms-full.ko.txt)).
 
 ## Tooling
 
@@ -46,7 +53,7 @@ pnpm install
 ## Quick Start
 
 ```typescript
-import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr-svg";
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
 
 // Create a scene with primitives
 const scene = new Scene();
@@ -80,6 +87,8 @@ console.log(svg);
 - **Cylinder**: `new Cylinder(id, base, axis, height, radius, caps)`
 - **Cone**: `new Cone(id, apex, axis, height, baseRadius, caps)`
 - **BoxAabb**: `new BoxAabb(id, min, max)`
+- **OrientedBox**: `new OrientedBox(id, center, halfSize, axisX, axisY)`
+- **Csg**: `new Csg(id, "union" | "subtract" | "intersect", a, b)`
 - **PlaneRect**: `new PlaneRect(id, center, normal, u, halfWidth, halfHeight)`
 - **Disk**: `new Disk(id, center, normal, radius)`
 - **TriangleMesh**: `new TriangleMesh(id, vertices, triangles)`
@@ -167,7 +176,7 @@ renderer.render(scene, camera, {
 Add your own curves to the scene:
 
 ```typescript
-import { lineToCubic3 } from "hlr-svg";
+import { lineToCubic3 } from "hlr";
 
 const customCurve = lineToCubic3(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
 
@@ -181,7 +190,7 @@ renderer.render(scene, camera, {
 You can import geometry-only OBJ/STL data and send it through the same SVG HLR pipeline:
 
 ```typescript
-import { Camera, Scene, SvgRenderer, Vec3, parseObj } from "hlr-svg";
+import { Camera, Scene, SvgRenderer, Vec3, parseObj } from "hlr";
 
 const bytes = await fetch("/models/example.obj").then((res) =>
   res.arrayBuffer(),
@@ -277,7 +286,7 @@ import {
   buildSurfaceClipPaths,
   shadeSurfaceBuffer,
   lightDirectionFromAngles,
-} from "hlr-svg";
+} from "hlr";
 
 // Recompute when geometry, camera, or output resolution changes.
 const surfaces = buildSurfaceBuffer(scene.primitives, camera, {

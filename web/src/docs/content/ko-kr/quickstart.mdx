@@ -1,225 +1,136 @@
 ---
 title: 빠른 시작
-description: HLR.js를 설치하고 첫 번째 3D SVG를 렌더링하는 방법을 알아봅니다.
+description: hlr을 설치하고, 구와 평면이 있는 첫 그림을 SVG 파일로 저장합니다.
 group: Getting Started
 order: 1
 ---
 
 ## 설치
 
-pnpm으로 설치할 수 있습니다:
+`hlr`은 ES 모듈로 배포되는 TypeScript 라이브러리입니다. 의존성이 없고, Node.js 20 이상과
+번들러(Vite, webpack, esbuild 등)를 쓰는 브라우저 앱에서 똑같이 동작합니다.
 
 ```bash
 pnpm add hlr
+# 또는 npm install hlr / yarn add hlr
 ```
 
-## 기본 사용법
+> 패키지는 `"type": "module"`입니다. CommonJS(`require`)에서는 `await import("hlr")`로 불러오세요.
 
-HLR.js는 three.js와 유사한 API를 제공하여 쉽게 3D 장면을 구성하고 SVG로 렌더링할 수 있습니다.
+## 첫 그림: 평면 위의 구
 
-### 최소 예제
-
-다음은 구(Sphere)를 SVG로 렌더링하는 가장 간단한 예제입니다:
+수학 시험지에 자주 나오는 그림 하나를 그려 봅니다. 평면 α 위에 구가 걸쳐 있고,
+평면 아래로 들어간 부분과 구 뒤쪽의 선은 점선이 됩니다.
 
 ```typescript
-import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+import { writeFileSync } from "node:fs";
+import { Camera, PlaneRect, Scene, Sphere, SvgRenderer, Vec3 } from "hlr";
 
-// 1. Scene 생성 및 도형 추가
-const scene = new Scene();
-scene.add(new Sphere("sphere1", new Vec3(0, 0, 0), 1));
+// 1. 장면: 도형마다 고유한 id를 붙입니다.
+const scene = new Scene([
+  new Sphere("S", new Vec3(0, 1, 0), 1.5),
+  new PlaneRect(
+    "alpha",
+    new Vec3(0, 0, 0), // 중심
+    new Vec3(0, 1, 0), // 법선 (위쪽)
+    new Vec3(1, 0, 0), // 가로 방향
+    3, // 가로 절반 길이
+    3, // 세로 절반 길이
+  ),
+]);
 
-// 2. Camera 설정
+// 2. 카메라: 시험지 그림은 평행선이 평행하게 보이는 직교 투영이 잘 어울립니다.
+const width = 640;
+const height = 480;
 const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(3, 2, 4),
-  target: new Vec3(0, 0, 0),
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 0.6, 0),
   up: new Vec3(0, 1, 0),
-  fovYRad: Math.PI / 4,
-  aspect: 16 / 9,
+  halfHeight: 3, // 화면 세로의 절반이 월드 좌표로 3
+  aspect: width / height,
   near: 0.1,
   far: 100,
 });
 
-// 3. SvgRenderer로 렌더링
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-});
-
+// 3. 렌더링: 결과는 SVG 문자열입니다.
+const renderer = new SvgRenderer({ width, height });
 const svg = renderer.render(scene, camera);
-console.log(svg); // SVG 문자열 출력
+
+writeFileSync("figure.svg", svg);
 ```
 
-## 여러 도형 조합하기
+`node figure.mjs`로 실행하면 `figure.svg`가 생깁니다. 그림에는 다음 선이 들어 있습니다.
 
-Scene에 여러 도형을 추가하면 HLR.js가 자동으로 교차선(intersection curves)을 계산하고,
-보이는 선과 숨겨진 선을 구분하여 렌더링합니다:
+- **구의 윤곽선**: 카메라에서 본 구의 테두리. 평면 아래로 들어간 부분은 평면에 가려 점선입니다.
+- **평면의 테두리**: 사각형 네 변. 구 뒤로 지나는 부분이 점선입니다.
+- **교선**: 평면이 구를 자르는 원. 구 뒤쪽 절반이 점선입니다.
+
+이 세 종류의 선을 누가 만들었는지, 어떻게 보이는 부분과 가려진 부분으로 나뉘는지는
+[핵심 개념](/docs/ko-kr/concepts)에서 설명합니다.
+
+## 브라우저에서 보기
+
+결과가 문자열이므로 DOM에 그대로 넣으면 됩니다.
 
 ```typescript
-import {
-  Scene,
-  Camera,
-  SvgRenderer,
-  Sphere,
-  Cylinder,
-  Cone,
-  BoxAabb,
-  Vec3,
-} from "hlr";
-
-const scene = new Scene();
-
-// 구
-scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
-
-// 원기둥
-scene.add(
-  new Cylinder(
-    "cylinder",
-    new Vec3(0, -1, 0), // 밑면 중심
-    new Vec3(0, 1, 0), // 축 방향
-    2, // 높이
-    0.6, // 반지름
-    "both", // 양쪽 뚜껑
-  ),
-);
-
-// 원뿔
-scene.add(
-  new Cone(
-    "cone",
-    new Vec3(1.5, 1, 0), // 꼭짓점
-    new Vec3(0, -1, 0), // 축 방향 (아래로)
-    1.5, // 높이
-    0.8, // 밑면 반지름
-    "base", // 밑면만 뚜껑
-  ),
-);
-
-// 박스
-scene.add(
-  new BoxAabb(
-    "box",
-    new Vec3(0, 0, 1), // 최소 좌표
-    new Vec3(1, 1, 2), // 최대 좌표
-  ),
-);
-
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(5, 3.5, 6),
-  target: new Vec3(0, 0, 0),
-  up: new Vec3(0, 1, 0),
-  fovYRad: (50 * Math.PI) / 180,
-  aspect: 16 / 9,
-  near: 0.1,
-  far: 100,
-});
-
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-});
-
 const svg = renderer.render(scene, camera);
+document.querySelector("#figure")!.innerHTML = svg;
 ```
 
-## 스타일 옵션
+시점을 바꿀 때마다 `Camera.from`으로 카메라를 새로 만들고 같은 `SvgRenderer`로 다시
+그리세요. 렌더러는 카메라와 무관한 계산(교선)을 기억해 두기 때문에 다시 그리기가 빠릅니다.
 
-보이는 선과 숨겨진 선의 스타일을 커스터마이징할 수 있습니다:
+## 선 모양 바꾸기
+
+`style`로 보이는 선과 가려진 선을 따로 꾸밉니다. 아래는 시험지 그림에 가까운 설정입니다.
 
 ```typescript
 const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  background: true, // 배경 추가
+  width,
+  height,
+  background: false, // 흰 바탕 사각형을 넣지 않음
   style: {
-    // 보이는 선 스타일
-    strokeWidthVisible: 2,
-    strokeVisible: "#000000",
-
-    // 숨겨진 선 스타일 (점선)
-    strokeWidthHidden: 1.5,
-    strokeHidden: "#000000",
-    dashArrayHidden: "4 4",
-    opacityHidden: 0.4,
+    strokeVisible: "#0a0a0a",
+    strokeHidden: "#0a0a0a",
+    strokeWidthVisible: 1.4,
+    strokeWidthHidden: 1.1,
+    dashArrayHidden: "3.2 2.6",
+    opacityHidden: 0.9,
   },
 });
 ```
 
-## 렌더링 옵션
+가려진 선을 아예 지우려면 `opacityHidden: 0`, 실선으로 그리려면 `dashArrayHidden: "none"`을
+쓰세요. 모든 옵션은 [렌더링과 스타일](/docs/ko-kr/rendering)에 있습니다.
 
-렌더링할 커브 종류를 선택적으로 포함/제외할 수 있습니다:
+## 여러 도형
+
+도형을 여러 개 넣으면 서로 가리는 관계와 만나는 교선이 자동으로 계산됩니다.
 
 ```typescript
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  include: {
-    silhouettes: true, // 실루엣 커브 (구, 원기둥, 원뿔)
-    rims: true, // 뚜껑 원 (원기둥, 원뿔)
-    borders: true, // PlaneRect 외곽선
-    boxEdges: true, // BoxAabb 12개 엣지
-    meshEdges: true, // TriangleMesh feature edge
-    intersections: true, // 도형 간 교차선
-  },
-});
+import { BoxAabb, Cone, Cylinder, Scene, Sphere, Vec3 } from "hlr";
 
-const svg = renderer.render(scene, camera);
+const scene = new Scene([
+  new Sphere("ball", new Vec3(-1.6, 1, 0), 1),
+  new Cylinder("can", new Vec3(0, 0, 0), new Vec3(0, 1, 0), 2, 0.7),
+  new Cone("cone", new Vec3(1.6, 2, 0), new Vec3(0, -1, 0), 2, 0.9),
+  new BoxAabb("box", new Vec3(-0.5, 0, 1), new Vec3(0.5, 1, 2)),
+]);
 ```
 
-## OBJ / STL 임포트
+`Cylinder`는 밑면 중심·축 방향·높이·반지름, `Cone`은 꼭짓점·축 방향(꼭짓점에서 밑면 쪽)·높이·밑면
+반지름을 받습니다. 도형별 자세한 설명은 [도형](/docs/ko-kr/primitives)을 보세요.
 
-`parseObj()`와 `parseStl()`로 triangle mesh를 같은 SVG HLR 파이프라인에 넣을 수 있습니다:
+## 코드 없이 시작하기
 
-```typescript
-import {
-  Camera,
-  Scene,
-  SvgRenderer,
-  Vec3,
-  parseObj,
-} from "hlr";
-
-const bytes = await fetch("/models/example.obj").then((res) =>
-  res.arrayBuffer(),
-);
-const imported = parseObj(bytes);
-
-const scene = new Scene(imported.meshes);
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(4, 3, 5),
-  target: new Vec3(0, 0, 0),
-  up: new Vec3(0, 1, 0),
-  fovYRad: (50 * Math.PI) / 180,
-  aspect: 16 / 9,
-  near: 0.1,
-  far: 100,
-});
-
-const renderer = new SvgRenderer({
-  width: 960,
-  height: 540,
-  include: {
-    intersections: false,
-    meshEdges: true,
-  },
-  mesh: {
-    creaseAngleDeg: 30,
-  },
-});
-
-const svg = renderer.render(scene, camera);
-```
-
-### 현재 제한 사항
-
-- v1 OBJ/STL 임포트는 geometry-only 범위입니다.
-- OBJ는 `v`, `vn`, `f`, `o`, `g`, comment를 지원합니다.
-- `MTL`, 텍스처, UV, `glTF`, mesh 교차곡선은 아직 지원하지 않습니다.
+[도형 작업실](/playground)에서 도형을 배치하고 SVG·PNG로 저장하거나, 같은 그림을 그리는
+TypeScript 코드를 내보낼 수 있습니다. 사용법은 [도형 작업실](/docs/ko-kr/studio) 문서에 있습니다.
 
 ## 다음 단계
 
-- [API Reference](#/docs/ko-kr/api)에서 모든 클래스와 옵션을 확인하세요.
-- [GitHub](https://github.com/jiwonMe/hlr-svg)에서 소스 코드와 예제를 살펴보세요.
+- [핵심 개념](/docs/ko-kr/concepts): 선이 만들어지고 나뉘는 과정
+- [카메라](/docs/ko-kr/camera): 직교·원근 투영과 화면 맞추기
+- [불리언 도형](/docs/ko-kr/booleans): 구에 구멍을 뚫고, 입체를 합치고 자르기
+- [시험지 그림 만들기](/docs/ko-kr/exam-figures): 점·라벨·직각 표시까지 갖춘 완성 예제
+- [LLM용 문서](/docs/ko-kr/llms): AI 도구에 이 문서를 통째로 넣는 방법

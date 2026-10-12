@@ -1,0 +1,192 @@
+---
+title: 시험지 그림 만들기
+description: 구와 두 평면, 수선의 발, 직각 표시, 길이 라벨까지 갖춘 수능 공간도형 그림을 코드로 처음부터 끝까지 만듭니다.
+group: Guides
+order: 10
+---
+
+이 문서는 하나의 완성 예제입니다. 평면 α 위에 중심이 O인 구 S가 있고, 투명한 평면 β가 구를
+자릅니다. O에서 α에 내린 수선의 발 H, 세 도형이 만나는 점 A, 직각 표시와 길이 라벨까지 그립니다.
+
+## 시험지 그림의 약속
+
+| 요소          | 값                                                      |
+| ------------- | ------------------------------------------------------- |
+| 투영          | 직교 투영, 위에서 비스듬히 내려다보는 시점              |
+| 보이는 선     | 먹색 `#0a0a0a`, 두께 1.4                                |
+| 가려진 선     | 같은 색, 두께 1.1, 점선 `3.2 2.6`, 불투명도 0.9         |
+| 점 이름       | 명조체 정자(O, H, A), 점 옆 바깥쪽                      |
+| 도형 이름     | 이탤릭(S, α, β)                                         |
+| 길이          | 두 끝을 잇는 점선 호, 수치는 호 바깥에 정자로. 근호는 `√3` |
+| 라벨 뒤       | 흰 테두리로 선과 겹쳐도 읽히게                           |
+| 가려진 점     | 흐리게(불투명도 0.45)                                    |
+
+## 전체 코드
+
+```typescript
+import { writeFileSync } from "node:fs";
+import {
+  Camera,
+  PlaneRect,
+  Scene,
+  Sphere,
+  SvgRenderer,
+  Vec3,
+  intersectionCurvesToOwnedCubics,
+  lineToCubic3,
+  type CubicBezier3,
+} from "hlr";
+
+// ── 도형 ─────────────────────────────────────────────────────────────
+// 장면 좌표는 y가 위입니다. 수학의 (x, y, z)는 장면의 (y, z, x)로 옮기면 됩니다.
+const O = new Vec3(0, 1, 0);
+const sphere = new Sphere("S", O, 2);
+const alpha = new PlaneRect("alpha", new Vec3(0, 0, 0), new Vec3(0, 1, 0), new Vec3(1, 0, 0), 3.5, 3.5);
+// β는 투명한 평면: 장면에 넣지 않고 선만 그립니다.
+const beta = new PlaneRect("beta", new Vec3(0, 1.7, 0), new Vec3(0, 0, 1), new Vec3(1, 0, 0), 3, 1.7);
+
+const H = new Vec3(0, 0, 0); // O에서 α에 내린 수선의 발
+const A = new Vec3(Math.sqrt(3), 0, 0); // α, β, 구가 만나는 점 (OA = 2, OH = 1)
+
+// ── 카메라 ───────────────────────────────────────────────────────────
+const width = 640;
+const height = 520;
+const camera = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(7, 5.5, 9),
+  target: new Vec3(0, 0.8, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3.4,
+  aspect: width / height,
+  near: 0.1,
+  far: 100,
+});
+
+// ── 선 ───────────────────────────────────────────────────────────────
+function rectBorder(r: PlaneRect): CubicBezier3[] {
+  const corner = (a: number, b: number) =>
+    Vec3.add(r.center, Vec3.add(Vec3.mulScalar(r.u, a * r.halfWidth), Vec3.mulScalar(r.v, b * r.halfHeight)));
+  const c = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+  return c.map((p, i) => lineToCubic3(p, c[(i + 1) % 4]!));
+}
+
+const scene = new Scene([sphere, alpha]);
+const curves = [...rectBorder(beta), lineToCubic3(O, H), lineToCubic3(O, A)];
+const ownedCurves = [
+  // β가 구와 α를 자르는 선
+  ...intersectionCurvesToOwnedCubics([beta, sphere], { angularSamples: 160 }),
+  ...intersectionCurvesToOwnedCubics([beta, alpha], { angularSamples: 160 }),
+  // α 위에 놓인 선분 HA: α 자신에게 가려지지 않게
+  { bez: lineToCubic3(H, A), ignorePrimitiveIds: ["alpha"] },
+];
+
+const renderer = new SvgRenderer({
+  width,
+  height,
+  style: {
+    strokeVisible: "#0a0a0a",
+    strokeHidden: "#0a0a0a",
+    strokeWidthVisible: 1.4,
+    strokeWidthHidden: 1.1,
+    dashArrayHidden: "3.2 2.6",
+    opacityHidden: 0.9,
+  },
+});
+let svg = renderer.render(scene, camera, { curves, ownedCurves });
+
+// ── 주석: 점, 이름, 직각, 길이 ───────────────────────────────────────
+const rays = scene.toRaycastScene(camera);
+const at = (p: Vec3) => camera.projectToSvg(p, width, height);
+const f = (n: number) => n.toFixed(1);
+const notes: string[] = [];
+
+function text(label: string, x: number, y: number, italic = false) {
+  const font = italic
+    ? `font-family="'Times New Roman', serif" font-style="italic"`
+    : `font-family="'Bookk Myungjo', 'AppleMyungjo', serif"`;
+  notes.push(
+    `<text x="${f(x)}" y="${f(y)}" ${font} font-size="17" text-anchor="middle" dominant-baseline="central"` +
+      ` fill="#0a0a0a" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" paint-order="stroke">${label}</text>`,
+  );
+}
+
+function point(label: string, p: Vec3, dx: number, dy: number) {
+  const q = at(p);
+  const dim = rays.visibleAtPoint(p) ? "" : ` opacity="0.45"`;
+  notes.push(`<circle cx="${f(q.x)}" cy="${f(q.y)}" r="2.3" fill="#0a0a0a"${dim}/>`);
+  text(label, q.x + dx, q.y + dy);
+}
+
+point("O", O, -14, -10);
+point("H", H, -14, 12);
+point("A", A, 10, 14);
+
+// H에서 HO ⊥ HA를 나타내는 작은 직각 표시
+const s = 0.28;
+const toO = Vec3.mulScalar(Vec3.normalize(Vec3.sub(O, H)), s);
+const toA = Vec3.mulScalar(Vec3.normalize(Vec3.sub(A, H)), s);
+const [p1, p2, p3] = [Vec3.add(H, toO), Vec3.add(H, Vec3.add(toO, toA)), Vec3.add(H, toA)].map(at);
+notes.push(
+  `<path d="M ${f(p1!.x)} ${f(p1!.y)} L ${f(p2!.x)} ${f(p2!.y)} L ${f(p3!.x)} ${f(p3!.y)}" fill="none" stroke="#0a0a0a" stroke-width="1"/>`,
+);
+
+// 길이: 두 끝을 잇는 점선 호를 바깥쪽(side)으로 그리고, 호 바깥에 수치를 씁니다.
+function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1) {
+  const p = at(a);
+  const q = at(b);
+  const chord = Math.hypot(q.x - p.x, q.y - p.y);
+  const nx = (-(q.y - p.y) / chord) * side; // 선분에 수직인 화면 방향
+  const ny = ((q.x - p.x) / chord) * side;
+  const bulge = Math.min(36, Math.max(8, chord * 0.2));
+  const mx = (p.x + q.x) / 2;
+  const my = (p.y + q.y) / 2;
+  notes.push(
+    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(mx + nx * 2 * bulge)} ${f(my + ny * 2 * bulge)} ${f(q.x)} ${f(q.y)}"` +
+      ` fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
+  );
+  text(label, mx + nx * (bulge + 12), my + ny * (bulge + 12));
+}
+lengthMark("1", O, H, 1);
+lengthMark("√3", H, A, 1);
+
+// 도형 이름
+const sRight = at(Vec3.add(O, new Vec3(1.45, 1.45, 0)));
+text("S", sRight.x + 8, sRight.y - 8, true);
+const alphaCorner = at(new Vec3(-3.1, 0, 2.9));
+text("α", alphaCorner.x + 14, alphaCorner.y - 6, true);
+const betaCorner = at(new Vec3(-2.75, 3.25, 0));
+text("β", betaCorner.x + 12, betaCorner.y + 10, true);
+
+svg = svg.replace("</svg>", `${notes.join("")}</svg>`);
+writeFileSync("exam-figure.svg", svg);
+```
+
+## 무엇이 어떻게 그려졌나
+
+- **구 S와 평면 α**는 장면에 들어 있어 서로 가립니다. α 아래로 들어간 구의 윤곽선과, 구 뒤로 지나는
+  α의 테두리가 점선이 됩니다. α가 구를 자르는 원(교선)은 렌더러가 자동으로 그립니다.
+- **평면 β**는 장면에 없으므로 아무것도 가리지 않습니다. 테두리는 `curves`, β가 구와 α를 자르는
+  선은 `ownedCurves`로 넣었습니다. 대원의 뒤쪽 절반은 구에 가려 점선입니다.
+- **선분 OH, OA**는 구 안을 지나므로 점선입니다. **HA**는 α 위에 놓인 선이라 `ignorePrimitiveIds:
+  ["alpha"]`로 α 자신에게 가려지지 않게 했고, 구 아래를 지나므로 결국 점선입니다.
+- **점 O**는 구 안에 있어 `visibleAtPoint`가 거짓이므로 흐리게 그렸습니다.
+- **길이 1과 √3**은 두 끝을 잇는 점선 호를 그림 바깥쪽으로 그리고, 호의 가운데 바깥에 수치를 썼습니다.
+  2차 베지어의 조절점을 호 높이의 두 배만큼 띄우면 가운데가 정확히 그 높이에 옵니다.
+
+## 정답 검산하기
+
+그림의 수치가 맞는지 코드로 확인해 두면 좋습니다. 이 그림에서는 OH = 1, OA = 2, HA = √3이고
+∠OAH = 30°입니다.
+
+```typescript
+const len = (a: Vec3, b: Vec3) => Vec3.distance(a, b);
+console.log(len(O, H), len(O, A), len(H, A)); // 1 2 1.732…
+const cos = Vec3.dot(Vec3.normalize(Vec3.sub(O, A)), Vec3.normalize(Vec3.sub(H, A)));
+console.log((Math.acos(cos) * 180) / Math.PI); // 30
+```
+
+## 더 쉽게
+
+같은 그림을 [도형 작업실](/playground)의 **구와 두 평면** 템플릿에서 바로 열 수 있습니다. 작업실은
+수선의 발·교점 같은 점을 규칙으로 기억해, 구나 평면을 옮기면 점이 따라 움직입니다. 다 그린 뒤
+**내보내기 → TypeScript 코드**를 고르면 이 문서와 같은 방식의 코드를 얻습니다.

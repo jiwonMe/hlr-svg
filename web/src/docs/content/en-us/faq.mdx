@@ -1,0 +1,74 @@
+---
+title: Troubleshooting
+description: What to check when dashes look wrong, intersection curves are missing, the figure is stretched or rendering is slow.
+group: Reference
+order: 21
+---
+
+## A line that should be hidden is drawn solid
+
+- Make sure the occluding shape is **in the scene**. Lines passed only through `curves` hide nothing.
+- Planes and disks are opaque on both sides. If you need a "clear plane", keep it out of the scene and
+  draw only its lines ([Custom lines](/docs/en-us/curves)).
+- For a custom shape, check that `intersect` returns the **nearest** hit within `[tMin, tMax]`.
+
+## A line drawn on a surface turns dashed or flickers
+
+When a curve lies exactly on a surface, rounding can make that surface appear to hide its own line. Pass
+the curve in `ownedCurves` instead of `curves`, with the surface's id in `ignorePrimitiveIds`. This shows
+up most on surfaces seen nearly edge-on.
+
+## Intersection curves are missing
+
+- Check that `include.intersections` is not turned off.
+- `TriangleMesh` makes no intersection curves.
+- Disks make no intersection curves with each other (cylinder and cone rims excepted). See the table in
+  [Primitives](/docs/en-us/primitives).
+- If a boolean solid's **operands are also in the scene**, they are drawn whole and can cover the seams.
+- Shapes that only touch (at a point or along a line) produce no curve, or a very short one.
+
+## The figure is stretched
+
+The camera's `aspect` must equal the renderer's `width / height`. After resizing the renderer, create a new camera too.
+
+## Nothing is drawn
+
+- Check that the shapes are within the `near` … `far` depth range, and that an orthographic camera's
+  `halfHeight` is not far too small or large.
+- If `up` is parallel to the view direction (`target − position`) the camera is undefined. When looking
+  straight down, use an `up` like `(0, 0, -1)`.
+- A perspective camera inside a sphere sees no silhouette of that sphere.
+
+## The cone is upside down
+
+A `Cone`'s `axis` points from the apex **toward the base**. A cone standing on the ground has
+`apex = (0, h, 0)` and `axis = (0, -1, 0)`.
+
+## It is slow
+
+- Reuse the `SvgRenderer` instance; intersection curves are cached.
+- While dragging, render with `hlr: { samples: 64, coarseSamples: 16 }`, and redraw with the defaults when it stops.
+- For mesh scenes, turn intersections off with `include: { intersections: false }`.
+- Reuse `Csg` objects; their seams are computed once per object.
+- Measure first with `createProfiler()` ([Rendering and styles](/docs/en-us/rendering)).
+
+## How do I add text or points?
+
+The renderer draws lines only. Get screen coordinates with `camera.projectToSvg` and add `<text>` and
+`<circle>` to the resulting SVG. Tell hidden points with `scene.toRaycastScene(camera).visibleAtPoint(p)`.
+[Exam-style figures](/docs/en-us/exam-figures) has a complete example.
+
+## I want z up, like a math textbook
+
+Set the camera's `up` to `(0, 0, 1)` and it works as is. The examples here and in the studio use y up,
+though, so when mixing them it is less confusing to map `(x, y, z) → (y, z, x)`.
+
+## Can I use it in Node.js, web workers or on a server?
+
+Yes. The library does not depend on the DOM; even surface shading just returns a pixel array
+(`Uint8ClampedArray`). It is an ES module, so in Node `import` it from `.mjs` files or a `"type": "module"` package.
+
+## Anything else
+
+Open a [GitHub issue](https://github.com/jiwonMe/hlr-svg/issues) with a short piece of code that reproduces
+the scene. A **share link** from the shape studio helps even more.

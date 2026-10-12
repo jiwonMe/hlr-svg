@@ -1,0 +1,110 @@
+---
+title: 면 채색
+description: 선 그림 아래에 조명 명암을 깝니다. 표면 버퍼를 한 번 만들고, 빛을 바꿀 때는 다시 칠하기만 합니다.
+group: Guides
+order: 8
+---
+
+선 렌더러(`SvgRenderer`)는 면을 칠하지 않습니다. 면에 명암을 주려면 표면 버퍼 API로 래스터
+이미지를 만들고, 그 위에 SVG 선을 겹칩니다. 이 사이트의 예제 뷰어와 도형 작업실이 이 방식입니다.
+
+## 두 단계
+
+```typescript
+import {
+  buildSurfaceBuffer,
+  lightDirectionFromAngles,
+  shadeSurfaceBuffer,
+} from "hlr";
+
+// 1. 각 픽셀에서 가장 가까운 면과 그 법선, 깊이를 구합니다(광선 계산).
+//    도형·카메라·해상도가 바뀔 때만 다시 만듭니다.
+const buffer = buildSurfaceBuffer(scene.primitives, camera, { width: 720, height: 540 });
+
+// 2. 빛을 받아 RGBA 픽셀을 칠합니다. 광선을 다시 쏘지 않아 빠릅니다.
+const rgba = shadeSurfaceBuffer(buffer, {
+  lightDirection: lightDirectionFromAngles(135, 45), // 방위각, 고도 (도)
+  ambient: 0.3,
+});
+```
+
+`rgba`는 `width × height × 4` 길이의 `Uint8ClampedArray`입니다. 면이 없는 픽셀은 투명(알파 0)입니다.
+
+## 캔버스와 SVG 겹치기
+
+```typescript
+const canvas = document.querySelector("canvas")!;
+canvas.width = buffer.width;
+canvas.height = buffer.height;
+canvas.getContext("2d")!.putImageData(new ImageData(rgba, buffer.width, buffer.height), 0, 0);
+
+// 같은 카메라와 같은 화면 비율로 그린 SVG를 캔버스 위에 절대 위치로 겹칩니다.
+overlay.innerHTML = renderer.render(scene, camera, { background: false });
+```
+
+버퍼 해상도는 SVG 크기와 달라도 됩니다. 끌어서 돌리는 동안에는 작은 버퍼(예: 긴 변 320픽셀)를
+쓰고 멈추면 크게 다시 만들면 부드럽습니다. 캔버스를 CSS로 SVG와 같은 크기로 늘이세요.
+
+## 칠하기 옵션
+
+| 속성                | 기본값        | 설명                                                        |
+| ------------------- | ------------- | ----------------------------------------------------------- |
+| `lightDirection`    | 필수          | 면에서 빛을 향하는 월드 방향                                |
+| `ambient`           | `0.35`        | 주변광 비율(0 ~ 1)                                          |
+| `selectedId`        | 없음          | 이 id의 도형을 옅은 초록으로 강조                           |
+| `unlitPrimitiveIds` | 없음          | 빛을 받지 않고 단색으로 칠할 도형(가림막 역할의 평면 등)    |
+| `tones`             | `PAPER_TONES` | 회색 단계: `{ unlit, shadow, lit }`, 0 ~ 1                  |
+
+밝기는 `shadow + (lit − shadow) × (ambient + (1 − ambient) × max(0, n·l))`로 정해집니다.
+기본 `PAPER_TONES`는 `{ unlit: 1, shadow: 0.72, lit: 0.99 }`로, 흰 종이 위의 옅은 명암입니다.
+
+`lightDirectionFromAngles(azimuth, elevation)`에서 방위각 0은 +z, 90은 +x를 향하고, 고도는 +y로 올라갑니다.
+
+## 어두운 화면
+
+어두운 배경에서는 `tones`를 낮춰 칠합니다. `unlit`을 배경색과 같게 하면 가림막 면이 배경에
+녹아듭니다.
+
+```typescript
+const dark = shadeSurfaceBuffer(buffer, {
+  lightDirection: lightDirectionFromAngles(135, 45),
+  ambient: 0.3,
+  tones: { unlit: 10 / 255, shadow: 0.1, lit: 0.3 }, // 배경 #0a0a0a
+});
+```
+
+이때 SVG 선은 밝은 색으로 그리세요(`style.strokeVisible` 등).
+
+## SVG로 내보내기
+
+명암을 SVG 파일에 넣으려면 도형마다 보이는 영역을 잘라 낼 경로가 필요합니다.
+
+```typescript
+import { buildSurfaceClipPaths } from "hlr";
+
+const clips = buildSurfaceClipPaths(buffer, { width: 800, height: 600 });
+// [{ primitiveId, path }]: 출력 좌표계의 SVG 경로. clipPathUnits="userSpaceOnUse"로 씁니다.
+```
+
+도형마다 명암 PNG를 `<image>`로 넣고 해당 `clipPath`로 자른 뒤, 그 위에 선 SVG의 경로를 두면
+됩니다. 경로는 빛과 무관하므로 빛을 바꿀 때 다시 만들 필요가 없습니다.
+
+## 표면 버퍼의 내용
+
+```typescript
+type SurfaceBuffer = {
+  width: number;
+  height: number;
+  normals: Float32Array; // 픽셀마다 단위 법선 3개 값(월드 좌표)
+  primitiveIndices: Int32Array; // primitiveIds의 인덱스, 빈 픽셀은 -1
+  primitiveIds: readonly string[];
+  depth: Float32Array; // 카메라 앞쪽 방향의 깊이
+};
+```
+
+`primitiveIndices`로 픽셀 아래 도형을 바로 찾을 수 있어 선택 강조나 피킹에도 씁니다.
+
+## 한계
+
+그림자, 투명도, 반사는 없습니다. 각 픽셀은 가장 가까운 면 하나의 람베르트 명암입니다. 불리언 도형과
+메시도 같은 방식으로 칠해집니다.

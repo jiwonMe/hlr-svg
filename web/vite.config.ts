@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import mdx from "@mdx-js/rollup";
 import remarkGfm from "remark-gfm";
@@ -8,7 +8,9 @@ import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode from "rehype-pretty-code";
 import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { buildLlmsFiles, type DocLocale } from "./src/docs/llms";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +70,45 @@ const EXAM_CODE_THEME_DARK = {
   })),
 };
 
+/**
+ * Markdown editions of the docs for language models (llms.txt and friends),
+ * built from the MDX sources: served by the dev server, emitted on build.
+ */
+function llmsDocs(): Plugin {
+  const contentDir = path.resolve(__dirname, "src/docs/content");
+  const files = () =>
+    buildLlmsFiles(
+      (["ko-kr", "en-us"] as DocLocale[]).flatMap((locale) =>
+        readdirSync(path.join(contentDir, locale))
+          .filter((file) => file.endsWith(".mdx"))
+          .map((file) => ({
+            locale,
+            slug: file.replace(/\.mdx$/, ""),
+            raw: readFileSync(path.join(contentDir, locale, file), "utf8"),
+          })),
+      ),
+    );
+  return {
+    name: "llms-docs",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = decodeURIComponent((req.url ?? "").split("?")[0]!).replace(/^\/+/, "");
+        const file = files().get(url);
+        if (file === undefined) return next();
+        res.setHeader(
+          "Content-Type",
+          `${url.endsWith(".md") ? "text/markdown" : "text/plain"}; charset=utf-8`,
+        );
+        res.end(file);
+      });
+    },
+    generateBundle() {
+      for (const [fileName, source] of files())
+        this.emitFile({ type: "asset", fileName, source });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => {
   /**
    * 배포 환경(Vercel/GitHub Pages)은 사이트가 루트(`/`)가 아닐 수 있어요.
@@ -116,6 +157,7 @@ export default defineConfig(({ command }) => {
         ],
       }),
       react(),
+      llmsDocs(),
     ],
     build: {
       // 빌드 출력 디렉토리 (프로젝트 루트의 out/ 폴더로 출력)

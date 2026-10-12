@@ -1,0 +1,127 @@
+---
+title: Boolean solids
+description: Join, subtract and intersect solids with Csg. Build a drilled sphere, a notched box and the common part of two cylinders.
+group: Guides
+order: 6
+---
+
+`Csg` combines two solids into one shape. The result goes into the scene like any other shape: it
+occludes, gets intersection curves and takes surface shading.
+
+```typescript
+import { Csg, Cylinder, Scene, Sphere, Vec3 } from "hlr";
+
+const ball = new Sphere("ball", new Vec3(0, 1.6, 0), 1.6);
+const drill = new Cylinder("drill", new Vec3(0, -0.4, 0), new Vec3(0, 1, 0), 4, 0.6);
+const drilled = new Csg("drilled", "subtract", ball, drill);
+
+const scene = new Scene([drilled]); // do not add ball or drill separately
+```
+
+The figure shows the sphere's outline and the rims of the hole (where the sphere and cylinder meet);
+the hole's wall and bottom rim are hidden by the sphere, so they are dashed.
+
+## Three operations
+
+| `operation`   | Meaning | Result                                  |
+| ------------- | ------- | --------------------------------------- |
+| `"union"`     | A ∪ B   | one piece made of both                  |
+| `"subtract"`  | A − B   | A with the part overlapping B removed   |
+| `"intersect"` | A ∩ B   | only where both overlap                 |
+
+Only `subtract` cares about the order of `new Csg(id, operation, a, b)`.
+
+## Operands
+
+`Sphere`, `Cylinder`, `Cone`, `BoxAabb`, `OrientedBox`, and other `Csg`s (the `CsgSolid` type).
+Open surfaces and meshes such as `PlaneRect`, `Disk` and `TriangleMesh` cannot be operands. Cylinders
+and cones are treated as closed solids.
+
+**Do not add operands to the scene themselves.** If you do, the whole operand is drawn again. Operand
+ids must differ from the result's id and be unique in the scene, since intersection curves use them.
+
+## Example: nesting
+
+A `Csg` can be an operand again, so operations stack. Drill two perpendicular holes through a sphere:
+
+```typescript
+const across = new Cylinder("x-hole", new Vec3(-3, 1, 0), new Vec3(1, 0, 0), 6, 0.5);
+const along = new Cylinder("z-hole", new Vec3(0, 1, -3), new Vec3(0, 0, 1), 6, 0.5);
+const holes = new Csg("holes", "union", across, along);
+const ball = new Sphere("ball", new Vec3(0, 1, 0), 1.5);
+
+scene.add(new Csg("cross-drilled", "subtract", ball, holes));
+```
+
+## Example: the common part of two cylinders
+
+The solid shared by two perpendicular cylinders (a Steinmetz solid) is a single `intersect`.
+
+```typescript
+const x = new Cylinder("cx", new Vec3(-1.8, 1.2, 0), new Vec3(1, 0, 0), 3.6, 1.2);
+const z = new Cylinder("cz", new Vec3(0, 1.2, -1.8), new Vec3(0, 0, 1), 3.6, 1.2);
+scene.add(new Csg("common", "intersect", x, z));
+```
+
+## Example: a notched box
+
+```typescript
+import { BoxAabb } from "hlr";
+
+const block = new BoxAabb("block", new Vec3(-1.5, 0, -1.2), new Vec3(1.5, 2, 1.2));
+const bite = new Sphere("bite", new Vec3(1.5, 2, 1.2), 1.1);
+scene.add(new Csg("notched", "subtract", block, bite));
+```
+
+## What gets drawn
+
+`include.csg` (on by default) produces the result's lines.
+
+1. Each operand's own lines: silhouettes, cylinder and cone rims, box edges.
+2. The **seams** where operands meet (their intersection curves).
+3. Of both sets, only the parts **on the surface of the result** are kept.
+
+Step 3 uses `classify(p, tolerance)`, which tells whether a point is inside (−1), on the surface (0) or
+outside (1). The tolerance is `CSG_TOLERANCE` (0.003) times the largest operand's size. Seams are computed
+once per `Csg` object and remembered, so **keep using the same `Csg` object** while the shapes do not change;
+re-rendering from a new viewpoint then skips the seams.
+
+## Meeting other shapes
+
+When a plane cuts a boolean solid or a sphere pokes into one, intersection curves are drawn too: each
+operand's curves are computed and only the parts on the result are kept, so a section through a hole
+breaks off at the hole.
+
+```typescript
+import { PlaneRect } from "hlr";
+
+scene.add(
+  new PlaneRect("cut", new Vec3(0, 1.6, 0), new Vec3(0, 1, 0), new Vec3(1, 0, 0), 3, 3),
+);
+// A plane through the drilled sphere: both the outer circle and the hole's circle are drawn.
+```
+
+## Rays and classification
+
+```typescript
+const hit = drilled.intersect(ray, 0, Infinity); // nearest hit on the result
+drilled.classify(point, drilled.size() * 1e-3); // -1 inside, 0 on the surface, 1 outside
+drilled.leaves(); // [ball, drill]: operands, depth first
+csgSpans(drilled, ray); // stretches of the ray inside the solid [{ start, end }]
+csgBoundaryCurves(drilled, camera); // outline and seam curves of the result
+```
+
+The normal returned by `intersect` always points out of the solid; on a hole's wall it points into the hole.
+
+## Limits
+
+- The result's faces are faces of its operands; no new flat cut faces appear. To slice a solid with a
+  plane, `intersect` it with a large box.
+- Operands that only touch (coincident surfaces) can make the boundary waver within the tolerance; make
+  cutters a little longer so they clearly pass through.
+- Deeply nested booleans cost more seam computation.
+
+In the [shape studio](/playground) (its interface is in Korean), select two solids and press
+**합치기** (union), **빼기** (subtract) or **교집합** (intersect).
+The operands move under the result in the scene list; select one to see it as a green outline and move or
+resize it in place.

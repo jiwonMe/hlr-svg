@@ -1,0 +1,193 @@
+---
+title: Exam-style figures
+description: Build a complete exam figure in code, with a sphere, two planes, the foot of a perpendicular, a right-angle mark and length labels.
+group: Guides
+order: 10
+---
+
+This page is one complete example. Sphere S with center O rests on plane α, and a clear plane β cuts the
+sphere. We draw H, the foot of the perpendicular from O to α, the point A where all three meet, a right-angle
+mark and length labels.
+
+## Conventions of exam figures
+
+| Element         | Value                                                   |
+| --------------- | ------------------------------------------------------- |
+| Projection      | orthographic, looking down at an angle                  |
+| Visible lines   | ink `#0a0a0a`, width 1.4                                |
+| Hidden lines    | same colour, width 1.1, dashes `3.2 2.6`, opacity 0.9   |
+| Point names     | upright serif (O, H, A), outside the point              |
+| Shape names     | italic (S, α, β)                                        |
+| Lengths         | a dashed arc from end to end, the value upright past it; radicals as `√3` |
+| Behind labels   | a white halo so they read over lines                    |
+| Hidden points   | dimmed (opacity 0.45)                                   |
+
+## The code
+
+```typescript
+import { writeFileSync } from "node:fs";
+import {
+  Camera,
+  PlaneRect,
+  Scene,
+  Sphere,
+  SvgRenderer,
+  Vec3,
+  intersectionCurvesToOwnedCubics,
+  lineToCubic3,
+  type CubicBezier3,
+} from "hlr";
+
+// ── Shapes ───────────────────────────────────────────────────────────
+// Scene coordinates have y up. Map math (x, y, z) to scene (y, z, x).
+const O = new Vec3(0, 1, 0);
+const sphere = new Sphere("S", O, 2);
+const alpha = new PlaneRect("alpha", new Vec3(0, 0, 0), new Vec3(0, 1, 0), new Vec3(1, 0, 0), 3.5, 3.5);
+// β is a clear plane: it stays out of the scene and only draws lines.
+const beta = new PlaneRect("beta", new Vec3(0, 1.7, 0), new Vec3(0, 0, 1), new Vec3(1, 0, 0), 3, 1.7);
+
+const H = new Vec3(0, 0, 0); // foot of the perpendicular from O to α
+const A = new Vec3(Math.sqrt(3), 0, 0); // where α, β and the sphere meet (OA = 2, OH = 1)
+
+// ── Camera ───────────────────────────────────────────────────────────
+const width = 640;
+const height = 520;
+const camera = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(7, 5.5, 9),
+  target: new Vec3(0, 0.8, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3.4,
+  aspect: width / height,
+  near: 0.1,
+  far: 100,
+});
+
+// ── Lines ────────────────────────────────────────────────────────────
+function rectBorder(r: PlaneRect): CubicBezier3[] {
+  const corner = (a: number, b: number) =>
+    Vec3.add(r.center, Vec3.add(Vec3.mulScalar(r.u, a * r.halfWidth), Vec3.mulScalar(r.v, b * r.halfHeight)));
+  const c = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+  return c.map((p, i) => lineToCubic3(p, c[(i + 1) % 4]!));
+}
+
+const scene = new Scene([sphere, alpha]);
+const curves = [...rectBorder(beta), lineToCubic3(O, H), lineToCubic3(O, A)];
+const ownedCurves = [
+  // where β cuts the sphere and α
+  ...intersectionCurvesToOwnedCubics([beta, sphere], { angularSamples: 160 }),
+  ...intersectionCurvesToOwnedCubics([beta, alpha], { angularSamples: 160 }),
+  // segment HA lies on α: α must not hide it
+  { bez: lineToCubic3(H, A), ignorePrimitiveIds: ["alpha"] },
+];
+
+const renderer = new SvgRenderer({
+  width,
+  height,
+  style: {
+    strokeVisible: "#0a0a0a",
+    strokeHidden: "#0a0a0a",
+    strokeWidthVisible: 1.4,
+    strokeWidthHidden: 1.1,
+    dashArrayHidden: "3.2 2.6",
+    opacityHidden: 0.9,
+  },
+});
+let svg = renderer.render(scene, camera, { curves, ownedCurves });
+
+// ── Notes: points, names, right angle, lengths ──────────────────────
+const rays = scene.toRaycastScene(camera);
+const at = (p: Vec3) => camera.projectToSvg(p, width, height);
+const f = (n: number) => n.toFixed(1);
+const notes: string[] = [];
+
+function text(label: string, x: number, y: number, italic = false) {
+  const font = italic
+    ? `font-family="'Times New Roman', serif" font-style="italic"`
+    : `font-family="'Bookk Myungjo', 'AppleMyungjo', serif"`;
+  notes.push(
+    `<text x="${f(x)}" y="${f(y)}" ${font} font-size="17" text-anchor="middle" dominant-baseline="central"` +
+      ` fill="#0a0a0a" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" paint-order="stroke">${label}</text>`,
+  );
+}
+
+function point(label: string, p: Vec3, dx: number, dy: number) {
+  const q = at(p);
+  const dim = rays.visibleAtPoint(p) ? "" : ` opacity="0.45"`;
+  notes.push(`<circle cx="${f(q.x)}" cy="${f(q.y)}" r="2.3" fill="#0a0a0a"${dim}/>`);
+  text(label, q.x + dx, q.y + dy);
+}
+
+point("O", O, -14, -10);
+point("H", H, -14, 12);
+point("A", A, 10, 14);
+
+// a small square at H showing HO ⊥ HA
+const s = 0.28;
+const toO = Vec3.mulScalar(Vec3.normalize(Vec3.sub(O, H)), s);
+const toA = Vec3.mulScalar(Vec3.normalize(Vec3.sub(A, H)), s);
+const [p1, p2, p3] = [Vec3.add(H, toO), Vec3.add(H, Vec3.add(toO, toA)), Vec3.add(H, toA)].map(at);
+notes.push(
+  `<path d="M ${f(p1!.x)} ${f(p1!.y)} L ${f(p2!.x)} ${f(p2!.y)} L ${f(p3!.x)} ${f(p3!.y)}" fill="none" stroke="#0a0a0a" stroke-width="1"/>`,
+);
+
+// lengths: a dashed arc from end to end, bulging to one side, with the value past it
+function lengthMark(label: string, a: Vec3, b: Vec3, side: 1 | -1) {
+  const p = at(a);
+  const q = at(b);
+  const chord = Math.hypot(q.x - p.x, q.y - p.y);
+  const nx = (-(q.y - p.y) / chord) * side; // screen direction across the segment
+  const ny = ((q.x - p.x) / chord) * side;
+  const bulge = Math.min(36, Math.max(8, chord * 0.2));
+  const mx = (p.x + q.x) / 2;
+  const my = (p.y + q.y) / 2;
+  notes.push(
+    `<path d="M ${f(p.x)} ${f(p.y)} Q ${f(mx + nx * 2 * bulge)} ${f(my + ny * 2 * bulge)} ${f(q.x)} ${f(q.y)}"` +
+      ` fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
+  );
+  text(label, mx + nx * (bulge + 12), my + ny * (bulge + 12));
+}
+lengthMark("1", O, H, 1);
+lengthMark("√3", H, A, 1);
+
+// shape names
+const sRight = at(Vec3.add(O, new Vec3(1.45, 1.45, 0)));
+text("S", sRight.x + 8, sRight.y - 8, true);
+const alphaCorner = at(new Vec3(-3.1, 0, 2.9));
+text("α", alphaCorner.x + 14, alphaCorner.y - 6, true);
+const betaCorner = at(new Vec3(-2.75, 3.25, 0));
+text("β", betaCorner.x + 12, betaCorner.y + 10, true);
+
+svg = svg.replace("</svg>", `${notes.join("")}</svg>`);
+writeFileSync("exam-figure.svg", svg);
+```
+
+## What was drawn, and how
+
+- **Sphere S and plane α** are in the scene, so they hide each other. The sphere's outline below α and the
+  part of α's border behind the sphere are dashed. The renderer draws the circle where α cuts the sphere.
+- **Plane β** is not in the scene, so it hides nothing. Its border went in `curves`; where it cuts the
+  sphere and α went in `ownedCurves`. The back half of the great circle is hidden by the sphere and dashed.
+- **Segments OH and OA** run inside the sphere, so they are dashed. **HA** lies on α, so it carries
+  `ignorePrimitiveIds: ["alpha"]` to keep α from hiding it; it runs under the sphere and ends up dashed.
+- **Point O** is inside the sphere: `visibleAtPoint` is false, so it is dimmed.
+- **Lengths 1 and √3** get a dashed arc from end to end, bulging away from the figure, with the value past
+  the arc's middle. Putting a quadratic Bézier's control point at twice the bulge puts the middle exactly at the bulge.
+
+## Checking the answer
+
+It is worth checking the figure's numbers in code. Here OH = 1, OA = 2, HA = √3 and ∠OAH = 30°.
+
+```typescript
+const len = (a: Vec3, b: Vec3) => Vec3.distance(a, b);
+console.log(len(O, H), len(O, A), len(H, A)); // 1 2 1.732…
+const cos = Vec3.dot(Vec3.normalize(Vec3.sub(O, A)), Vec3.normalize(Vec3.sub(H, A)));
+console.log((Math.acos(cos) * 180) / Math.PI); // 30
+```
+
+## The easier way
+
+The same figure opens directly from the **구와 두 평면** (sphere and two planes) template in the
+[shape studio](/playground). The studio remembers points such as feet of perpendiculars and intersections
+as rules, so they follow when you move the sphere or a plane. When you are done, **내보내기 → TypeScript 코드**
+(Export → TypeScript code) gives you code in the style of this page.

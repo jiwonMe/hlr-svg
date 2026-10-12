@@ -1,0 +1,176 @@
+---
+title: Rendering and styles
+description: Every SvgRenderer option, the structure of the SVG output, visibility precision, caching and profiling.
+group: Guides
+order: 5
+---
+
+## SvgRenderer
+
+```typescript
+import { SvgRenderer } from "hlr";
+
+const renderer = new SvgRenderer({
+  width: 800, // required, pixels
+  height: 600, // required, pixels
+  background: true, // white background rectangle (default true)
+  style: {}, // line style
+  include: {}, // which lines to generate
+  hlr: {}, // visibility precision
+  intersections: {}, // intersection curve precision
+  mesh: {}, // mesh feature edges
+  profiler: undefined, // timing (createProfiler())
+});
+
+const svg = renderer.render(scene, camera, {
+  // overrides for this call only (not width or height)
+  curves: [], // extra curves
+  ownedCurves: [], // curves lying on surfaces
+});
+```
+
+Constructor options are the defaults; the third argument of `render` is laid on top for that call.
+`width` and `height` are fixed at construction; create a new renderer to change the size.
+
+## The SVG output
+
+The result is a string shaped like this:
+
+```html
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="100%" height="100%" fill="white" />
+  <path d="M … C …" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="butt"
+        stroke-linejoin="round" stroke-dasharray="3 3" opacity="0.5" />  <!-- hidden -->
+  <path d="M … C …" fill="none" stroke="black" stroke-width="1.5" … />   <!-- visible -->
+</svg>
+```
+
+- Hidden paths (with `stroke-dasharray`) come first, visible paths last.
+- Connected pieces are chained into one `<path>`, which keeps the path count low.
+- With perspective projection, curves are subdivided until the screen-space error is small, then written as cubic Béziers.
+- With `background: false` there is no `<rect>` and the background is transparent.
+
+## Line style (`style`)
+
+| Field                | Default    | Meaning                                       |
+| -------------------- | ---------- | --------------------------------------------- |
+| `strokeVisible`      | `"black"`  | visible line colour                           |
+| `strokeHidden`       | `"black"`  | hidden line colour                            |
+| `strokeWidthVisible` | `1.5`      | visible line width                            |
+| `strokeWidthHidden`  | `1.5`      | hidden line width                             |
+| `dashArrayHidden`    | `"3 3"`    | dash pattern for hidden lines; `"none"` is solid |
+| `opacityHidden`      | `0.5`      | hidden line opacity; `0` hides them           |
+| `lineCap`            | `"butt"`   | `"butt" \| "round" \| "square"`               |
+| `lineJoin`           | `"round"`  | `"miter" \| "round" \| "bevel"`               |
+
+The three usual ways to show hidden lines:
+
+```typescript
+const dashed = { dashArrayHidden: "3.2 2.6", opacityHidden: 0.9 };
+const removed = { opacityHidden: 0 };
+const solid = { dashArrayHidden: "none", opacityHidden: 1 };
+```
+
+## Choosing lines (`include`)
+
+| Field           | Default | Covers                                                    |
+| --------------- | ------- | --------------------------------------------------------- |
+| `silhouettes`   | `true`  | silhouettes of spheres, cylinders and cones               |
+| `rims`          | `true`  | cylinder rims, cone base rims, disk circles               |
+| `borders`       | `true`  | the four edges of `PlaneRect`                             |
+| `boxEdges`      | `true`  | edges of `BoxAabb` and `OrientedBox`                      |
+| `meshEdges`     | `true`  | boundary, crease and silhouette edges of `TriangleMesh`   |
+| `csg`           | `true`  | outlines and seams of boolean solids                      |
+| `intersections` | `true`  | intersection curves between shapes                        |
+
+## Visibility (`hlr`)
+
+| Field           | Default | Meaning                                                                  |
+| --------------- | ------- | ------------------------------------------------------------------------ |
+| `samples`       | `192`   | visibility samples per curve                                             |
+| `coarseSamples` | `0`     | optional coarse pass; if it finds no change, the fine pass is skipped    |
+| `refineIters`   | `22`    | bisection steps to locate each transition                               |
+| `epsVisible`    | `2e-4`  | occlusion tolerance (world length)                                       |
+| `cutEps`        | `1e-6`  | transitions closer than this (curve parameter) are merged                |
+| `minSegLenSq`   | `1e-6`  | pieces shorter than this (squared length) are dropped                    |
+
+When the scene has a `TriangleMesh`, `coarseSamples` defaults to `24`. While the user drags the view,
+render with something like `{ samples: 64, coarseSamples: 16 }` and redraw with the defaults once it stops.
+
+```typescript
+const quick = renderer.render(scene, camera, {
+  hlr: { samples: 64, coarseSamples: 16 },
+});
+```
+
+`coarseSamples` is fast but can miss occluded stretches narrower than its spacing.
+
+## Intersection curves (`intersections`)
+
+| Field            | Default            | Meaning                                                  |
+| ---------------- | ------------------ | -------------------------------------------------------- |
+| `angularSamples` | `160`              | points sampled along each intersection curve             |
+| `useBezierFit`   | `true`             | fit the points with cubic Béziers; off joins short segments |
+| `fitMode`        | `"stitchThenFit"`  | `"perRun"` fits each broken run separately               |
+
+## Meshes (`mesh`)
+
+| Field            | Default | Meaning                                                 |
+| ---------------- | ------- | ------------------------------------------------------- |
+| `creaseAngleDeg` | `30`    | neighbouring triangles folded at least this much draw an edge |
+
+## Caching
+
+- Re-rendering the same scene, camera and options with the same renderer reuses the projected paths, even when only the style and background change.
+- Intersection curves are cached by shape values and intersection options, independent of the camera. Orbiting does not recompute them.
+- Cameras, scenes or shapes with overridden methods, and custom shapes, skip the caches. Scenes with meshes skip the projection cache because serializing vertices costs more than it saves.
+- To modify results, call `intersectionCurvesToOwnedCubics` yourself instead of relying on the cached (frozen) arrays.
+
+## One-call helpers
+
+For when you do not need to keep a renderer around:
+
+```typescript
+import { renderPrimitivesToSvg, renderToSvg } from "hlr";
+
+const a = renderToSvg(scene, camera, { width: 640, height: 480 });
+const b = renderPrimitivesToSvg([sphere, plane], camera, { width: 640, height: 480 });
+```
+
+## Profiling
+
+```typescript
+import { createProfiler, formatProfileReport } from "hlr";
+
+const profiler = createProfiler();
+renderer.render(scene, camera, { profiler });
+console.log(formatProfileReport(profiler.report()));
+```
+
+The report lists time per stage (curve generation, intersections, visibility split, SVG writing) and ray counts.
+
+## Building the pipeline yourself
+
+When you want, say, a different colour per group of curves, call the stages directly.
+
+```typescript
+import {
+  curvesFromPrimitives,
+  DEFAULT_HLR_PARAMS,
+  projectPiecesToSvgPaths,
+  projectedPathsToSvg,
+  splitCubicByVisibility,
+} from "hlr";
+
+const rays = scene.toRaycastScene(camera);
+const curves = curvesFromPrimitives(scene.primitives, camera);
+const pieces = curves.flatMap((bez) => splitCubicByVisibility(bez, rays, DEFAULT_HLR_PARAMS));
+const paths = projectPiecesToSvgPaths(pieces, camera, width, height);
+const svg = projectedPathsToSvg(paths, { width, height, style: { strokeVisible: "#2155c4" } });
+```
+
+`curvesFromPrimitives` builds silhouettes, rims, borders, edges and boolean outlines; its third argument
+takes the `include` fields other than `intersections`. Intersection curves are not included: build them
+with `intersectionCurvesToOwnedCubics` and split them with
+`splitCubicByVisibilityWithIgnore(bez, rays, params, ignorePrimitiveIds)`.
+`piecesToSvg(pieces, camera, { width, height, style })` projects and writes in one call.

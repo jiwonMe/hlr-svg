@@ -1,0 +1,146 @@
+---
+title: Shape studio
+description: An editor for placing solids, constructing points, carving with booleans and marking angles and lengths, then exporting exam figures, all without code.
+group: Tools
+order: 11
+---
+
+The [shape studio](/playground) (도형 작업실) is a 3D editor built on this library. The lines on screen
+are exactly the SVG you export. Work is saved in your browser automatically. The interface is in Korean;
+this page gives each label with a translation.
+
+## Layout
+
+- **Top left · 만들기 (Create)**: shapes (sphere 구, cylinder 원기둥, cone 원뿔, box 직육면체, plane 평면,
+  disk 원판), points/segments/faces (점·선분·면), constructions (작도), booleans (불리언) and marks (표시).
+- **Bottom left · 장면 (Scene)**: every object. Boolean operands are indented under their result.
+- **Center · viewport**: transform tools, snap, views and projection above; a status bar below.
+- **Right · 속성 (Properties)**: values of the selection; with nothing selected, scene settings (line style, labels, shading).
+
+## Moving the view
+
+| Action                                  | Result                          |
+| --------------------------------------- | ------------------------------- |
+| drag empty space                        | orbit                           |
+| drag with Shift, right or middle button | pan                             |
+| wheel, pinch                            | zoom toward the cursor          |
+| `0` `1` `3` `7`                         | isometric, front, side, top     |
+| `5`                                     | orthographic ↔ perspective      |
+| `F`                                     | frame the selection (or all)    |
+
+## Selecting
+
+- Click a shape to select it. **Clicking the same spot again selects the shape behind it.**
+- **Shift (or ⌘ / Ctrl) + click** adds or removes. The order you pick in is kept and used by booleans
+  (A, B) and angles (A, vertex, B); the properties panel lists it with numbers.
+- `⌘A` selects everything; `Esc` clears the selection.
+- In the scene list, ⌘ / Ctrl + click toggles, Shift + click selects a range, and double-click renames.
+
+## Move · rotate · scale
+
+| Tool          | Key | Handles                                                                                       |
+| ------------- | --- | --------------------------------------------------------------------------------------------- |
+| move (이동)   | `W` | X/Y/Z arrows move along that axis, the small floor square moves on the horizontal plane, the center box moves in the screen plane |
+| rotate (회전) | `E` | rings around X/Y/Z                                                                            |
+| scale (크기)  | `R` | the dashed circle or center box scale evenly; boxes at axis ends change that dimension only   |
+
+- With **snap** (0.1 … 1), positions snap to that step, rotation to 15°, size to 0.05.
+- With several objects selected they move, turn and scale together about their center.
+- Arrow keys nudge by the snap step (Shift + ↑↓ moves up and down).
+- Scale handles: a box's sides; for cylinders and cones Y is the height and X/Z the radius; a plane's width and depth.
+
+## Points and constructions
+
+A **point** (점) is free and stays where you put it. **Construction** (작도) tools create points with a
+rule based on what is selected, and those points follow when their references move. A tool turns green when the selection fits.
+
+| Tool                        | Select                                          | New point        |
+| --------------------------- | ----------------------------------------------- | ---------------- |
+| 중점 midpoint               | two points, or one segment                      | M (then N)       |
+| 수선의 발 foot of perpendicular | a point + a plane, face, disk or segment    | H                |
+| 교점 intersection           | a segment + a plane, face or disk               | P                |
+| 중심 center                 | a shape, face or segment                        | O (G for faces, M for segments) |
+| 선분 위 on segment          | a segment; dragging slides along it             | P                |
+| 구 위 on sphere             | a sphere; dragging slides over it               | P                |
+| 평면 위 on plane            | a plane; dragging moves within it               | P                |
+
+Rule-based points expose their values (ratio, azimuth, elevation and so on) in the properties panel, and
+**자유 점으로 풀기** (make free) drops the rule and leaves the point in place. Rules that cannot be
+evaluated, such as a segment parallel to a plane, cannot be created.
+
+**선분** (segment) joins two or more selected points in order, or makes two new points when nothing is
+selected. **면** (face) is a polygon through three or more selected points.
+
+## Booleans
+
+Select two solids and press **합치기** (union), **빼기** (subtract) or **교집합** (intersect). The first one
+picked is A; subtract is A − B.
+
+- The result appears once in the scene list, with its operands below it marked `A` and `∪ − ∩`.
+- Selecting an operand shows it as a green dashed outline; move or resize it and the result follows.
+  Clicking the same spot repeatedly also reaches operands.
+- The properties panel changes the operation, swaps A and B (**A·B 바꾸기**) and dissolves the boolean
+  (**풀기**, keeping the operands as separate shapes).
+- Deleting the result deletes its operands. A boolean result can itself be an operand.
+
+## Marks: angles and lengths
+
+- **각** (angle): select three points in the order A → vertex → B, or two segments that share an end. A
+  right angle gets a square mark, others an arc; with an empty label the measured value (such as `30°`) is written.
+- **길이** (length): select two points or one segment. A dashed arc joins the two ends, bulging away from
+  the figure, and the exact value (`3`, `3/2`, `√3`, `√6/2`, `3√2` …) goes past it. Turning off **점선 호**
+  (dashed arc) in the properties writes the value beside the segment instead.
+
+## Labels
+
+- Points are named A, B, C …, planes α, β, γ …; change them in the properties panel.
+- Trailing digits become subscripts: `S1` → S₁.
+- `√` writes a radical and `/` a fraction: `√6/2` draws √6 over 2.
+- Lowercase and Greek letters and shape names are italic; point names (capitals) and numbers are upright.
+- Drag labels to move them; **라벨 자리 되돌리기** (reset label position) puts them back.
+
+## Surfaces and segments
+
+- Turning off **가림면** (occluding) on a plane, disk or face makes it clear: it hides nothing and draws only
+  its outline and the lines where it cuts other shapes.
+- **Segments** can be automatic (dashed when hidden), always dashed (auxiliary) or always solid, with an
+  optional arrowhead.
+- Turned boxes are exact shapes and get intersection curves with other shapes.
+
+## Scene settings
+
+Shown on the right with nothing selected: hidden lines (dashed, removed, solid), line width, intersection
+curves, labels, point dots, floor grid (for work only, never exported) and lighting (azimuth, height, ambient).
+
+## Saving and exporting (내보내기)
+
+| Menu                       | What you get                                                        |
+| -------------------------- | ------------------------------------------------------------------- |
+| SVG 저장 (save SVG)        | lines and labels as on screen, plus shading images if shading is on |
+| PNG                        | a 2× image on white                                                 |
+| 장면 JSON (scene JSON)     | a file to reopen later, including the view (open with **열기**)     |
+| 공유 링크 복사 (share link)| the scene and view compressed into one URL                          |
+| TypeScript 코드            | code that draws the same lines with the library (no labels or marks) |
+
+- Work and view are saved in this browser automatically. Use JSON or a share link to move to another device.
+- In dark mode only the screen changes; exported SVG and PNG are always ink on white.
+- **템플릿** (templates) start you from common exam figures (sphere and plane, tetrahedron with a foot of
+  perpendicular, coordinate space, drilled sphere …). The current scene can be restored with undo (`⌘Z`).
+
+## Shortcuts
+
+| Keys                   | Action                         |
+| ---------------------- | ------------------------------ |
+| `⌘Z` / `⌘⇧Z`, `⌘Y`     | undo / redo                    |
+| `⌘C` `⌘X` `⌘V`         | copy, cut, paste               |
+| `⌘D`                   | duplicate                      |
+| `⌘A`                   | select all                     |
+| `Delete`, `Backspace`  | delete                         |
+| `H`                    | hide / show                    |
+| `W` `E` `R`            | move, rotate, scale tools      |
+| `F`                    | frame                          |
+| `0` `1` `3` `7` `5`    | views, projection toggle       |
+| arrows, Shift + ↑↓     | nudge                          |
+| `Esc`                  | clear selection, close dialogs |
+
+On Windows and Linux use `Ctrl` instead of `⌘`. Copied objects can be pasted into the studio in another tab.

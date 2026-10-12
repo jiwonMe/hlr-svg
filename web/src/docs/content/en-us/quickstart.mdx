@@ -1,224 +1,136 @@
 ---
-title: Quick Start
-description: Learn how to install HLR.js and render your first 3D SVG.
+title: Quick start
+description: Install hlr and save a first figure, a sphere resting on a plane, as an SVG file.
 group: Getting Started
 order: 1
 ---
 
-## Installation
+## Install
 
-Install the package with pnpm:
+`hlr` is a TypeScript library published as an ES module. It has no dependencies and runs the same
+in Node.js 20+ and in browser apps built with a bundler (Vite, webpack, esbuild and so on).
 
 ```bash
 pnpm add hlr
+# or npm install hlr / yarn add hlr
 ```
 
-## Basic Usage
+> The package is `"type": "module"`. From CommonJS (`require`), load it with `await import("hlr")`.
 
-HLR.js provides a three.js-like API to easily compose 3D scenes and render them as SVG.
+## A first figure: a sphere on a plane
 
-### Minimal Example
-
-Here's the simplest example of rendering a Sphere as SVG:
+Let's draw a figure that math exams use all the time: a sphere sitting on plane α. The part of the
+sphere below the plane and the lines behind the sphere come out dashed.
 
 ```typescript
-import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+import { writeFileSync } from "node:fs";
+import { Camera, PlaneRect, Scene, Sphere, SvgRenderer, Vec3 } from "hlr";
 
-// 1. Create Scene and add primitive
-const scene = new Scene();
-scene.add(new Sphere("sphere1", new Vec3(0, 0, 0), 1));
+// 1. The scene: give every shape a unique id.
+const scene = new Scene([
+  new Sphere("S", new Vec3(0, 1, 0), 1.5),
+  new PlaneRect(
+    "alpha",
+    new Vec3(0, 0, 0), // center
+    new Vec3(0, 1, 0), // normal (up)
+    new Vec3(1, 0, 0), // width direction
+    3, // half width
+    3, // half height
+  ),
+]);
 
-// 2. Setup Camera
+// 2. The camera: exam figures suit orthographic projection, where parallel lines stay parallel.
+const width = 640;
+const height = 480;
 const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(3, 2, 4),
-  target: new Vec3(0, 0, 0),
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 0.6, 0),
   up: new Vec3(0, 1, 0),
-  fovYRad: Math.PI / 4,
-  aspect: 16 / 9,
+  halfHeight: 3, // half the screen height, in world units
+  aspect: width / height,
   near: 0.1,
   far: 100,
 });
 
-// 3. Render with SvgRenderer
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-});
-
+// 3. Render: the result is an SVG string.
+const renderer = new SvgRenderer({ width, height });
 const svg = renderer.render(scene, camera);
-console.log(svg); // Output SVG string
+
+writeFileSync("figure.svg", svg);
 ```
 
-## Combining Multiple Primitives
+Run it with `node figure.mjs` and you get `figure.svg` with three kinds of lines:
 
-When you add multiple primitives to a Scene, HLR.js automatically calculates intersection curves and distinguishes between visible and hidden lines:
+- **The sphere's outline**: its rim as seen from the camera. The part below the plane is hidden by the plane, so it is dashed.
+- **The plane's border**: four edges. Where they pass behind the sphere they are dashed.
+- **The intersection curve**: the circle where the plane cuts the sphere. Its far half is dashed.
+
+[Core concepts](/docs/en-us/concepts) explains where these lines come from and how they are split
+into visible and hidden parts.
+
+## In the browser
+
+The result is a string, so put it straight into the DOM.
 
 ```typescript
-import {
-  Scene,
-  Camera,
-  SvgRenderer,
-  Sphere,
-  Cylinder,
-  Cone,
-  BoxAabb,
-  Vec3,
-} from "hlr";
-
-const scene = new Scene();
-
-// Sphere
-scene.add(new Sphere("sphere", new Vec3(-1.5, 0, 0), 1));
-
-// Cylinder
-scene.add(
-  new Cylinder(
-    "cylinder",
-    new Vec3(0, -1, 0), // base center
-    new Vec3(0, 1, 0), // axis direction
-    2, // height
-    0.6, // radius
-    "both", // both caps
-  ),
-);
-
-// Cone
-scene.add(
-  new Cone(
-    "cone",
-    new Vec3(1.5, 1, 0), // apex
-    new Vec3(0, -1, 0), // axis direction (downward)
-    1.5, // height
-    0.8, // base radius
-    "base", // base cap only
-  ),
-);
-
-// Box
-scene.add(
-  new BoxAabb(
-    "box",
-    new Vec3(0, 0, 1), // min coordinates
-    new Vec3(1, 1, 2), // max coordinates
-  ),
-);
-
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(5, 3.5, 6),
-  target: new Vec3(0, 0, 0),
-  up: new Vec3(0, 1, 0),
-  fovYRad: (50 * Math.PI) / 180,
-  aspect: 16 / 9,
-  near: 0.1,
-  far: 100,
-});
-
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-});
-
 const svg = renderer.render(scene, camera);
+document.querySelector("#figure")!.innerHTML = svg;
 ```
 
-## Style Options
+When the view changes, create a new camera with `Camera.from` and render again with the same
+`SvgRenderer`. The renderer remembers camera-independent work (intersection curves), so redrawing is fast.
 
-You can customize the styles of visible and hidden lines:
+## Line style
+
+`style` sets visible and hidden lines separately. Here is a setting close to exam figures.
 
 ```typescript
 const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  background: true, // Add background
+  width,
+  height,
+  background: false, // no white background rectangle
   style: {
-    // Visible line styles
-    strokeWidthVisible: 2,
-    strokeVisible: "#000000",
-
-    // Hidden line styles (dashed)
-    strokeWidthHidden: 1.5,
-    strokeHidden: "#000000",
-    dashArrayHidden: "4 4",
-    opacityHidden: 0.4,
+    strokeVisible: "#0a0a0a",
+    strokeHidden: "#0a0a0a",
+    strokeWidthVisible: 1.4,
+    strokeWidthHidden: 1.1,
+    dashArrayHidden: "3.2 2.6",
+    opacityHidden: 0.9,
   },
 });
 ```
 
-## Rendering Options
+To drop hidden lines entirely use `opacityHidden: 0`; to draw them solid use `dashArrayHidden: "none"`.
+Every option is listed in [Rendering and styles](/docs/en-us/rendering).
 
-You can selectively include/exclude curve types to render:
+## Several shapes
+
+With several shapes, occlusion between them and their intersection curves are computed automatically.
 
 ```typescript
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  include: {
-    silhouettes: true, // Silhouette curves (Sphere, Cylinder, Cone)
-    rims: true, // Cap circles (Cylinder, Cone)
-    borders: true, // PlaneRect outlines
-    boxEdges: true, // BoxAabb 12 edges
-    meshEdges: true, // TriangleMesh feature edges
-    intersections: true, // Intersection curves between primitives
-  },
-});
+import { BoxAabb, Cone, Cylinder, Scene, Sphere, Vec3 } from "hlr";
 
-const svg = renderer.render(scene, camera);
+const scene = new Scene([
+  new Sphere("ball", new Vec3(-1.6, 1, 0), 1),
+  new Cylinder("can", new Vec3(0, 0, 0), new Vec3(0, 1, 0), 2, 0.7),
+  new Cone("cone", new Vec3(1.6, 2, 0), new Vec3(0, -1, 0), 2, 0.9),
+  new BoxAabb("box", new Vec3(-0.5, 0, 1), new Vec3(0.5, 1, 2)),
+]);
 ```
 
-## Import OBJ / STL
+`Cylinder` takes a base center, an axis direction, a height and a radius; `Cone` takes an apex, an axis
+(from the apex toward the base), a height and a base radius. See [Primitives](/docs/en-us/primitives).
 
-`parseObj()` and `parseStl()` let you bring triangle meshes into the same SVG HLR pipeline:
+## Without code
 
-```typescript
-import {
-  Camera,
-  Scene,
-  SvgRenderer,
-  Vec3,
-  parseObj,
-} from "hlr";
+In the [shape studio](/playground) you can lay shapes out, save SVG or PNG, or export TypeScript that
+draws the same figure. See [Shape studio](/docs/en-us/studio).
 
-const bytes = await fetch("/models/example.obj").then((res) =>
-  res.arrayBuffer(),
-);
-const imported = parseObj(bytes);
+## Next steps
 
-const scene = new Scene(imported.meshes);
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(4, 3, 5),
-  target: new Vec3(0, 0, 0),
-  up: new Vec3(0, 1, 0),
-  fovYRad: (50 * Math.PI) / 180,
-  aspect: 16 / 9,
-  near: 0.1,
-  far: 100,
-});
-
-const renderer = new SvgRenderer({
-  width: 960,
-  height: 540,
-  include: {
-    intersections: false,
-    meshEdges: true,
-  },
-  mesh: {
-    creaseAngleDeg: 30,
-  },
-});
-
-const svg = renderer.render(scene, camera);
-```
-
-### Current limitations
-
-- OBJ/STL import is geometry-only in v1.
-- OBJ accepts `v`, `vn`, `f`, `o`, `g`, and comments.
-- `MTL`, textures, UVs, `glTF`, and mesh intersection curves are not supported yet.
-
-## Next Steps
-
-- Check out all classes and options in the [API Reference](#/docs/en-us/api).
-- Explore the source code and examples on [GitHub](https://github.com/jiwonMe/hlr-svg).
+- [Core concepts](/docs/en-us/concepts): how lines are made and split
+- [Cameras](/docs/en-us/camera): orthographic and perspective projection, fitting the view
+- [Boolean solids](/docs/en-us/booleans): drill holes, join and cut solids
+- [Exam-style figures](/docs/en-us/exam-figures): a complete figure with points, labels and right-angle marks
+- [Docs for LLMs](/docs/en-us/llms): give these docs to AI tools in one file

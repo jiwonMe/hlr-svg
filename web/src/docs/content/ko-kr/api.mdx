@@ -1,397 +1,408 @@
 ---
 title: API 레퍼런스
-description: HLR.js의 모든 클래스, 함수, 타입에 대한 상세 레퍼런스입니다.
+description: hlr 패키지가 내보내는 모든 클래스, 함수, 상수, 타입을 시그니처와 함께 정리합니다.
 group: Reference
-order: 10
+order: 20
 ---
 
-## Core
+모든 이름은 패키지 최상위에서 가져옵니다.
+
+```typescript
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+import type { RenderOptions, SvgStyle, CubicBezier3 } from "hlr";
+```
+
+## 장면
 
 ### Scene
 
-3D 도형(Primitive)들을 담는 컨테이너입니다.
+```typescript
+class Scene {
+  constructor(primitives?: readonly Primitive[]);
+  readonly primitives: readonly Primitive[];
+  add(...primitives: Primitive[]): this;
+  removeById(id: string): this;
+  clear(): this;
+  toRaycastScene(camera: Camera, profiler?: Profiler, preparedGeometry?: boolean): RaycastScene;
+}
+```
+
+`toRaycastScene`은 그 카메라에 대한 광선 검사용 장면을 만듭니다. 돌려받은 객체는 다음 두 메서드를 씁니다.
 
 ```typescript
-import { Scene } from "hlr";
-
-const scene = new Scene();
-
-// 도형 추가
-scene.add(primitive);
-
-// 도형 제거
-scene.remove(primitive);
-
-// 모든 도형 조회
-const primitives = scene.primitives;
+visibleAtPoint(p: Vec3, opts?: { eps?: number; ignorePrimitiveIds?: readonly string[] }): boolean;
+raycastClosest(
+  ray: Ray,
+  opts?: { tMin?: number; tMax?: number; ignorePrimitiveId?: string; ignorePrimitiveIds?: readonly string[] },
+): Hit | null;
 ```
+
+`preparedGeometry: true`는 기본 도형에 빠른 교차 커널을 미리 준비합니다. 도형이 바뀌면 다시 만드세요.
+
+## 카메라
 
 ### Camera
 
-카메라를 정의합니다. 현재는 Perspective 카메라만 지원합니다.
-
 ```typescript
-import { Camera, Vec3 } from "hlr";
+class Camera {
+  static from(params: CameraParams): Camera;
+  readonly kind: "perspective" | "orthographic";
+  readonly position: Vec3;
+  readonly target: Vec3;
+  readonly up: Vec3;
+  readonly aspect: number;
+  readonly near: number;
+  readonly far: number;
+  readonly fovYRad?: number; // 원근
+  readonly halfHeight?: number; // 직교
+  readonly forward: Vec3; // 시선 방향 단위 벡터
+  readonly view: Mat4;
+  readonly proj: Mat4;
+  readonly viewProj: Mat4;
+  readonly viewProjInv: Mat4;
+  projectToNdc(p: Vec3): { x: number; y: number; z: number };
+  projectToSvg(p: Vec3, width: number, height: number): { x: number; y: number; z: number };
+  screenToRay(x: number, y: number, width: number, height: number): Ray;
+}
 
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(3, 2, 4), // 카메라 위치
-  target: new Vec3(0, 0, 0), // 바라보는 지점
-  up: new Vec3(0, 1, 0), // 상단 방향
-  fovYRad: Math.PI / 4, // 수직 시야각 (라디안)
-  aspect: 16 / 9, // 화면 비율
-  near: 0.1, // 근평면
-  far: 100, // 원평면
-});
+type CameraParams =
+  | { kind: "perspective"; position: Vec3; target: Vec3; up: Vec3; fovYRad: number; aspect: number; near: number; far: number }
+  | { kind: "orthographic"; position: Vec3; target: Vec3; up: Vec3; halfHeight: number; aspect: number; near: number; far: number };
 ```
 
-| 속성       | 타입            | 설명                 |
-| ---------- | --------------- | -------------------- |
-| `kind`     | `"perspective"` | 카메라 종류          |
-| `position` | `Vec3`          | 카메라 월드 좌표     |
-| `target`   | `Vec3`          | 바라보는 지점        |
-| `up`       | `Vec3`          | 상단 방향 벡터       |
-| `fovYRad`  | `number`        | 수직 시야각 (라디안) |
-| `aspect`   | `number`        | 화면 가로/세로 비율  |
-| `near`     | `number`        | 근평면 거리          |
-| `far`      | `number`        | 원평면 거리          |
+## 렌더링
 
 ### SvgRenderer
 
-Scene과 Camera를 받아 SVG 문자열을 생성합니다.
-
 ```typescript
-import { SvgRenderer } from "hlr";
+class SvgRenderer {
+  constructor(options: Omit<RenderOptions, "curves" | "ownedCurves">);
+  render(scene: Scene, camera: Camera, overrides?: Partial<Omit<RenderOptions, "width" | "height">>): string;
+}
 
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  background: true,
-  style: {
-    /* ... */
-  },
-  include: {
-    /* ... */
-  },
-});
-
-const svg = renderer.render(scene, camera);
-```
-
-#### SvgRenderer 생성자 옵션
-
-| 속성         | 타입      | 기본값  | 설명                |
-| ------------ | --------- | ------- | ------------------- |
-| `width`      | `number`  | 필수    | SVG 너비 (px)       |
-| `height`     | `number`  | 필수    | SVG 높이 (px)       |
-| `background` | `boolean` | `false` | 배경 rect 추가 여부 |
-| `style`      | `object`  | -       | 선 스타일 옵션      |
-| `include`    | `object`  | -       | 렌더링할 커브 종류  |
-| `mesh`       | `object`  | -       | triangle mesh feature-line 옵션 |
-
-#### style 옵션
-
-| 속성                 | 타입     | 기본값   | 설명                |
-| -------------------- | -------- | -------- | ------------------- |
-| `strokeWidthVisible` | `number` | `2`      | 보이는 선 두께      |
-| `strokeVisible`      | `string` | `"#000"` | 보이는 선 색상      |
-| `strokeWidthHidden`  | `number` | `1.5`    | 숨겨진 선 두께      |
-| `strokeHidden`       | `string` | `"#000"` | 숨겨진 선 색상      |
-| `dashArrayHidden`    | `string` | `"4 4"`  | 숨겨진 선 점선 패턴 |
-| `opacityHidden`      | `number` | `0.4`    | 숨겨진 선 불투명도  |
-
-#### include 옵션
-
-| 속성            | 타입      | 기본값 | 설명                          |
-| --------------- | --------- | ------ | ----------------------------- |
-| `silhouettes`   | `boolean` | `true` | Sphere, Cylinder, Cone 실루엣 |
-| `rims`          | `boolean` | `true` | Cylinder, Cone 뚜껑 원        |
-| `borders`       | `boolean` | `true` | PlaneRect 외곽선              |
-| `boxEdges`      | `boolean` | `true` | BoxAabb 12개 엣지             |
-| `meshEdges`     | `boolean` | `true` | `TriangleMesh`의 boundary / crease / silhouette edge |
-| `intersections` | `boolean` | `true` | 도형 간 교차선                |
-
-#### mesh 옵션
-
-| 속성             | 타입     | 기본값 | 설명 |
-| ---------------- | -------- | ------ | ---- |
-| `creaseAngleDeg` | `number` | `30`   | 인접 triangle face를 feature edge로 승격시키는 각도 임계값 |
-
----
-
-## Primitives
-
-### Sphere
-
-구(球) 도형입니다.
-
-```typescript
-import { Sphere, Vec3 } from "hlr";
-
-const sphere = new Sphere(
-  "my-sphere", // id
-  new Vec3(0, 0, 0), // center (중심)
-  1.5, // radius (반지름)
-);
-```
-
-| 파라미터 | 타입     | 설명        |
-| -------- | -------- | ----------- |
-| `id`     | `string` | 고유 식별자 |
-| `center` | `Vec3`   | 중심 좌표   |
-| `radius` | `number` | 반지름      |
-
-### Cylinder
-
-원기둥 도형입니다.
-
-```typescript
-import { Cylinder, Vec3 } from "hlr";
-
-const cylinder = new Cylinder(
-  "my-cylinder", // id
-  new Vec3(0, -1, 0), // base (밑면 중심)
-  new Vec3(0, 1, 0), // axis (축 방향, 정규화 필요 없음)
-  2, // height (높이)
-  0.5, // radius (반지름)
-  "both", // caps ("none" | "top" | "base" | "both")
-);
-```
-
-| 파라미터 | 타입                                  | 설명           |
-| -------- | ------------------------------------- | -------------- |
-| `id`     | `string`                              | 고유 식별자    |
-| `base`   | `Vec3`                                | 밑면 중심 좌표 |
-| `axis`   | `Vec3`                                | 축 방향 벡터   |
-| `height` | `number`                              | 높이           |
-| `radius` | `number`                              | 반지름         |
-| `caps`   | `"none" \| "top" \| "base" \| "both"` | 뚜껑 옵션      |
-
-### Cone
-
-원뿔 도형입니다.
-
-```typescript
-import { Cone, Vec3 } from "hlr";
-
-const cone = new Cone(
-  "my-cone", // id
-  new Vec3(0, 2, 0), // apex (꼭짓점)
-  new Vec3(0, -1, 0), // axis (축 방향, 꼭짓점에서 밑면 방향)
-  2, // height (높이)
-  1, // baseRadius (밑면 반지름)
-  "base", // caps ("none" | "base")
-);
-```
-
-| 파라미터     | 타입               | 설명           |
-| ------------ | ------------------ | -------------- |
-| `id`         | `string`           | 고유 식별자    |
-| `apex`       | `Vec3`             | 꼭짓점 좌표    |
-| `axis`       | `Vec3`             | 축 방향 벡터   |
-| `height`     | `number`           | 높이           |
-| `baseRadius` | `number`           | 밑면 반지름    |
-| `caps`       | `"none" \| "base"` | 밑면 뚜껑 옵션 |
-
-### BoxAabb
-
-축 정렬 박스(Axis-Aligned Bounding Box)입니다.
-
-```typescript
-import { BoxAabb, Vec3 } from "hlr";
-
-const box = new BoxAabb(
-  "my-box", // id
-  new Vec3(-1, -1, -1), // min (최소 좌표)
-  new Vec3(1, 1, 1), // max (최대 좌표)
-);
-```
-
-| 파라미터 | 타입     | 설명                             |
-| -------- | -------- | -------------------------------- |
-| `id`     | `string` | 고유 식별자                      |
-| `min`    | `Vec3`   | 최소 좌표 (x, y, z 모두 작은 쪽) |
-| `max`    | `Vec3`   | 최대 좌표 (x, y, z 모두 큰 쪽)   |
-
-### PlaneRect
-
-사각형 평면입니다.
-
-```typescript
-import { PlaneRect, Vec3 } from "hlr";
-
-const plane = new PlaneRect(
-  "my-plane", // id
-  new Vec3(0, 0, 0), // center
-  new Vec3(0, 1, 0), // normal (법선 방향)
-  new Vec3(1, 0, 0), // u (가로 방향)
-  2, // halfWidth (가로 절반 길이)
-  1.5, // halfHeight (세로 절반 길이)
-);
-```
-
-### Disk
-
-원판 도형입니다.
-
-```typescript
-import { Disk, Vec3 } from "hlr";
-
-const disk = new Disk(
-  "my-disk", // id
-  new Vec3(0, 0, 0), // center
-  new Vec3(0, 1, 0), // normal (법선 방향)
-  1.5, // radius
-);
-```
-
-### TriangleMesh
-
-OBJ/STL에서 가져온 geometry를 담는 triangle mesh primitive입니다.
-
-```typescript
-import { TriangleMesh, Vec3 } from "hlr";
-
-const mesh = new TriangleMesh(
-  "mesh",
-  [
-    new Vec3(0, 0, 0),
-    new Vec3(1, 0, 0),
-    new Vec3(0, 1, 0),
-  ],
-  [[0, 1, 2]],
-);
-```
-
-| 파라미터    | 타입                              | 설명 |
-| ----------- | --------------------------------- | ---- |
-| `id`        | `string`                          | 고유 식별자 |
-| `vertices`  | `Vec3[]`                          | 메시 정점 위치 |
-| `triangles` | `Array<[number, number, number]>` | triangle 인덱스 목록 |
-
-### OBJ / STL 임포트
-
-```typescript
-import { parseObj, parseStl } from "hlr";
-
-const obj = parseObj(
-  await fetch("/model.obj").then((res) => res.arrayBuffer()),
-);
-const stl = parseStl(
-  await fetch("/model.stl").then((res) => res.arrayBuffer()),
-);
-```
-
-두 함수는 다음 형태를 반환합니다:
-
-```typescript
-type ImportedModel = {
-  meshes: TriangleMesh[];
-  bounds: { min: Vec3; max: Vec3 };
-  warnings: string[];
+type RenderOptions = {
+  width: number;
+  height: number;
+  background?: boolean; // 기본 true: 흰 사각형
+  style?: Partial<SvgStyle>;
+  include?: RenderInclude;
+  hlr?: Partial<HlrParams>;
+  intersections?: Partial<IntersectionParams>;
+  mesh?: Partial<MeshRenderParams>;
+  curves?: readonly CubicBezier3[];
+  ownedCurves?: readonly OwnedIntersectionCubic3[];
+  profiler?: Profiler;
 };
 ```
 
-참고:
-
-- OBJ는 `v`, `vn`, `f`, `o`, `g`, comment를 지원합니다.
-- `mtllib`, `usemtl`, `vt`, `l`, `p`, `curv`는 warning과 함께 무시됩니다.
-- mesh도 HLR raycasting에는 참여하지만, analytic intersection curve는 기존 analytic primitive에만 적용됩니다.
-
----
-
-## Math
-
-### Vec3
-
-3D 벡터 클래스입니다.
+각 옵션의 뜻과 기본값은 [렌더링과 스타일](/docs/ko-kr/rendering)에 있습니다.
 
 ```typescript
-import { Vec3 } from "hlr";
+function renderToSvg(scene: Scene, camera: Camera, opts: RenderOptions): string;
+function renderPrimitivesToSvg(primitives: readonly Primitive[], camera: Camera, opts: RenderOptions): string;
 
-// 생성
-const v = new Vec3(1, 2, 3);
+const DEFAULT_HLR_PARAMS: HlrParams; // samples 192, coarseSamples 0, refineIters 22, epsVisible 2e-4, cutEps 1e-6, minSegLenSq 1e-6
+const DEFAULT_INTERSECTION_PARAMS: IntersectionParams; // angularSamples 160, useBezierFit true, fitMode "stitchThenFit"
+const DEFAULT_MESH_PARAMS: MeshRenderParams; // creaseAngleDeg 30
 
-// 정적 메서드
-Vec3.add(a, b); // 벡터 덧셈
-Vec3.sub(a, b); // 벡터 뺄셈
-Vec3.mulScalar(v, s); // 스칼라 곱
-Vec3.dot(a, b); // 내적
-Vec3.cross(a, b); // 외적
-Vec3.normalize(v); // 정규화
-Vec3.length(v); // 길이
-Vec3.lengthSq(v); // 길이의 제곱
-Vec3.distance(a, b); // 두 점 사이 거리
+type HlrParams = { samples: number; coarseSamples?: number; refineIters: number; epsVisible: number; cutEps: number; minSegLenSq: number };
+type IntersectionParams = { angularSamples: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
+type MeshRenderParams = { creaseAngleDeg: number };
+type RenderInclude = CurveInclude & { intersections?: boolean };
+type CurveInclude = { silhouettes?: boolean; rims?: boolean; borders?: boolean; boxEdges?: boolean; meshEdges?: boolean; csg?: boolean };
 ```
 
-### Mat4
+## 도형
 
-4x4 행렬 클래스입니다. 주로 내부에서 사용됩니다.
+### Primitive, Ray, Hit
 
 ```typescript
-import { Mat4 } from "hlr";
-
-// 단위 행렬
-const identity = Mat4.identity();
-
-// 뷰 행렬
-const view = Mat4.lookAt(eye, target, up);
-
-// 투영 행렬
-const proj = Mat4.perspective(fovYRad, aspect, near, far);
-
-// 행렬 곱
-const combined = Mat4.multiply(proj, view);
+interface Primitive {
+  readonly id: string;
+  intersect(ray: Ray, tMin: number, tMax: number): Hit | null;
+}
+type Ray = { origin: Vec3; dir: Vec3 }; // dir은 단위 벡터 권장
+type Hit = { t: number; point: Vec3; normal: Vec3; primitiveId: string };
 ```
 
----
-
-## Advanced
-
-### HLR 파라미터 튜닝
-
-visibility 판정의 정밀도를 조절할 수 있습니다:
+### 해석적 도형
 
 ```typescript
-const svg = renderer.render(scene, camera, {
-  hlr: {
-    samples: 192, // 샘플링 개수 (↑ = 정밀, 느림)
-    refineIters: 22, // 이분법 반복 횟수
-    epsVisible: 2e-4, // 가시성 판정 epsilon
-    cutEps: 1e-6, // 전환점 중복 제거 epsilon
-    minSegLenSq: 1e-6, // 최소 세그먼트 길이 제곱
-  },
-});
+class Sphere { constructor(id: string, center: Vec3, radius: number) }
+
+class Cylinder {
+  constructor(id: string, base: Vec3, axis: Vec3, height: number, radius: number, caps?: CylinderCaps);
+  readonly axis: Vec3; // 정규화됨
+}
+type CylinderCaps = "none" | "both"; // 기본 "both"
+
+class Cone {
+  constructor(id: string, apex: Vec3, axis: Vec3, height: number, baseRadius: number, cap?: ConeCaps);
+  readonly axis: Vec3; // 꼭짓점 → 밑면, 정규화됨
+}
+type ConeCaps = "none" | "base"; // 기본 "base"
+
+class BoxAabb { constructor(id: string, min: Vec3, max: Vec3) }
+
+class OrientedBox {
+  constructor(id: string, center: Vec3, halfSize: Vec3, axisX: Vec3, axisY: Vec3);
+  readonly axes: readonly [Vec3, Vec3, Vec3]; // 정규 직교, z = x × y
+  toLocal(p: Vec3): Vec3;
+  corners(): Vec3[]; // 8개
+  edges(): [Vec3, Vec3][]; // 12개
+  faces(tag?: string): PlaneRect[]; // 6개, id는 `${id}:${tag}:face:±x|±y|±z`
+}
+
+class PlaneRect {
+  constructor(id: string, center: Vec3, normal: Vec3, uHint: Vec3, halfWidth: number, halfHeight: number);
+  readonly normal: Vec3; // 단위
+  readonly u: Vec3; // uHint를 평면에 투영해 정규화
+  readonly v: Vec3; // normal × u
+}
+
+class Disk { constructor(id: string, center: Vec3, normal: Vec3, radius: number) }
 ```
 
-### 커스텀 커브 추가
+생성자 인자는 같은 이름의 읽기 전용 속성으로도 공개됩니다(`sphere.center`, `cone.baseRadius` 등).
 
-자동 생성되는 silhouette/intersection 외에 직접 커브를 추가할 수 있습니다:
+### TriangleMesh
 
 ```typescript
-import { lineToCubic3, Vec3 } from "hlr";
+class TriangleMesh {
+  constructor(id: string, vertices: readonly Vec3[], triangles: readonly TriangleIndices[]);
+  readonly vertices: readonly Vec3[]; // 합친 뒤의 정점
+  readonly triangles: readonly TriangleIndices[];
+  readonly bounds: Bounds3;
+  readonly weldEps: number;
+  readonly triangleCount: number;
+  readonly vertexCount: number;
+  readonly edgeCount: number;
+  featureEdges(camera: Camera, opts?: { creaseAngleDeg?: number }): MeshFeatureEdge[];
+}
+type TriangleIndices = readonly [number, number, number];
+type Bounds3 = { min: Vec3; max: Vec3 };
+type MeshFeatureKind = "boundary" | "nonManifold" | "crease" | "silhouette";
+type MeshFeatureEdge = { kind: MeshFeatureKind; start: Vec3; end: Vec3 };
 
-// 직선을 Cubic Bezier로 변환
-const customLine = lineToCubic3(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
-
-const svg = renderer.render(scene, camera, {
-  curves: [customLine],
-});
+function boundsFromPoints(points: readonly Vec3[]): Bounds3;
+function mergeBounds(boundsList: readonly Bounds3[]): Bounds3;
 ```
 
----
-
-## TypeScript 타입
-
-모든 타입은 패키지에서 직접 import할 수 있습니다:
+### Csg
 
 ```typescript
-import type {
-  CameraParams,
-  SvgRendererOptions,
-  SvgStyle,
-  IncludeOptions,
-  HlrParams,
-  CubicBezier3,
-} from "hlr";
+class Csg {
+  constructor(id: string, operation: CsgOperation, a: CsgSolid, b: CsgSolid);
+  classify(p: Vec3, tolerance: number): CsgClass; // -1 안, 0 표면, 1 밖
+  leaves(): CsgLeaf[]; // 재료 도형, 깊이 우선
+  size(): number; // 가장 큰 재료의 크기
+}
+type CsgOperation = "union" | "subtract" | "intersect";
+type CsgLeaf = Sphere | Cylinder | Cone | BoxAabb | OrientedBox;
+type CsgSolid = CsgLeaf | Csg;
+type CsgClass = -1 | 0 | 1;
+type CsgSpan = { start: { t: number; normal: Vec3 }; end: { t: number; normal: Vec3 } };
+
+const CSG_TOLERANCE: number; // 3e-3, 재료 크기에 곱해 쓰는 표면 판정 허용오차
+function csgSpans(solid: CsgSolid, ray: Ray): CsgSpan[]; // 광선이 입체 안에 있는 구간
+function leafDistance(leaf: CsgLeaf, p: Vec3): number; // 부호 있는 거리(안쪽 음수)
+function csgBoundaryCurves(csg: Csg, camera: Camera): CubicBezier3[];
+function csgCurvesForPrimitives(primitives: readonly Primitive[], camera: Camera): CubicBezier3[];
+```
+
+## 곡선
+
+```typescript
+type CubicBezier3 = { p0: Vec3; p1: Vec3; p2: Vec3; p3: Vec3 };
+
+function evalCubic3(b: CubicBezier3, t: number): Vec3;
+function splitCubic3(b: CubicBezier3, t: number): { left: CubicBezier3; right: CubicBezier3 };
+function subCubic3(b: CubicBezier3, t0: number, t1: number): CubicBezier3;
+function splitCubicWhere(b: CubicBezier3, keep: (p: Vec3) => boolean, samples?: number, refineSteps?: number): CubicBezier3[];
+
+function lineToCubic3(p0: Vec3, p3: Vec3): CubicBezier3;
+function circleToCubics3(opts: {
+  center: Vec3;
+  normal: Vec3;
+  radius: number;
+  startAngleRad?: number; // 기본 0
+  endAngleRad?: number; // 기본 2π
+  maxSegmentAngleRad?: number; // 기본 π/2
+}): CubicBezier3[];
+
+function sphereSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; center: Vec3; radius: number }): CubicBezier3[];
+function cylinderSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; base: Vec3; axis: Vec3; height: number; radius: number }): CubicBezier3[];
+function coneSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; apex: Vec3; axis: Vec3; height: number; baseRadius: number }): CubicBezier3[];
+function cylinderGeneratorsToCubics3(opts: { base: Vec3; axis: Vec3; height: number; radius: number; cameraPos: Vec3 }): CubicBezier3[];
+function coneGeneratorsToCubics3(opts: { apex: Vec3; axis: Vec3; height: number; baseRadius: number; cameraPos: Vec3 }): CubicBezier3[];
+
+function fitPolylineToCubics(points: Vec3[], params?: Partial<BezierFitParams>): CubicBezier3[];
+const defaultBezierFitParams: BezierFitParams; // maxError 0.02 등
+```
+
+`viewDirection`은 직교 카메라의 `camera.forward`를 넘깁니다(원근이면 생략).
+
+## 도형에서 곡선 만들기
+
+```typescript
+function curvesFromPrimitives(primitives: readonly Primitive[], camera: Camera, include?: CurveInclude, mesh?: MeshCurveOptions): CubicBezier3[];
+function defaultCurveInclude(): Required<CurveInclude>;
+function silhouettesForPrimitives(primitives: readonly Primitive[], camera: Camera): CubicBezier3[];
+function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function bordersForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function boxEdgesForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function meshFeatureCurves(primitives: readonly Primitive[], camera: Camera, mesh: MeshCurveOptions): CubicBezier3[];
+type MeshCurveOptions = { creaseAngleDeg?: number };
+```
+
+## 교선
+
+```typescript
+function intersectionCurvesToOwnedCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): OwnedIntersectionCubic3[];
+function intersectionCurvesToCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): CubicBezier3[];
+function cachedIntersectionCurvesToOwnedCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): readonly OwnedIntersectionCubic3[];
+function intersectionGeometrySignature(primitives: readonly Primitive[]): string | undefined;
+
+type IntersectionCurveOptions = { angularSamples: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
+type OwnedIntersectionCubic3 = { bez: CubicBezier3; ignorePrimitiveIds: readonly string[] };
+```
+
+캐시판은 결과를 얼려(freeze) 돌려줍니다. 고쳐 쓰려면 캐시 없는 함수를 쓰세요. 서명이
+`undefined`인 장면(직접 만든 도형 등)은 캐시하지 않습니다.
+
+## 가시성
+
+```typescript
+function splitCubicByVisibility(b: CubicBezier3, scene: RaycastScene, params: SplitParams): StyledPiece[];
+function splitCubicByVisibilityWithIgnore(b: CubicBezier3, scene: RaycastScene, params: SplitParams, ignorePrimitiveIds?: readonly string[]): StyledPiece[];
+function splitLineCubicByVisibilityAdaptive(b: CubicBezier3, scene: RaycastScene, camera: Camera, width: number, height: number, params: SplitParams, ignorePrimitiveIds?: readonly string[]): StyledPiece[];
+function findVisibilityCutsOnCubic(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, ignorePrimitiveIds?: readonly string[]): number[];
+function findVisibilityCutsOnCubicWithVisibility(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, ignorePrimitiveIds?: readonly string[]): VisibilityCuts;
+function refineVisibilityCutBisection(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, tLo: number, tHi: number, visLo: boolean, ignorePrimitiveIds?: readonly string[]): number;
+
+type StyledPiece = { bez: CubicBezier3; visible: boolean };
+type VisibilityParams = { samples: number; coarseSamples?: number; refineIters: number; epsVisible: number; cutEps: number };
+type SplitParams = VisibilityParams & { minSegLenSq: number };
+type VisibilityCuts = { cuts: number[]; segmentVisible: boolean[] };
+```
+
+`RaycastScene`은 `scene.toRaycastScene(camera)`가 돌려주는 객체입니다. 직선 모양의 곡선은
+`splitLineCubicByVisibilityAdaptive`가 화면 길이에 맞춰 표본을 줄여 더 빠릅니다.
+
+## SVG 쓰기
+
+```typescript
+function projectPiecesToSvgPaths(pieces: StyledPiece[], camera: Camera, width: number, height: number): ProjectedSvgPath[];
+function projectedPathsToSvg(paths: readonly ProjectedSvgPath[], opts: SvgRenderOptions): string;
+function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string;
+
+type ProjectedSvgPath = { d: string; visible: boolean };
+type SvgRenderOptions = { width: number; height: number; style?: Partial<SvgStyle>; background?: boolean };
+type SvgStyle = {
+  strokeVisible: string; // "black"
+  strokeHidden: string; // "black"
+  strokeWidthVisible: number; // 1.5
+  strokeWidthHidden: number; // 1.5
+  dashArrayHidden: string; // "3 3"
+  opacityHidden: number; // 0.5
+  lineCap: "butt" | "round" | "square"; // "butt"
+  lineJoin: "miter" | "round" | "bevel"; // "round"
+};
+```
+
+## 면 채색
+
+```typescript
+function buildSurfaceBuffer(primitives: readonly Primitive[], camera: Camera, options: { width: number; height: number }): SurfaceBuffer;
+function shadeSurfaceBuffer(buffer: SurfaceBuffer, options: SurfaceShadingOptions): Uint8ClampedArray;
+function buildSurfaceClipPaths(buffer: SurfaceBuffer, options?: { width?: number; height?: number }): readonly SurfaceClipPath[];
+function lightDirectionFromAngles(azimuthDegrees: number, elevationDegrees: number): Vec3;
+const PAPER_TONES: SurfaceTones; // { unlit: 1, shadow: 0.72, lit: 0.99 }
+
+type SurfaceBuffer = {
+  readonly width: number;
+  readonly height: number;
+  readonly normals: Float32Array;
+  readonly primitiveIndices: Int32Array;
+  readonly primitiveIds: readonly string[];
+  readonly depth: Float32Array;
+};
+type SurfaceShadingOptions = {
+  lightDirection: Vec3;
+  ambient?: number; // 0.35
+  selectedId?: string | null;
+  unlitPrimitiveIds?: readonly string[];
+  tones?: Partial<SurfaceTones>;
+};
+type SurfaceTones = { unlit: number; shadow: number; lit: number };
+type SurfaceClipPath = { primitiveId: string; path: string };
+```
+
+## 메시 불러오기
+
+```typescript
+function parseObj(source: string | ArrayBuffer | Uint8Array): ImportedModel;
+function parseStl(source: string | ArrayBuffer | Uint8Array): ImportedModel;
+type ImportedModel = { meshes: TriangleMesh[]; bounds: Bounds3; warnings: string[] };
+```
+
+## 수학
+
+```typescript
+class Vec3 {
+  constructor(x: number, y: number, z: number);
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  static zero(): Vec3;
+  static add(a: Vec3, b: Vec3): Vec3;
+  static sub(a: Vec3, b: Vec3): Vec3;
+  static mulScalar(a: Vec3, s: number): Vec3;
+  static dot(a: Vec3, b: Vec3): number;
+  static cross(a: Vec3, b: Vec3): Vec3;
+  static len(a: Vec3): number;
+  static lenSq(a: Vec3): number;
+  static normalize(a: Vec3): Vec3;
+  static lerp(a: Vec3, b: Vec3, t: number): Vec3;
+  static distance(a: Vec3, b: Vec3): number;
+  static distanceSq(a: Vec3, b: Vec3): number;
+}
+
+class Mat4 {
+  constructor(m: readonly number[]); // 16개, 열 우선
+  readonly m: readonly number[];
+  static identity(): Mat4;
+  static mul(a: Mat4, b: Mat4): Mat4;
+  static mulVec4(a: Mat4, v: Vec4): Vec4;
+  static lookAt(eye: Vec3, target: Vec3, up: Vec3): Mat4;
+  static perspective(fovYRad: number, aspect: number, near: number, far: number): Mat4;
+  static ortho(left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4;
+  static inverse(a: Mat4): Mat4 | null;
+}
+type Vec4 = readonly [number, number, number, number];
+
+const EPS: number; // 1e-9
+function clamp01(t: number): number;
+function almostEqual(a: number, b: number, eps?: number): boolean;
+function dedupeSorted(nums: number[], eps?: number): number[];
+```
+
+`Vec3`의 연산은 모두 새 객체를 돌려주는 정적 메서드입니다.
+
+## 성능 측정
+
+```typescript
+function createProfiler(): Profiler;
+function formatProfileReport(report: ProfileReport): string;
+
+type Profiler = {
+  reset(): void;
+  inc(name: string, by?: number): void;
+  addMs(name: string, ms: number): void;
+  begin(name: string): void;
+  end(name: string): void;
+  report(): ProfileReport;
+  now(): number;
+};
+type ProfileReport = { totalMs: number; ms: Record<string, number>; counts: Record<string, number> };
 ```

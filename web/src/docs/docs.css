@@ -171,8 +171,26 @@
   bottom: -6px;
   border-bottom: 3px solid var(--ink);
 }
+.docs-head-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 22px;
+}
 .docs-pill {
-  margin: 0 0 22px;
+  margin: 0;
+}
+.docs-md-tools {
+  display: flex;
+  gap: 6px;
+}
+.docs-md-tools .tool-btn {
+  color: var(--ink-2);
+}
+.docs-md-tools .tool-btn:hover {
+  color: var(--ink);
 }
 .docs-title {
   margin: 0;

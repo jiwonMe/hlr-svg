@@ -1,0 +1,96 @@
+---
+title: Meshes
+description: Read OBJ and STL files as triangle meshes and render them with the same hidden-line drawing.
+group: Guides
+order: 9
+---
+
+## Reading files
+
+```typescript
+import { readFileSync } from "node:fs";
+import { Camera, Scene, SvgRenderer, Vec3, parseObj, parseStl } from "hlr";
+
+const model = parseObj(readFileSync("teapot.obj")); // a Buffer is a Uint8Array
+// const model = parseStl(readFileSync("part.stl"));
+
+console.log(model.warnings); // notes about lines that were skipped
+const scene = new Scene(model.meshes);
+```
+
+In the browser, pass the result of `await fetch(url).then((r) => r.arrayBuffer())` or a string. Both
+functions take `string | ArrayBuffer | Uint8Array`, never a file path.
+
+```typescript
+type ImportedModel = {
+  meshes: TriangleMesh[]; // one per OBJ o/g group
+  bounds: { min: Vec3; max: Vec3 }; // a box around all meshes
+  warnings: string[];
+};
+```
+
+## What is supported
+
+- **OBJ**: `v`, `vn`, `f` (polygons with more than three corners are split into a fan), `o`, `g` and
+  comments. `mtllib`, `usemtl`, `vt`, `l`, `p` and `curv` are skipped with a warning.
+- **STL**: ASCII and binary.
+- Materials, textures, UVs and glTF/GLB are out of scope.
+
+## Fitting the view
+
+Use `bounds` for the center and size, then place the camera.
+
+```typescript
+const { min, max } = model.bounds;
+const center = Vec3.mulScalar(Vec3.add(min, max), 0.5);
+const radius = Vec3.distance(min, max) / 2;
+
+const width = 960;
+const height = 540;
+const camera = Camera.from({
+  kind: "perspective",
+  position: Vec3.add(center, Vec3.mulScalar(new Vec3(1, 0.8, 1.2), radius * 2.2)),
+  target: center,
+  up: new Vec3(0, 1, 0),
+  fovYRad: (40 * Math.PI) / 180,
+  aspect: width / height,
+  near: radius * 0.01,
+  far: radius * 20,
+});
+
+const svg = new SvgRenderer({
+  width,
+  height,
+  include: { intersections: false }, // meshes make no intersection curves; skip the work
+  mesh: { creaseAngleDeg: 30 },
+}).render(scene, camera);
+```
+
+## Which edges are drawn
+
+For each camera a `TriangleMesh` draws these edges (`include.meshEdges`).
+
+| Kind          | Condition                                                  |
+| ------------- | ---------------------------------------------------------- |
+| `boundary`    | an edge with only one triangle (an open rim)               |
+| `nonManifold` | an edge shared by three or more triangles                  |
+| `crease`      | two neighbouring faces folded at least `creaseAngleDeg`    |
+| `silhouette`  | one face looks at the camera and the other faces away      |
+
+For finely tessellated smooth surfaces raise `creaseAngleDeg` (say 45 … 60) to drop small creases; for
+angular machine parts lower it (say 20) to keep folds. `mesh.featureEdges(camera, { creaseAngleDeg })`
+returns the edges directly.
+
+## What happens on construction
+
+- Vertices at almost the same position (within a millionth of the model's diagonal) are merged, so files
+  like STL that repeat vertices per face regain their neighbours.
+- Zero-area triangles are dropped.
+- A BVH is built for ray hits. Large meshes take time to build, but later renders are fast.
+
+## Limits and tips
+
+- Meshes produce **no intersection curves** with other shapes. Occlusion works normally.
+- Scenes with meshes skip the projection cache, and visibility starts with `coarseSamples: 24`. With many
+  edges, fewer samples such as `hlr: { samples: 96 }` buy speed.
+- Reuse the same `TriangleMesh` object across renders; welding and the BVH are not redone.

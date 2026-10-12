@@ -1,0 +1,89 @@
+---
+title: Core concepts
+description: How shapes become curves, how curves are split into visible and hidden pieces, and how those become SVG.
+group: Getting Started
+order: 2
+---
+
+hlr is a **hidden line removal (HLR)** library. Instead of shading pixels like a raster renderer, it
+builds every line of the figure as a 3D curve, works out which parts of each curve the camera can see,
+and writes visible pieces as solid lines and hidden pieces as dashed lines. The result is resolution-
+independent vector art that follows the textbook rule: hidden edges are dashed.
+
+## How one figure is made
+
+One `renderer.render(scene, camera)` call runs four steps.
+
+1. **Make curves.** For every shape in the scene, build the lines to draw as cubic Bézier curves (`CubicBezier3`).
+   - Silhouettes: the outline of curved surfaces (sphere, cylinder, cone) seen from the camera. They depend on the camera.
+   - Edges: rims of cylinders and cones, disk circles, plane borders, the 12 edges of boxes.
+   - Intersection curves: where the surfaces of two shapes meet. They do not depend on the camera.
+   - Outlines and seams of boolean solids, mesh feature edges, and curves you pass in.
+2. **Test visibility.** Sample each curve densely (`samples`); from each sample, cast a ray toward the
+   camera and check whether another surface blocks it. Where visibility flips, bisection (`refineIters`)
+   narrows down the exact transition.
+3. **Split.** Cut the curves at those transitions into a list of `{ bez, visible }` pieces.
+4. **Project and write.** Project the pieces to screen coordinates and write SVG `<path>` elements.
+   Hidden pieces come first and visible ones last, so solid lines sit on top of dashed ones.
+
+## Coordinates and units
+
+- World space is right-handed. The camera's `up` vector decides which way is up. These docs and the
+  examples use y up (`new Vec3(0, 1, 0)`). To port coordinates from a textbook where z is up, map
+  `(x, y, z) → (y, z, x)`.
+- Units are up to you. Only the proportions and the camera matter.
+- The SVG output uses pixel coordinates with the origin at the top left and y growing downward.
+  `width` and `height` become the `viewBox`.
+- Angle arguments are in radians (`fovYRad`). There are no rotation helpers; build axis vectors directly.
+
+## ids
+
+Every shape takes, as its first constructor argument, **an id that is unique in the scene**. ids are used to:
+
+- record which two surfaces an intersection curve lies on (see "Owned curves" below);
+- tell which shape owns a pixel in surface shading, and which shape is selected;
+- report which shape a ray hit (`Hit.primitiveId`), for picking shapes with a click.
+
+Duplicate ids make intersection curves get hidden by the wrong surfaces and break selection.
+
+## Owned curves
+
+An intersection curve lies **on** two surfaces. Casting a ray from a point on a surface toward the
+camera can, through rounding, appear to hit that very surface. So intersection curves carry the ids of
+the shapes they lie on (`ignorePrimitiveIds`). During the visibility test, **a hit on those shapes right
+at the curve** does not count as occlusion. A hit on the same shape elsewhere (for example the front of
+a sphere) still does.
+
+Curves you draw yourself can be passed the same way when they lie on a surface. See `ownedCurves` in
+[Custom lines](/docs/en-us/curves).
+
+## What occludes and what is drawn
+
+Every shape in the scene is an **opaque occluder**. Planes (`PlaneRect`) and disks (`Disk`) hide what is
+behind them from both sides. For a "clear plane" that draws lines but hides nothing, leave the plane out
+of the scene and pass its border and sections as curves ([Custom lines](/docs/en-us/curves)).
+
+Analytic shapes (sphere, cylinder, cone, boxes, plane, disk, booleans) compute ray hits and intersection
+curves exactly from their equations. Triangle meshes (`TriangleMesh`) occlude and draw feature edges, but
+produce no intersection curves with other shapes.
+
+## Caching and redrawing
+
+Keep using the same `SvgRenderer` instance.
+
+- Intersection curves do not depend on the camera; with the same shape values and intersection options the previous result is reused.
+- If the camera and shapes are unchanged and only the line style or background changes, the projected paths are reused and only the SVG text is rewritten.
+- Custom shape classes, and shapes or cameras with overridden methods, skip the caches and are computed every time.
+
+## What is not drawn
+
+- Surface colour, shadows and transparency are outside the line renderer. To shade surfaces use the
+  separate [Surface shading](/docs/en-us/shading) API.
+- Text, points and arrows are drawn on top, outside the renderer. Projecting points with the camera is
+  covered in [Custom lines](/docs/en-us/curves) and [Exam-style figures](/docs/en-us/exam-figures).
+
+## Accuracy and speed
+
+The number of visibility samples (`samples`) and bisection steps (`refineIters`) trade accuracy for speed.
+The defaults target print quality; lower them while the user drags the view. The table is in
+[Rendering and styles](/docs/en-us/rendering).

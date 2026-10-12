@@ -1,0 +1,111 @@
+---
+title: Surface shading
+description: Put lit shading under the line drawing. Build a surface buffer once; when the light changes, just repaint it.
+group: Guides
+order: 8
+---
+
+The line renderer (`SvgRenderer`) does not paint surfaces. To shade them, make a raster image with the
+surface buffer API and lay the SVG lines over it. The example viewer and the shape studio on this site
+work this way.
+
+## Two steps
+
+```typescript
+import {
+  buildSurfaceBuffer,
+  lightDirectionFromAngles,
+  shadeSurfaceBuffer,
+} from "hlr";
+
+// 1. For each pixel, find the nearest surface, its normal and depth (ray casting).
+//    Rebuild only when shapes, camera or resolution change.
+const buffer = buildSurfaceBuffer(scene.primitives, camera, { width: 720, height: 540 });
+
+// 2. Paint RGBA pixels for a light. No new rays are cast, so this is fast.
+const rgba = shadeSurfaceBuffer(buffer, {
+  lightDirection: lightDirectionFromAngles(135, 45), // azimuth, elevation (degrees)
+  ambient: 0.3,
+});
+```
+
+`rgba` is a `Uint8ClampedArray` of length `width × height × 4`. Pixels with no surface are transparent (alpha 0).
+
+## Canvas under SVG
+
+```typescript
+const canvas = document.querySelector("canvas")!;
+canvas.width = buffer.width;
+canvas.height = buffer.height;
+canvas.getContext("2d")!.putImageData(new ImageData(rgba, buffer.width, buffer.height), 0, 0);
+
+// Draw the SVG with the same camera and aspect ratio, absolutely positioned over the canvas.
+overlay.innerHTML = renderer.render(scene, camera, { background: false });
+```
+
+The buffer resolution may differ from the SVG size. A small buffer while dragging (say 320 px on the long
+side) and a larger one once the view settles keeps interaction smooth. Stretch the canvas to the SVG's size with CSS.
+
+## Shading options
+
+| Field               | Default       | Meaning                                                          |
+| ------------------- | ------------- | ---------------------------------------------------------------- |
+| `lightDirection`    | required      | world direction from the surface toward the light                |
+| `ambient`           | `0.35`        | ambient share (0 … 1)                                            |
+| `selectedId`        | none          | tint this shape light green                                      |
+| `unlitPrimitiveIds` | none          | shapes painted in a flat tone, unlit (occluding guide planes etc.) |
+| `tones`             | `PAPER_TONES` | grey levels `{ unlit, shadow, lit }`, 0 … 1                      |
+
+Brightness is `shadow + (lit − shadow) × (ambient + (1 − ambient) × max(0, n·l))`. The default
+`PAPER_TONES` is `{ unlit: 1, shadow: 0.72, lit: 0.99 }`: light shading on white paper.
+
+In `lightDirectionFromAngles(azimuth, elevation)`, azimuth 0 faces +z, 90 faces +x, and elevation rises toward +y.
+
+## Dark pages
+
+On a dark background, lower the `tones`. Setting `unlit` to the background colour makes occluding guide
+surfaces blend into the page.
+
+```typescript
+const dark = shadeSurfaceBuffer(buffer, {
+  lightDirection: lightDirectionFromAngles(135, 45),
+  ambient: 0.3,
+  tones: { unlit: 10 / 255, shadow: 0.1, lit: 0.3 }, // page #0a0a0a
+});
+```
+
+Draw the SVG lines in a light colour in that case (`style.strokeVisible` and friends).
+
+## Exporting to SVG
+
+To put the shading in an SVG file you need a path that clips each shape to its visible region.
+
+```typescript
+import { buildSurfaceClipPaths } from "hlr";
+
+const clips = buildSurfaceClipPaths(buffer, { width: 800, height: 600 });
+// [{ primitiveId, path }]: SVG paths in output coordinates; use clipPathUnits="userSpaceOnUse".
+```
+
+Embed each shape's shading as a PNG `<image>`, clip it with its `clipPath`, and put the line SVG's paths
+on top. The paths do not depend on the light, so changing the light does not require new clips.
+
+## Inside the surface buffer
+
+```typescript
+type SurfaceBuffer = {
+  width: number;
+  height: number;
+  normals: Float32Array; // three values per pixel: the unit world normal
+  primitiveIndices: Int32Array; // index into primitiveIds, -1 for empty pixels
+  primitiveIds: readonly string[];
+  depth: Float32Array; // depth along the camera's forward direction
+};
+```
+
+`primitiveIndices` tells you the shape under any pixel, which also serves selection highlights and picking.
+
+## Limits
+
+No shadows, transparency or reflections: each pixel is Lambert shading of its single nearest surface.
+Boolean solids and meshes are shaded the same way.

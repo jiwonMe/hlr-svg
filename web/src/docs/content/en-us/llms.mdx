@@ -1,0 +1,57 @@
+---
+title: Docs for LLMs
+description: Give the whole hlr documentation to AI tools such as ChatGPT, Claude or Cursor, and get accurate code back.
+group: Tools
+order: 12
+---
+
+AI coding tools often do not know recent libraries well, or invent APIs. Following the
+[llms.txt](https://llmstxt.org) convention, this site also serves Markdown documentation that models read
+easily. It is regenerated from these pages on every site build.
+
+## Files
+
+| URL                                           | Contents                                                |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `https://hlr.js.org/llms.txt`                 | summary, rules to follow, list of pages with links      |
+| `https://hlr.js.org/llms-full.txt`            | the whole English documentation in one file             |
+| `https://hlr.js.org/llms-full.ko.txt`         | the whole Korean documentation in one file              |
+| `https://hlr.js.org/docs/en-us/<page>.md`     | one page as Markdown (for example `/docs/en-us/booleans.md`) |
+| `https://hlr.js.org/docs/ko-kr/<page>.md`     | the Korean edition                                      |
+
+The **Copy Markdown** button at the top of every page puts that page's Markdown on the clipboard.
+
+## How to use them
+
+- **Chat (ChatGPT, Claude and others)**: download `llms-full.txt` and attach it, or paste it, then ask.
+  Models that can browse also accept the URL.
+- **Cursor**: add `https://hlr.js.org/llms-full.txt` under Docs in the settings and refer to it with `@Docs`.
+- **Agents such as Claude Code or Codex**: add a line to the project's instructions file (`CLAUDE.md`,
+  `AGENTS.md` …): "Before using hlr, read https://hlr.js.org/llms-full.txt."
+- **One topic only**: that page's `.md` or **Copy Markdown** is shorter and just as accurate.
+
+## Example prompt
+
+```text
+Using the hlr documentation below, write TypeScript that draws a sphere of radius 2 resting on a plane.
+Orthographic camera, 640×480, hidden lines dashed. Add a dot and a label O at the sphere's center.
+Do not use APIs that are not in the documentation; say so if you are unsure.
+
+[contents of llms-full.txt]
+```
+
+## What models often get wrong
+
+The same list opens `llms.txt`.
+
+- The package is `hlr` and it is an ES module: `import { Scene } from "hlr"`.
+- Every shape's first argument is an id string, unique in the scene.
+- `Cylinder` is `(id, base, axis, height, radius, caps)` with `caps` either `"both"` or `"none"`. A `Cone`'s
+  axis points from the apex **toward the base**.
+- Cameras are `Camera.from({ kind: "orthographic" | "perspective", … })`, and `aspect` must equal the SVG's
+  `width / height`. Orthographic uses `halfHeight`, perspective `fovYRad` (radians).
+- `Scene` has no `remove`; it has `removeById(id)` and `clear()`.
+- Vector length is `Vec3.len` and `Vec3.lenSq` (not `length`).
+- Planes and disks are opaque on both sides. Clear planes stay out of the scene and are drawn with `curves` and `ownedCurves`.
+- The renderer draws no text. Labels are added to the SVG using coordinates from `camera.projectToSvg`.
+- `SvgRenderer`'s `width` and `height` are fixed in the constructor.

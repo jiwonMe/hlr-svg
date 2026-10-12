@@ -1,0 +1,194 @@
+---
+title: Custom lines
+description: Add lines and notes the shapes do not make themselves, such as auxiliary lines, axes, sections by a clear plane, and points with labels.
+group: Guides
+order: 7
+---
+
+Besides the lines the renderer makes (silhouettes, edges, intersection curves), you can send your own
+3D curves through the same hidden-line test. Every curve is a cubic Bézier `CubicBezier3`.
+
+```typescript
+type CubicBezier3 = { p0: Vec3; p1: Vec3; p2: Vec3; p3: Vec3 };
+```
+
+## Making curves
+
+```typescript
+import { circleToCubics3, lineToCubic3, Vec3 } from "hlr";
+
+const axis = lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 3, 0)); // one segment
+
+const ring = circleToCubics3({
+  center: new Vec3(0, 1, 0),
+  normal: new Vec3(0, 1, 0), // normal of the circle's plane
+  radius: 2,
+}); // four quarter arcs
+
+const arc = circleToCubics3({
+  center: new Vec3(0, 0, 0),
+  normal: new Vec3(0, 0, 1),
+  radius: 1,
+  startAngleRad: 0,
+  endAngleRad: Math.PI / 3, // a 60° arc
+});
+```
+
+Angles in `circleToCubics3` are measured from an internal reference axis perpendicular to the normal.
+If an arc must start at an exact point, compute the points yourself and fit them with
+`fitPolylineToCubics(points)`, which approximates a polyline with cubic Béziers (default error 0.02).
+
+There are also silhouette builders, `sphereSilhouetteToCubics3`, `cylinderSilhouetteToCubics3` and
+`coneSilhouetteToCubics3` (they take the camera position, and the view direction for orthographic
+cameras), plus `cylinderGeneratorsToCubics3` and `coneGeneratorsToCubics3` for generator lines.
+
+## Drawing them: `curves`
+
+Lines **floating in space**, such as auxiliary segments, coordinate axes and the borders of clear
+surfaces, go in `curves`. They are dashed when hidden, like the shapes' own lines.
+
+```typescript
+const svg = renderer.render(scene, camera, {
+  curves: [
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(3.2, 0, 0)), // x axis
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 3.1, 0)), // y axis
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 0, 3.2)), // z axis
+  ],
+});
+```
+
+## Lines on surfaces: `ownedCurves`
+
+If a curve lies **on a surface**, pass it in `ownedCurves` together with that surface's id. As described
+in [Core concepts](/docs/en-us/concepts), a hit on the listed shapes right at the curve does not count as occlusion.
+
+```typescript
+type OwnedIntersectionCubic3 = {
+  bez: CubicBezier3;
+  ignorePrimitiveIds: readonly string[];
+};
+```
+
+The most common use is **the section a clear plane cuts through a solid**. A plane in the scene hides
+what is behind it, so keep the plane out of the scene, pass its border in `curves` and the section in
+`ownedCurves`.
+
+```typescript
+import {
+  Camera,
+  PlaneRect,
+  Scene,
+  Sphere,
+  SvgRenderer,
+  Vec3,
+  intersectionCurvesToOwnedCubics,
+  lineToCubic3,
+} from "hlr";
+
+const ball = new Sphere("S", new Vec3(0, 1, 0), 2);
+
+// β: a plane that draws lines but hides nothing. It is not added to the scene.
+const beta = new PlaneRect(
+  "beta",
+  new Vec3(0, 1, 0),
+  new Vec3(0, 0, 1),
+  new Vec3(1, 0, 0),
+  3,
+  2.4,
+);
+
+const corners = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+].map(([a, b]) =>
+  Vec3.add(
+    beta.center,
+    Vec3.add(
+      Vec3.mulScalar(beta.u, a! * beta.halfWidth),
+      Vec3.mulScalar(beta.v, b! * beta.halfHeight),
+    ),
+  ),
+);
+const border = corners.map((p, i) => lineToCubic3(p, corners[(i + 1) % 4]!));
+
+// The great circle where β cuts the sphere; each curve comes tagged with ["beta", "S"].
+const section = intersectionCurvesToOwnedCubics([beta, ball], { angularSamples: 160 });
+
+const camera = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3.2,
+  aspect: 4 / 3,
+  near: 0.1,
+  far: 100,
+});
+
+const svg = new SvgRenderer({ width: 640, height: 480 }).render(new Scene([ball]), camera, {
+  curves: border,
+  ownedCurves: section,
+});
+```
+
+`intersectionCurvesToOwnedCubics(primitives, options)` computes every intersection curve among the given
+shapes. They need not be in the scene, which is what makes sections like this possible. If you only need
+the curves without `ignorePrimitiveIds`, use `intersectionCurvesToCubics`.
+
+## Trimming curves
+
+```typescript
+import { evalCubic3, splitCubic3, splitCubicWhere, subCubic3 } from "hlr";
+
+evalCubic3(bez, 0.5); // the point at parameter t
+splitCubic3(bez, 0.5); // { left, right }
+subCubic3(bez, 0.2, 0.8); // the part with t in [0.2, 0.8]
+splitCubicWhere(bez, (p) => p.y >= 0); // only the parts where the predicate holds
+```
+
+`splitCubicWhere(bez, keep, samples = 24, refineSteps = 14)` checks the predicate along the curve, finds each
+flip by bisection and returns the pieces where it is true, for example to keep only the part of a section
+above a plane.
+
+## Points, labels and arrows
+
+The renderer draws no text. Project points to the screen with `camera.projectToSvg` and insert elements
+before the closing `</svg>`. Dimming hidden points matches exam figures.
+
+```typescript
+const rays = scene.toRaycastScene(camera);
+
+function point(name: string, p: Vec3, dx = 12, dy = -12): string {
+  const q = camera.projectToSvg(p, width, height);
+  const dim = rays.visibleAtPoint(p) ? "" : ' opacity="0.45"';
+  return (
+    `<circle cx="${q.x}" cy="${q.y}" r="2.3" fill="#0a0a0a"${dim}/>` +
+    `<text x="${q.x + dx}" y="${q.y + dy}" font-family="serif" font-size="16"` +
+    ` text-anchor="middle" dominant-baseline="central"` +
+    ` stroke="#ffffff" stroke-width="4" paint-order="stroke">${name}</text>`
+  );
+}
+
+const svg = renderer
+  .render(scene, camera)
+  .replace("</svg>", `${point("O", new Vec3(0, 1, 0))}</svg>`);
+```
+
+A thick white `stroke` with `paint-order="stroke"` puts a white halo behind the text, so it stays readable
+over lines. For arrowheads, project the last two points of a segment and draw a small triangle `<path>`.
+
+## Working with visibility directly
+
+To give each line its own look, call the visibility split yourself.
+
+```typescript
+import { DEFAULT_HLR_PARAMS, splitCubicByVisibility, splitCubicByVisibilityWithIgnore } from "hlr";
+
+const rays = scene.toRaycastScene(camera);
+const pieces = splitCubicByVisibility(bez, rays, DEFAULT_HLR_PARAMS); // [{ bez, visible }]
+const onSurface = splitCubicByVisibilityWithIgnore(bez, rays, DEFAULT_HLR_PARAMS, ["S"]);
+```
+
+Turn the pieces into SVG with `projectPiecesToSvgPaths` and `projectedPathsToSvg` ([Rendering and styles](/docs/en-us/rendering)).

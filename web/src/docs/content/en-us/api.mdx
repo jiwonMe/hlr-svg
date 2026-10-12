@@ -1,397 +1,408 @@
 ---
-title: API Reference
-description: Detailed reference for all classes, functions, and types in HLR.js.
+title: API reference
+description: Every class, function, constant and type exported by the hlr package, with signatures.
 group: Reference
-order: 10
+order: 20
 ---
 
-## Core
+Everything is imported from the package root.
+
+```typescript
+import { Scene, Camera, SvgRenderer, Sphere, Vec3 } from "hlr";
+import type { RenderOptions, SvgStyle, CubicBezier3 } from "hlr";
+```
+
+## Scene
 
 ### Scene
 
-Container for 3D primitives.
+```typescript
+class Scene {
+  constructor(primitives?: readonly Primitive[]);
+  readonly primitives: readonly Primitive[];
+  add(...primitives: Primitive[]): this;
+  removeById(id: string): this;
+  clear(): this;
+  toRaycastScene(camera: Camera, profiler?: Profiler, preparedGeometry?: boolean): RaycastScene;
+}
+```
+
+`toRaycastScene` builds a ray-casting scene for that camera. The returned object has these two methods.
 
 ```typescript
-import { Scene } from "hlr";
-
-const scene = new Scene();
-
-// Add primitive
-scene.add(primitive);
-
-// Remove primitive
-scene.remove(primitive);
-
-// Get all primitives
-const primitives = scene.primitives;
+visibleAtPoint(p: Vec3, opts?: { eps?: number; ignorePrimitiveIds?: readonly string[] }): boolean;
+raycastClosest(
+  ray: Ray,
+  opts?: { tMin?: number; tMax?: number; ignorePrimitiveId?: string; ignorePrimitiveIds?: readonly string[] },
+): Hit | null;
 ```
+
+`preparedGeometry: true` prepares fast intersection kernels for built-in shapes. Rebuild it when the shapes change.
+
+## Camera
 
 ### Camera
 
-Defines a camera. Currently only Perspective camera is supported.
-
 ```typescript
-import { Camera, Vec3 } from "hlr";
+class Camera {
+  static from(params: CameraParams): Camera;
+  readonly kind: "perspective" | "orthographic";
+  readonly position: Vec3;
+  readonly target: Vec3;
+  readonly up: Vec3;
+  readonly aspect: number;
+  readonly near: number;
+  readonly far: number;
+  readonly fovYRad?: number; // perspective
+  readonly halfHeight?: number; // orthographic
+  readonly forward: Vec3; // unit view direction
+  readonly view: Mat4;
+  readonly proj: Mat4;
+  readonly viewProj: Mat4;
+  readonly viewProjInv: Mat4;
+  projectToNdc(p: Vec3): { x: number; y: number; z: number };
+  projectToSvg(p: Vec3, width: number, height: number): { x: number; y: number; z: number };
+  screenToRay(x: number, y: number, width: number, height: number): Ray;
+}
 
-const camera = Camera.from({
-  kind: "perspective",
-  position: new Vec3(3, 2, 4), // Camera position
-  target: new Vec3(0, 0, 0), // Look-at point
-  up: new Vec3(0, 1, 0), // Up direction
-  fovYRad: Math.PI / 4, // Vertical field of view (radians)
-  aspect: 16 / 9, // Aspect ratio
-  near: 0.1, // Near plane
-  far: 100, // Far plane
-});
+type CameraParams =
+  | { kind: "perspective"; position: Vec3; target: Vec3; up: Vec3; fovYRad: number; aspect: number; near: number; far: number }
+  | { kind: "orthographic"; position: Vec3; target: Vec3; up: Vec3; halfHeight: number; aspect: number; near: number; far: number };
 ```
 
-| Property   | Type            | Description                      |
-| ---------- | --------------- | -------------------------------- |
-| `kind`     | `"perspective"` | Camera type                      |
-| `position` | `Vec3`          | Camera world coordinates         |
-| `target`   | `Vec3`          | Look-at point                    |
-| `up`       | `Vec3`          | Up direction vector              |
-| `fovYRad`  | `number`        | Vertical field of view (radians) |
-| `aspect`   | `number`        | Screen width/height ratio        |
-| `near`     | `number`        | Near plane distance              |
-| `far`      | `number`        | Far plane distance               |
+## Rendering
 
 ### SvgRenderer
 
-Takes a Scene and Camera and generates an SVG string.
-
 ```typescript
-import { SvgRenderer } from "hlr";
+class SvgRenderer {
+  constructor(options: Omit<RenderOptions, "curves" | "ownedCurves">);
+  render(scene: Scene, camera: Camera, overrides?: Partial<Omit<RenderOptions, "width" | "height">>): string;
+}
 
-const renderer = new SvgRenderer({
-  width: 800,
-  height: 600,
-  background: true,
-  style: {
-    /* ... */
-  },
-  include: {
-    /* ... */
-  },
-});
-
-const svg = renderer.render(scene, camera);
-```
-
-#### SvgRenderer Constructor Options
-
-| Property     | Type      | Default  | Description                    |
-| ------------ | --------- | -------- | ------------------------------ |
-| `width`      | `number`  | Required | SVG width (px)                 |
-| `height`     | `number`  | Required | SVG height (px)                |
-| `background` | `boolean` | `false`  | Whether to add background rect |
-| `style`      | `object`  | -        | Line style options             |
-| `include`    | `object`  | -        | Curve types to render          |
-| `mesh`       | `object`  | -        | Triangle mesh feature-line options |
-
-#### style Options
-
-| Property             | Type     | Default  | Description              |
-| -------------------- | -------- | -------- | ------------------------ |
-| `strokeWidthVisible` | `number` | `2`      | Visible line width       |
-| `strokeVisible`      | `string` | `"#000"` | Visible line color       |
-| `strokeWidthHidden`  | `number` | `1.5`    | Hidden line width        |
-| `strokeHidden`       | `string` | `"#000"` | Hidden line color        |
-| `dashArrayHidden`    | `string` | `"4 4"`  | Hidden line dash pattern |
-| `opacityHidden`      | `number` | `0.4`    | Hidden line opacity      |
-
-#### include Options
-
-| Property        | Type      | Default | Description                            |
-| --------------- | --------- | ------- | -------------------------------------- |
-| `silhouettes`   | `boolean` | `true`  | Sphere, Cylinder, Cone silhouettes     |
-| `rims`          | `boolean` | `true`  | Cylinder, Cone cap circles             |
-| `borders`       | `boolean` | `true`  | PlaneRect outlines                     |
-| `boxEdges`      | `boolean` | `true`  | BoxAabb 12 edges                       |
-| `meshEdges`     | `boolean` | `true`  | `TriangleMesh` boundary / crease / silhouette edges |
-| `intersections` | `boolean` | `true`  | Intersection curves between primitives |
-
-#### mesh Options
-
-| Property         | Type     | Default | Description |
-| ---------------- | -------- | ------- | ----------- |
-| `creaseAngleDeg` | `number` | `30`    | Angle threshold for turning adjacent triangle faces into feature edges |
-
----
-
-## Primitives
-
-### Sphere
-
-Sphere primitive.
-
-```typescript
-import { Sphere, Vec3 } from "hlr";
-
-const sphere = new Sphere(
-  "my-sphere", // id
-  new Vec3(0, 0, 0), // center
-  1.5, // radius
-);
-```
-
-| Parameter | Type     | Description        |
-| --------- | -------- | ------------------ |
-| `id`      | `string` | Unique identifier  |
-| `center`  | `Vec3`   | Center coordinates |
-| `radius`  | `number` | Radius             |
-
-### Cylinder
-
-Cylinder primitive.
-
-```typescript
-import { Cylinder, Vec3 } from "hlr";
-
-const cylinder = new Cylinder(
-  "my-cylinder", // id
-  new Vec3(0, -1, 0), // base (base center)
-  new Vec3(0, 1, 0), // axis (axis direction, no need to normalize)
-  2, // height
-  0.5, // radius
-  "both", // caps ("none" | "top" | "base" | "both")
-);
-```
-
-| Parameter | Type                                  | Description             |
-| --------- | ------------------------------------- | ----------------------- |
-| `id`      | `string`                              | Unique identifier       |
-| `base`    | `Vec3`                                | Base center coordinates |
-| `axis`    | `Vec3`                                | Axis direction vector   |
-| `height`  | `number`                              | Height                  |
-| `radius`  | `number`                              | Radius                  |
-| `caps`    | `"none" \| "top" \| "base" \| "both"` | Cap options             |
-
-### Cone
-
-Cone primitive.
-
-```typescript
-import { Cone, Vec3 } from "hlr";
-
-const cone = new Cone(
-  "my-cone", // id
-  new Vec3(0, 2, 0), // apex
-  new Vec3(0, -1, 0), // axis (axis direction, from apex to base)
-  2, // height
-  1, // baseRadius
-  "base", // caps ("none" | "base")
-);
-```
-
-| Parameter    | Type               | Description           |
-| ------------ | ------------------ | --------------------- |
-| `id`         | `string`           | Unique identifier     |
-| `apex`       | `Vec3`             | Apex coordinates      |
-| `axis`       | `Vec3`             | Axis direction vector |
-| `height`     | `number`           | Height                |
-| `baseRadius` | `number`           | Base radius           |
-| `caps`       | `"none" \| "base"` | Base cap options      |
-
-### BoxAabb
-
-Axis-Aligned Bounding Box.
-
-```typescript
-import { BoxAabb, Vec3 } from "hlr";
-
-const box = new BoxAabb(
-  "my-box", // id
-  new Vec3(-1, -1, -1), // min (minimum coordinates)
-  new Vec3(1, 1, 1), // max (maximum coordinates)
-);
-```
-
-| Parameter | Type     | Description                               |
-| --------- | -------- | ----------------------------------------- |
-| `id`      | `string` | Unique identifier                         |
-| `min`     | `Vec3`   | Minimum coordinates (all x, y, z smaller) |
-| `max`     | `Vec3`   | Maximum coordinates (all x, y, z larger)  |
-
-### PlaneRect
-
-Rectangular plane.
-
-```typescript
-import { PlaneRect, Vec3 } from "hlr";
-
-const plane = new PlaneRect(
-  "my-plane", // id
-  new Vec3(0, 0, 0), // center
-  new Vec3(0, 1, 0), // normal (normal direction)
-  new Vec3(1, 0, 0), // u (horizontal direction)
-  2, // halfWidth
-  1.5, // halfHeight
-);
-```
-
-### Disk
-
-Disk primitive.
-
-```typescript
-import { Disk, Vec3 } from "hlr";
-
-const disk = new Disk(
-  "my-disk", // id
-  new Vec3(0, 0, 0), // center
-  new Vec3(0, 1, 0), // normal (normal direction)
-  1.5, // radius
-);
-```
-
-### TriangleMesh
-
-Triangle mesh primitive for imported OBJ/STL geometry.
-
-```typescript
-import { TriangleMesh, Vec3 } from "hlr";
-
-const mesh = new TriangleMesh(
-  "mesh",
-  [
-    new Vec3(0, 0, 0),
-    new Vec3(1, 0, 0),
-    new Vec3(0, 1, 0),
-  ],
-  [[0, 1, 2]],
-);
-```
-
-| Parameter   | Type                              | Description |
-| ----------- | --------------------------------- | ----------- |
-| `id`        | `string`                          | Unique identifier |
-| `vertices`  | `Vec3[]`                          | Mesh vertex positions |
-| `triangles` | `Array<[number, number, number]>` | Triangle index list |
-
-### OBJ / STL Import
-
-```typescript
-import { parseObj, parseStl } from "hlr";
-
-const obj = parseObj(
-  await fetch("/model.obj").then((res) => res.arrayBuffer()),
-);
-const stl = parseStl(
-  await fetch("/model.stl").then((res) => res.arrayBuffer()),
-);
-```
-
-Both functions return:
-
-```typescript
-type ImportedModel = {
-  meshes: TriangleMesh[];
-  bounds: { min: Vec3; max: Vec3 };
-  warnings: string[];
+type RenderOptions = {
+  width: number;
+  height: number;
+  background?: boolean; // default true: a white rectangle
+  style?: Partial<SvgStyle>;
+  include?: RenderInclude;
+  hlr?: Partial<HlrParams>;
+  intersections?: Partial<IntersectionParams>;
+  mesh?: Partial<MeshRenderParams>;
+  curves?: readonly CubicBezier3[];
+  ownedCurves?: readonly OwnedIntersectionCubic3[];
+  profiler?: Profiler;
 };
 ```
 
-Notes:
+What each option means, with defaults, is in [Rendering and styles](/docs/en-us/rendering).
 
-- OBJ supports `v`, `vn`, `f`, `o`, `g`, and comments.
-- `mtllib`, `usemtl`, `vt`, `l`, `p`, and `curv` are ignored with warnings.
-- Meshes participate in HLR raycasting, but analytic intersection curves are still limited to the built-in analytic primitives.
+```typescript
+function renderToSvg(scene: Scene, camera: Camera, opts: RenderOptions): string;
+function renderPrimitivesToSvg(primitives: readonly Primitive[], camera: Camera, opts: RenderOptions): string;
 
----
+const DEFAULT_HLR_PARAMS: HlrParams; // samples 192, coarseSamples 0, refineIters 22, epsVisible 2e-4, cutEps 1e-6, minSegLenSq 1e-6
+const DEFAULT_INTERSECTION_PARAMS: IntersectionParams; // angularSamples 160, useBezierFit true, fitMode "stitchThenFit"
+const DEFAULT_MESH_PARAMS: MeshRenderParams; // creaseAngleDeg 30
+
+type HlrParams = { samples: number; coarseSamples?: number; refineIters: number; epsVisible: number; cutEps: number; minSegLenSq: number };
+type IntersectionParams = { angularSamples: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
+type MeshRenderParams = { creaseAngleDeg: number };
+type RenderInclude = CurveInclude & { intersections?: boolean };
+type CurveInclude = { silhouettes?: boolean; rims?: boolean; borders?: boolean; boxEdges?: boolean; meshEdges?: boolean; csg?: boolean };
+```
+
+## Shapes
+
+### Primitive, Ray, Hit
+
+```typescript
+interface Primitive {
+  readonly id: string;
+  intersect(ray: Ray, tMin: number, tMax: number): Hit | null;
+}
+type Ray = { origin: Vec3; dir: Vec3 }; // dir should be a unit vector
+type Hit = { t: number; point: Vec3; normal: Vec3; primitiveId: string };
+```
+
+### Analytic shapes
+
+```typescript
+class Sphere { constructor(id: string, center: Vec3, radius: number) }
+
+class Cylinder {
+  constructor(id: string, base: Vec3, axis: Vec3, height: number, radius: number, caps?: CylinderCaps);
+  readonly axis: Vec3; // normalized
+}
+type CylinderCaps = "none" | "both"; // default "both"
+
+class Cone {
+  constructor(id: string, apex: Vec3, axis: Vec3, height: number, baseRadius: number, cap?: ConeCaps);
+  readonly axis: Vec3; // apex → base, normalized
+}
+type ConeCaps = "none" | "base"; // default "base"
+
+class BoxAabb { constructor(id: string, min: Vec3, max: Vec3) }
+
+class OrientedBox {
+  constructor(id: string, center: Vec3, halfSize: Vec3, axisX: Vec3, axisY: Vec3);
+  readonly axes: readonly [Vec3, Vec3, Vec3]; // orthonormal, z = x × y
+  toLocal(p: Vec3): Vec3;
+  corners(): Vec3[]; // 8
+  edges(): [Vec3, Vec3][]; // 12
+  faces(tag?: string): PlaneRect[]; // 6, ids `${id}:${tag}:face:±x|±y|±z`
+}
+
+class PlaneRect {
+  constructor(id: string, center: Vec3, normal: Vec3, uHint: Vec3, halfWidth: number, halfHeight: number);
+  readonly normal: Vec3; // unit
+  readonly u: Vec3; // uHint projected onto the plane, normalized
+  readonly v: Vec3; // normal × u
+}
+
+class Disk { constructor(id: string, center: Vec3, normal: Vec3, radius: number) }
+```
+
+Constructor arguments are also exposed as read-only properties of the same name (`sphere.center`, `cone.baseRadius` and so on).
+
+### TriangleMesh
+
+```typescript
+class TriangleMesh {
+  constructor(id: string, vertices: readonly Vec3[], triangles: readonly TriangleIndices[]);
+  readonly vertices: readonly Vec3[]; // after welding
+  readonly triangles: readonly TriangleIndices[];
+  readonly bounds: Bounds3;
+  readonly weldEps: number;
+  readonly triangleCount: number;
+  readonly vertexCount: number;
+  readonly edgeCount: number;
+  featureEdges(camera: Camera, opts?: { creaseAngleDeg?: number }): MeshFeatureEdge[];
+}
+type TriangleIndices = readonly [number, number, number];
+type Bounds3 = { min: Vec3; max: Vec3 };
+type MeshFeatureKind = "boundary" | "nonManifold" | "crease" | "silhouette";
+type MeshFeatureEdge = { kind: MeshFeatureKind; start: Vec3; end: Vec3 };
+
+function boundsFromPoints(points: readonly Vec3[]): Bounds3;
+function mergeBounds(boundsList: readonly Bounds3[]): Bounds3;
+```
+
+### Csg
+
+```typescript
+class Csg {
+  constructor(id: string, operation: CsgOperation, a: CsgSolid, b: CsgSolid);
+  classify(p: Vec3, tolerance: number): CsgClass; // -1 inside, 0 on the surface, 1 outside
+  leaves(): CsgLeaf[]; // operands, depth first
+  size(): number; // size of the largest operand
+}
+type CsgOperation = "union" | "subtract" | "intersect";
+type CsgLeaf = Sphere | Cylinder | Cone | BoxAabb | OrientedBox;
+type CsgSolid = CsgLeaf | Csg;
+type CsgClass = -1 | 0 | 1;
+type CsgSpan = { start: { t: number; normal: Vec3 }; end: { t: number; normal: Vec3 } };
+
+const CSG_TOLERANCE: number; // 3e-3, surface tolerance relative to operand size
+function csgSpans(solid: CsgSolid, ray: Ray): CsgSpan[]; // stretches of the ray inside the solid
+function leafDistance(leaf: CsgLeaf, p: Vec3): number; // signed distance, negative inside
+function csgBoundaryCurves(csg: Csg, camera: Camera): CubicBezier3[];
+function csgCurvesForPrimitives(primitives: readonly Primitive[], camera: Camera): CubicBezier3[];
+```
+
+## Curves
+
+```typescript
+type CubicBezier3 = { p0: Vec3; p1: Vec3; p2: Vec3; p3: Vec3 };
+
+function evalCubic3(b: CubicBezier3, t: number): Vec3;
+function splitCubic3(b: CubicBezier3, t: number): { left: CubicBezier3; right: CubicBezier3 };
+function subCubic3(b: CubicBezier3, t0: number, t1: number): CubicBezier3;
+function splitCubicWhere(b: CubicBezier3, keep: (p: Vec3) => boolean, samples?: number, refineSteps?: number): CubicBezier3[];
+
+function lineToCubic3(p0: Vec3, p3: Vec3): CubicBezier3;
+function circleToCubics3(opts: {
+  center: Vec3;
+  normal: Vec3;
+  radius: number;
+  startAngleRad?: number; // default 0
+  endAngleRad?: number; // default 2π
+  maxSegmentAngleRad?: number; // default π/2
+}): CubicBezier3[];
+
+function sphereSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; center: Vec3; radius: number }): CubicBezier3[];
+function cylinderSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; base: Vec3; axis: Vec3; height: number; radius: number }): CubicBezier3[];
+function coneSilhouetteToCubics3(opts: { cameraPos: Vec3; viewDirection?: Vec3; apex: Vec3; axis: Vec3; height: number; baseRadius: number }): CubicBezier3[];
+function cylinderGeneratorsToCubics3(opts: { base: Vec3; axis: Vec3; height: number; radius: number; cameraPos: Vec3 }): CubicBezier3[];
+function coneGeneratorsToCubics3(opts: { apex: Vec3; axis: Vec3; height: number; baseRadius: number; cameraPos: Vec3 }): CubicBezier3[];
+
+function fitPolylineToCubics(points: Vec3[], params?: Partial<BezierFitParams>): CubicBezier3[];
+const defaultBezierFitParams: BezierFitParams; // maxError 0.02 and others
+```
+
+Pass `camera.forward` as `viewDirection` for orthographic cameras (omit it for perspective).
+
+## Curves from shapes
+
+```typescript
+function curvesFromPrimitives(primitives: readonly Primitive[], camera: Camera, include?: CurveInclude, mesh?: MeshCurveOptions): CubicBezier3[];
+function defaultCurveInclude(): Required<CurveInclude>;
+function silhouettesForPrimitives(primitives: readonly Primitive[], camera: Camera): CubicBezier3[];
+function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function bordersForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function boxEdgesForPrimitives(primitives: readonly Primitive[]): CubicBezier3[];
+function meshFeatureCurves(primitives: readonly Primitive[], camera: Camera, mesh: MeshCurveOptions): CubicBezier3[];
+type MeshCurveOptions = { creaseAngleDeg?: number };
+```
+
+## Intersection curves
+
+```typescript
+function intersectionCurvesToOwnedCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): OwnedIntersectionCubic3[];
+function intersectionCurvesToCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): CubicBezier3[];
+function cachedIntersectionCurvesToOwnedCubics(primitives: readonly Primitive[], opts: IntersectionCurveOptions): readonly OwnedIntersectionCubic3[];
+function intersectionGeometrySignature(primitives: readonly Primitive[]): string | undefined;
+
+type IntersectionCurveOptions = { angularSamples: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" };
+type OwnedIntersectionCubic3 = { bez: CubicBezier3; ignorePrimitiveIds: readonly string[] };
+```
+
+The cached variant returns frozen results; use the uncached function to modify them. Scenes whose
+signature is `undefined` (custom shapes and so on) are not cached.
+
+## Visibility
+
+```typescript
+function splitCubicByVisibility(b: CubicBezier3, scene: RaycastScene, params: SplitParams): StyledPiece[];
+function splitCubicByVisibilityWithIgnore(b: CubicBezier3, scene: RaycastScene, params: SplitParams, ignorePrimitiveIds?: readonly string[]): StyledPiece[];
+function splitLineCubicByVisibilityAdaptive(b: CubicBezier3, scene: RaycastScene, camera: Camera, width: number, height: number, params: SplitParams, ignorePrimitiveIds?: readonly string[]): StyledPiece[];
+function findVisibilityCutsOnCubic(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, ignorePrimitiveIds?: readonly string[]): number[];
+function findVisibilityCutsOnCubicWithVisibility(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, ignorePrimitiveIds?: readonly string[]): VisibilityCuts;
+function refineVisibilityCutBisection(b: CubicBezier3, scene: RaycastScene, params: VisibilityParams, tLo: number, tHi: number, visLo: boolean, ignorePrimitiveIds?: readonly string[]): number;
+
+type StyledPiece = { bez: CubicBezier3; visible: boolean };
+type VisibilityParams = { samples: number; coarseSamples?: number; refineIters: number; epsVisible: number; cutEps: number };
+type SplitParams = VisibilityParams & { minSegLenSq: number };
+type VisibilityCuts = { cuts: number[]; segmentVisible: boolean[] };
+```
+
+`RaycastScene` is the object returned by `scene.toRaycastScene(camera)`. For straight curves,
+`splitLineCubicByVisibilityAdaptive` scales its samples to the on-screen length and is faster.
+
+## Writing SVG
+
+```typescript
+function projectPiecesToSvgPaths(pieces: StyledPiece[], camera: Camera, width: number, height: number): ProjectedSvgPath[];
+function projectedPathsToSvg(paths: readonly ProjectedSvgPath[], opts: SvgRenderOptions): string;
+function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string;
+
+type ProjectedSvgPath = { d: string; visible: boolean };
+type SvgRenderOptions = { width: number; height: number; style?: Partial<SvgStyle>; background?: boolean };
+type SvgStyle = {
+  strokeVisible: string; // "black"
+  strokeHidden: string; // "black"
+  strokeWidthVisible: number; // 1.5
+  strokeWidthHidden: number; // 1.5
+  dashArrayHidden: string; // "3 3"
+  opacityHidden: number; // 0.5
+  lineCap: "butt" | "round" | "square"; // "butt"
+  lineJoin: "miter" | "round" | "bevel"; // "round"
+};
+```
+
+## Surface shading
+
+```typescript
+function buildSurfaceBuffer(primitives: readonly Primitive[], camera: Camera, options: { width: number; height: number }): SurfaceBuffer;
+function shadeSurfaceBuffer(buffer: SurfaceBuffer, options: SurfaceShadingOptions): Uint8ClampedArray;
+function buildSurfaceClipPaths(buffer: SurfaceBuffer, options?: { width?: number; height?: number }): readonly SurfaceClipPath[];
+function lightDirectionFromAngles(azimuthDegrees: number, elevationDegrees: number): Vec3;
+const PAPER_TONES: SurfaceTones; // { unlit: 1, shadow: 0.72, lit: 0.99 }
+
+type SurfaceBuffer = {
+  readonly width: number;
+  readonly height: number;
+  readonly normals: Float32Array;
+  readonly primitiveIndices: Int32Array;
+  readonly primitiveIds: readonly string[];
+  readonly depth: Float32Array;
+};
+type SurfaceShadingOptions = {
+  lightDirection: Vec3;
+  ambient?: number; // 0.35
+  selectedId?: string | null;
+  unlitPrimitiveIds?: readonly string[];
+  tones?: Partial<SurfaceTones>;
+};
+type SurfaceTones = { unlit: number; shadow: number; lit: number };
+type SurfaceClipPath = { primitiveId: string; path: string };
+```
+
+## Mesh import
+
+```typescript
+function parseObj(source: string | ArrayBuffer | Uint8Array): ImportedModel;
+function parseStl(source: string | ArrayBuffer | Uint8Array): ImportedModel;
+type ImportedModel = { meshes: TriangleMesh[]; bounds: Bounds3; warnings: string[] };
+```
 
 ## Math
 
-### Vec3
-
-3D vector class.
-
 ```typescript
-import { Vec3 } from "hlr";
+class Vec3 {
+  constructor(x: number, y: number, z: number);
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  static zero(): Vec3;
+  static add(a: Vec3, b: Vec3): Vec3;
+  static sub(a: Vec3, b: Vec3): Vec3;
+  static mulScalar(a: Vec3, s: number): Vec3;
+  static dot(a: Vec3, b: Vec3): number;
+  static cross(a: Vec3, b: Vec3): Vec3;
+  static len(a: Vec3): number;
+  static lenSq(a: Vec3): number;
+  static normalize(a: Vec3): Vec3;
+  static lerp(a: Vec3, b: Vec3, t: number): Vec3;
+  static distance(a: Vec3, b: Vec3): number;
+  static distanceSq(a: Vec3, b: Vec3): number;
+}
 
-// Create
-const v = new Vec3(1, 2, 3);
+class Mat4 {
+  constructor(m: readonly number[]); // 16 values, column-major
+  readonly m: readonly number[];
+  static identity(): Mat4;
+  static mul(a: Mat4, b: Mat4): Mat4;
+  static mulVec4(a: Mat4, v: Vec4): Vec4;
+  static lookAt(eye: Vec3, target: Vec3, up: Vec3): Mat4;
+  static perspective(fovYRad: number, aspect: number, near: number, far: number): Mat4;
+  static ortho(left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4;
+  static inverse(a: Mat4): Mat4 | null;
+}
+type Vec4 = readonly [number, number, number, number];
 
-// Static methods
-Vec3.add(a, b); // Vector addition
-Vec3.sub(a, b); // Vector subtraction
-Vec3.mulScalar(v, s); // Scalar multiplication
-Vec3.dot(a, b); // Dot product
-Vec3.cross(a, b); // Cross product
-Vec3.normalize(v); // Normalize
-Vec3.length(v); // Length
-Vec3.lengthSq(v); // Length squared
-Vec3.distance(a, b); // Distance between two points
+const EPS: number; // 1e-9
+function clamp01(t: number): number;
+function almostEqual(a: number, b: number, eps?: number): boolean;
+function dedupeSorted(nums: number[], eps?: number): number[];
 ```
 
-### Mat4
+`Vec3` operations are static methods that return new objects.
 
-4x4 matrix class. Mainly used internally.
-
-```typescript
-import { Mat4 } from "hlr";
-
-// Identity matrix
-const identity = Mat4.identity();
-
-// View matrix
-const view = Mat4.lookAt(eye, target, up);
-
-// Projection matrix
-const proj = Mat4.perspective(fovYRad, aspect, near, far);
-
-// Matrix multiplication
-const combined = Mat4.multiply(proj, view);
-```
-
----
-
-## Advanced
-
-### HLR Parameter Tuning
-
-You can adjust the precision of visibility determination:
+## Profiling
 
 ```typescript
-const svg = renderer.render(scene, camera, {
-  hlr: {
-    samples: 192, // Sampling count (↑ = precise, slow)
-    refineIters: 22, // Bisection iteration count
-    epsVisible: 2e-4, // Visibility determination epsilon
-    cutEps: 1e-6, // Transition point deduplication epsilon
-    minSegLenSq: 1e-6, // Minimum segment length squared
-  },
-});
-```
+function createProfiler(): Profiler;
+function formatProfileReport(report: ProfileReport): string;
 
-### Adding Custom Curves
-
-You can add custom curves in addition to automatically generated silhouettes/intersections:
-
-```typescript
-import { lineToCubic3, Vec3 } from "hlr";
-
-// Convert line to Cubic Bezier
-const customLine = lineToCubic3(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
-
-const svg = renderer.render(scene, camera, {
-  curves: [customLine],
-});
-```
-
----
-
-## TypeScript Types
-
-All types can be imported directly from the package:
-
-```typescript
-import type {
-  CameraParams,
-  SvgRendererOptions,
-  SvgStyle,
-  IncludeOptions,
-  HlrParams,
-  CubicBezier3,
-} from "hlr";
+type Profiler = {
+  reset(): void;
+  inc(name: string, by?: number): void;
+  addMs(name: string, ms: number): void;
+  begin(name: string): void;
+  end(name: string): void;
+  report(): ProfileReport;
+  now(): number;
+};
+type ProfileReport = { totalMs: number; ms: Record<string, number>; counts: Record<string, number> };
 ```

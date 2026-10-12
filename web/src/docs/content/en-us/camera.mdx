@@ -1,0 +1,136 @@
+---
+title: Cameras
+description: Orthographic and perspective projection, aspect ratio, fitting shapes in view, and moving points to screen coordinates.
+group: Guides
+order: 4
+---
+
+A camera is an immutable object made with `Camera.from(params)`. To change the view, create a new one.
+
+## Two projections
+
+```typescript
+import { Camera, Vec3 } from "hlr";
+
+const ortho = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3, // world length that fits in half the screen height
+  aspect: 640 / 480, // width / height
+  near: 0.1,
+  far: 100,
+});
+
+const persp = Camera.from({
+  kind: "perspective",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (40 * Math.PI) / 180, // vertical field of view, radians
+  aspect: 640 / 480,
+  near: 0.1,
+  far: 100,
+});
+```
+
+| Field        | Type                              | Meaning                                                  |
+| ------------ | --------------------------------- | -------------------------------------------------------- |
+| `kind`       | `"orthographic" \| "perspective"` | projection                                               |
+| `position`   | `Vec3`                            | camera position                                          |
+| `target`     | `Vec3`                            | the point looked at                                      |
+| `up`         | `Vec3`                            | the direction that becomes screen-up; not parallel to the view |
+| `halfHeight` | `number`                          | (orthographic) world length of half the screen height    |
+| `fovYRad`    | `number`                          | (perspective) vertical field of view, radians            |
+| `aspect`     | `number`                          | width / height; must match the renderer's `width / height` |
+| `near`, `far`| `number`                          | visible depth range                                      |
+
+**Orthographic** projection keeps parallel edges parallel, and size does not depend on distance. Most
+textbook and exam figures of solids are orthographic. For an orthographic camera `position` only sets the
+direction (the distance does not change the figure's size); zoom with `halfHeight`.
+
+**Perspective** projection makes distant things smaller. It looks like a photo, but the parallel edges of
+a cube converge, which suits exam figures less.
+
+> If `aspect` differs from the SVG's `width / height`, the figure is stretched. Create a new camera when
+> you resize the renderer.
+
+## Fitting the view
+
+If the whole figure fits in a sphere of radius `R`, fit it with a 10% margin like this.
+
+```typescript
+const margin = 1.1;
+
+// Orthographic: fit the narrower of width and height
+const halfHeight = (R * margin) / Math.min(1, aspect);
+
+// Perspective: the distance at which the sphere fits the field of view
+const fovYRad = (40 * Math.PI) / 180;
+const fovX = 2 * Math.atan(Math.tan(fovYRad / 2) * aspect);
+const distance = (R * margin) / Math.sin(Math.min(fovYRad, fovX) / 2);
+```
+
+## An orbit camera
+
+Viewers you drag with the mouse are easiest with an azimuth and a polar angle.
+
+```typescript
+function orbit(target: Vec3, radius: number, azimuth: number, polar: number) {
+  // polar: angle from +y, azimuth: angle around the y axis
+  const s = Math.sin(polar);
+  return Vec3.add(
+    target,
+    new Vec3(
+      radius * s * Math.sin(azimuth),
+      radius * Math.cos(polar),
+      radius * s * Math.cos(azimuth),
+    ),
+  );
+}
+
+const camera = Camera.from({
+  kind: "orthographic",
+  position: orbit(new Vec3(0, 1, 0), 10, 0.6, 1.1),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3,
+  aspect: 4 / 3,
+  near: 0.05,
+  far: 1000,
+});
+```
+
+Near polar angles of 0 or π the view becomes parallel to `up`, so clamp the polar angle to 0.02 … π − 0.02.
+
+## Points to screen coordinates
+
+Use this to draw labels or points on top of the SVG. The result is in SVG pixels; `z` is NDC depth.
+
+```typescript
+const p = camera.projectToSvg(new Vec3(0, 1, 0), width, height);
+// p.x, p.y: origin at the top left, y grows downward
+```
+
+`projectToNdc(p)` returns normalized coordinates in −1 … 1.
+
+## Screen coordinates to rays
+
+Use this to pick the shape under a click.
+
+```typescript
+const ray = camera.screenToRay(clickX, clickY, width, height);
+let best: { id: string; t: number } | null = null;
+for (const primitive of scene.primitives) {
+  const hit = primitive.intersect(ray, 0, Infinity);
+  if (hit && (!best || hit.t < best.t)) best = { id: hit.primitiveId, t: hit.t };
+}
+```
+
+Perspective rays start at the camera position; orthographic rays start on the near plane under that pixel.
+
+## Other properties
+
+A camera exposes `forward` (unit view direction) and `view`, `proj`, `viewProj`, `viewProjInv` (`Mat4`) for
+your own projection math.

@@ -1,18 +1,37 @@
 ---
-title: Examples
-description: Explore various 3D SVG examples rendered with HLR.js.
+title: About the examples
+description: The figures in the example gallery, and what each one shows.
 group: Examples
-order: 5
+order: 13
 ---
 
-Each example below is a **full script you can copy & run**.
+Every figure in the [example gallery](/docs/en-us/examples) is rendered live in your browser by hlr.
+Drag to orbit, scroll to zoom, and switch how hidden lines are drawn (dashed, removed, solid). Each example
+comes with the full code that draws it, ready to copy and run.
 
-- **Simple primitives**: place basic primitives and render to SVG
-- **Random primitives**: reproducible random scene via a fixed seed
-- **Conic section**: render the intersection curve of Plane × Cone
+## Exam figures
 
-## Interactive Examples
+| Example                              | What to look for                                             |
+| ------------------------------------ | ------------------------------------------------------------ |
+| Plane ABC and the coordinate axes    | a face hiding the axes, so their far parts turn dashed       |
+| Section of a cube                    | edges, a triangular section and point names                  |
+| Cylinder cut at 45°                  | the ellipse where a plane cuts a cylinder                    |
+| Three spheres tangent to a sphere    | several spheres and two planes hiding each other, plane sections |
+| Sphere and two plane sections        | two planes through a sphere and the circles they cut         |
 
-Each example is an **interactive viewer** with drag/wheel orbit controls on its own page.
+## Library features
 
-→ [Go to Examples page](/docs/en-us/examples)
+| Example                       | What to look for                                                |
+| ----------------------------- | --------------------------------------------------------------- |
+| Simple primitives             | outlines of a sphere, cylinder, cone and box, and where they meet |
+| Conic section (Plane × Cone)  | the section becomes a circle, ellipse, parabola or hyperbola as the plane tilts |
+| Random primitives (seeded)    | rebuilding the same scene from the same seed                    |
+| OBJ/STL mesh import           | drop a file and see mesh feature edges with hidden lines        |
+
+Examples with shading let you change the light direction and ambient light. Shading uses the surface
+buffer API from [Surface shading](/docs/en-us/shading).
+
+## Make your own
+
+- In code: [Quick start](/docs/en-us/quickstart) and [Exam-style figures](/docs/en-us/exam-figures)
+- Without code: start from a template in the [shape studio](/playground) and export SVG, PNG or TypeScript

@@ -1,0 +1,193 @@
+---
+title: 선 직접 그리기
+description: 보조선과 좌표축, 투명한 평면의 단면, 점과 라벨처럼 도형이 자동으로 만들지 않는 선과 주석을 더합니다.
+group: Guides
+order: 7
+---
+
+렌더러가 자동으로 그리는 선(윤곽선·테두리·교선) 말고도, 직접 만든 3차원 곡선을 같은 숨은선
+판정에 태울 수 있습니다. 모든 곡선은 3차 베지어 `CubicBezier3`입니다.
+
+```typescript
+type CubicBezier3 = { p0: Vec3; p1: Vec3; p2: Vec3; p3: Vec3 };
+```
+
+## 곡선 만들기
+
+```typescript
+import { circleToCubics3, lineToCubic3, Vec3 } from "hlr";
+
+const axis = lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 3, 0)); // 선분 1개
+
+const ring = circleToCubics3({
+  center: new Vec3(0, 1, 0),
+  normal: new Vec3(0, 1, 0), // 원이 놓인 평면의 법선
+  radius: 2,
+}); // 4개의 4분원 곡선
+
+const arc = circleToCubics3({
+  center: new Vec3(0, 0, 0),
+  normal: new Vec3(0, 0, 1),
+  radius: 1,
+  startAngleRad: 0,
+  endAngleRad: Math.PI / 3, // 60° 호
+});
+```
+
+`circleToCubics3`의 각도는 법선에 수직인 내부 기준축에서 잽니다. 정확한 시작점이 필요한 호라면
+점을 직접 계산해 `fitPolylineToCubics(points)`로 맞추세요. 점 목록을 3차 베지어 여러 개로
+근사합니다(오차 기본 0.02).
+
+윤곽선을 직접 만드는 함수도 있습니다: `sphereSilhouetteToCubics3`, `cylinderSilhouetteToCubics3`,
+`coneSilhouetteToCubics3`(카메라 위치와 직교 카메라의 시선 방향을 받음), 그리고 모선을 만드는
+`cylinderGeneratorsToCubics3`, `coneGeneratorsToCubics3`.
+
+## 함께 그리기: `curves`
+
+보조선, 좌표축, 투명한 면의 테두리처럼 **공간에 떠 있는 선**은 `curves`로 넘깁니다. 도형과 똑같이
+가려지면 점선이 됩니다.
+
+```typescript
+const svg = renderer.render(scene, camera, {
+  curves: [
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(3.2, 0, 0)), // x축
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 3.1, 0)), // y축
+    lineToCubic3(new Vec3(0, 0, 0), new Vec3(0, 0, 3.2)), // z축
+  ],
+});
+```
+
+## 면 위의 선: `ownedCurves`
+
+곡선이 **어떤 면 위에** 놓여 있다면 `ownedCurves`로 넘기고, 그 면의 id를 함께 적습니다.
+[핵심 개념](/docs/ko-kr/concepts)에서 설명한 대로, 적어 둔 도형이 곡선 바로 그 자리에서 광선에
+걸리는 것은 가림으로 치지 않습니다.
+
+```typescript
+type OwnedIntersectionCubic3 = {
+  bez: CubicBezier3;
+  ignorePrimitiveIds: readonly string[];
+};
+```
+
+가장 흔한 쓰임은 **투명한 평면이 입체를 자른 단면**입니다. 평면을 장면에 넣으면 뒤를 가리므로,
+평면은 넣지 않고 테두리는 `curves`로, 단면은 `ownedCurves`로 넘깁니다.
+
+```typescript
+import {
+  Camera,
+  PlaneRect,
+  Scene,
+  Sphere,
+  SvgRenderer,
+  Vec3,
+  intersectionCurvesToOwnedCubics,
+  lineToCubic3,
+} from "hlr";
+
+const ball = new Sphere("S", new Vec3(0, 1, 0), 2);
+
+// β: 선만 그리고 아무것도 가리지 않는 평면. 장면에 넣지 않습니다.
+const beta = new PlaneRect(
+  "beta",
+  new Vec3(0, 1, 0),
+  new Vec3(0, 0, 1),
+  new Vec3(1, 0, 0),
+  3,
+  2.4,
+);
+
+const corners = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+].map(([a, b]) =>
+  Vec3.add(
+    beta.center,
+    Vec3.add(
+      Vec3.mulScalar(beta.u, a! * beta.halfWidth),
+      Vec3.mulScalar(beta.v, b! * beta.halfHeight),
+    ),
+  ),
+);
+const border = corners.map((p, i) => lineToCubic3(p, corners[(i + 1) % 4]!));
+
+// 평면 β가 구를 자르는 대원. 각 곡선에 ["beta", "S"]가 붙어 나옵니다.
+const section = intersectionCurvesToOwnedCubics([beta, ball], { angularSamples: 160 });
+
+const camera = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3.2,
+  aspect: 4 / 3,
+  near: 0.1,
+  far: 100,
+});
+
+const svg = new SvgRenderer({ width: 640, height: 480 }).render(new Scene([ball]), camera, {
+  curves: border,
+  ownedCurves: section,
+});
+```
+
+`intersectionCurvesToOwnedCubics(primitives, options)`는 넘긴 도형들 사이의 모든 교선을 계산하는
+함수입니다. 장면에 없는 도형도 넘길 수 있어 위처럼 단면을 만들 때 씁니다. `ignorePrimitiveIds`
+없이 곡선만 필요하면 `intersectionCurvesToCubics`를 쓰세요.
+
+## 곡선 다듬기
+
+```typescript
+import { evalCubic3, splitCubic3, splitCubicWhere, subCubic3 } from "hlr";
+
+evalCubic3(bez, 0.5); // 매개변수 t의 점
+splitCubic3(bez, 0.5); // { left, right }
+subCubic3(bez, 0.2, 0.8); // t ∈ [0.2, 0.8] 부분
+splitCubicWhere(bez, (p) => p.y >= 0); // 조건을 만족하는 부분들만
+```
+
+`splitCubicWhere(bez, keep, samples = 24, refineSteps = 14)`는 곡선을 따라 조건을 확인하고, 바뀌는
+지점을 이분법으로 찾아 조건이 참인 조각만 돌려줍니다. 평면 위쪽의 단면만 남기는 식으로 씁니다.
+
+## 점·라벨·화살표 덧그리기
+
+렌더러는 글자를 그리지 않습니다. 점을 `camera.projectToSvg`로 화면에 옮기고, 결과 SVG의
+`</svg>` 앞에 요소를 끼워 넣으세요. 가려진 점은 흐리게 그리면 시험지 그림과 같아집니다.
+
+```typescript
+const rays = scene.toRaycastScene(camera);
+
+function point(name: string, p: Vec3, dx = 12, dy = -12): string {
+  const q = camera.projectToSvg(p, width, height);
+  const dim = rays.visibleAtPoint(p) ? "" : ' opacity="0.45"';
+  return (
+    `<circle cx="${q.x}" cy="${q.y}" r="2.3" fill="#0a0a0a"${dim}/>` +
+    `<text x="${q.x + dx}" y="${q.y + dy}" font-family="serif" font-size="16"` +
+    ` text-anchor="middle" dominant-baseline="central"` +
+    ` stroke="#ffffff" stroke-width="4" paint-order="stroke">${name}</text>`
+  );
+}
+
+const svg = renderer
+  .render(scene, camera)
+  .replace("</svg>", `${point("O", new Vec3(0, 1, 0))}</svg>`);
+```
+
+`stroke`를 흰색으로 두껍게 주고 `paint-order="stroke"`를 쓰면 글자 뒤에 흰 테두리가 생겨, 선과
+겹쳐도 읽힙니다. 화살촉은 선분 끝 두 점을 투영해 작은 삼각형 `<path>`로 그리면 됩니다.
+
+## 가시성을 직접 다루기
+
+선마다 다른 모양을 주고 싶다면 가시성 분할을 직접 부르세요.
+
+```typescript
+import { DEFAULT_HLR_PARAMS, splitCubicByVisibility, splitCubicByVisibilityWithIgnore } from "hlr";
+
+const rays = scene.toRaycastScene(camera);
+const pieces = splitCubicByVisibility(bez, rays, DEFAULT_HLR_PARAMS); // [{ bez, visible }]
+const onSurface = splitCubicByVisibilityWithIgnore(bez, rays, DEFAULT_HLR_PARAMS, ["S"]);
+```
+
+조각은 `projectPiecesToSvgPaths`·`projectedPathsToSvg`로 SVG가 됩니다([렌더링과 스타일](/docs/ko-kr/rendering)).

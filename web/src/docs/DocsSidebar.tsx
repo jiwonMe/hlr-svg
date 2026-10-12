@@ -1,5 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { GROUP_TITLES } from "./locale";
 import { getNavGroups, type Locale } from "./mdxRegistry";
 
 const TEXT = {
@@ -7,17 +8,11 @@ const TEXT = {
     label: "문서 목차",
     noResults: "찾는 문서가 없습니다.",
     gallery: "예제 갤러리",
-    groups: {
-      "Getting Started": "시작하기",
-      Examples: "예제",
-      Reference: "레퍼런스",
-    } as Record<string, string>,
   },
   "en-us": {
     label: "Documentation",
     noResults: "No matching pages.",
     gallery: "Example gallery",
-    groups: {} as Record<string, string>,
   },
 } as const;
 
@@ -48,7 +43,7 @@ export function DocsSidebar({
           exact: false,
         });
       return {
-        name: t.groups[group.name] ?? group.name,
+        name: GROUP_TITLES[locale][group.name] ?? group.name,
         items: items.filter((item) => item.title.toLowerCase().includes(query)),
       };
     })

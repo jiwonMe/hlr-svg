@@ -1,0 +1,176 @@
+---
+title: 렌더링과 스타일
+description: SvgRenderer의 모든 옵션, 출력 SVG의 구조, 가시성 판정 정밀도, 캐시와 성능 측정을 정리합니다.
+group: Guides
+order: 5
+---
+
+## SvgRenderer
+
+```typescript
+import { SvgRenderer } from "hlr";
+
+const renderer = new SvgRenderer({
+  width: 800, // 필수, 픽셀
+  height: 600, // 필수, 픽셀
+  background: true, // 흰 바탕 사각형 (기본 true)
+  style: {}, // 선 모양
+  include: {}, // 자동으로 그릴 선 종류
+  hlr: {}, // 가시성 판정 정밀도
+  intersections: {}, // 교선 계산 정밀도
+  mesh: {}, // 메시 특징선
+  profiler: undefined, // 성능 측정 (createProfiler())
+});
+
+const svg = renderer.render(scene, camera, {
+  // 이번 호출에만 덮어쓸 옵션 (width·height 제외)
+  curves: [], // 함께 그릴 곡선
+  ownedCurves: [], // 면 위에 놓인 곡선
+});
+```
+
+생성자 옵션이 기본이 되고, `render`의 세 번째 인자로 넘긴 값이 그 위에 덮입니다. `width`와 `height`는
+생성자에서만 정합니다. 크기가 바뀌면 렌더러를 새로 만드세요.
+
+## 출력 SVG
+
+결과는 다음 모양의 문자열입니다.
+
+```html
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="100%" height="100%" fill="white" />
+  <path d="M … C …" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="butt"
+        stroke-linejoin="round" stroke-dasharray="3 3" opacity="0.5" />  <!-- 가려진 선 -->
+  <path d="M … C …" fill="none" stroke="black" stroke-width="1.5" … />   <!-- 보이는 선 -->
+</svg>
+```
+
+- 가려진 선(`stroke-dasharray`가 있는 경로)이 먼저, 보이는 선이 나중에 나옵니다.
+- 이어지는 조각은 하나의 `<path>`로 묶여 경로 수가 적습니다.
+- 원근 투영에서는 곡선을 화면 오차가 작아질 때까지 잘게 나눠 3차 베지어로 씁니다.
+- `background: false`면 `<rect>`가 빠져 바탕이 투명합니다.
+
+## 선 스타일 (`style`)
+
+| 속성                 | 기본값      | 설명                                   |
+| -------------------- | ----------- | -------------------------------------- |
+| `strokeVisible`      | `"black"`   | 보이는 선 색                           |
+| `strokeHidden`       | `"black"`   | 가려진 선 색                           |
+| `strokeWidthVisible` | `1.5`       | 보이는 선 두께                         |
+| `strokeWidthHidden`  | `1.5`       | 가려진 선 두께                         |
+| `dashArrayHidden`    | `"3 3"`     | 가려진 선 점선 패턴. `"none"`이면 실선 |
+| `opacityHidden`      | `0.5`       | 가려진 선 불투명도. `0`이면 감춤       |
+| `lineCap`            | `"butt"`    | `"butt" \| "round" \| "square"`        |
+| `lineJoin`           | `"round"`   | `"miter" \| "round" \| "bevel"`        |
+
+가려진 선 세 가지 표현은 이렇게 만듭니다.
+
+```typescript
+const dashed = { dashArrayHidden: "3.2 2.6", opacityHidden: 0.9 };
+const removed = { opacityHidden: 0 };
+const solid = { dashArrayHidden: "none", opacityHidden: 1 };
+```
+
+## 그릴 선 고르기 (`include`)
+
+| 속성            | 기본   | 대상                                                         |
+| --------------- | ------ | ------------------------------------------------------------ |
+| `silhouettes`   | `true` | 구·원기둥·원뿔의 윤곽선                                      |
+| `rims`          | `true` | 원기둥 위아래 원, 원뿔 밑면 원, 원판의 원                    |
+| `borders`       | `true` | 평면(`PlaneRect`)의 네 변                                    |
+| `boxEdges`      | `true` | `BoxAabb`·`OrientedBox`의 모서리                             |
+| `meshEdges`     | `true` | `TriangleMesh`의 경계·접힘·윤곽 모서리                       |
+| `csg`           | `true` | 불리언 도형의 외곽과 이음매                                  |
+| `intersections` | `true` | 도형끼리 만나는 교선                                         |
+
+## 가시성 판정 (`hlr`)
+
+| 속성            | 기본값  | 설명                                                                 |
+| --------------- | ------- | -------------------------------------------------------------------- |
+| `samples`       | `192`   | 곡선 하나에서 가시성을 확인하는 표본 수                              |
+| `coarseSamples` | `0`     | 먼저 성기게 훑을 표본 수. 바뀌는 곳이 없으면 정밀 단계를 건너뜀      |
+| `refineIters`   | `22`    | 전환점을 찾는 이분법 반복 수                                         |
+| `epsVisible`    | `2e-4`  | 가림 판정 허용오차(월드 길이)                                        |
+| `cutEps`        | `1e-6`  | 너무 가까운 전환점을 합치는 기준(곡선 매개변수)                       |
+| `minSegLenSq`   | `1e-6`  | 이보다 짧은(길이 제곱) 조각은 버림                                   |
+
+장면에 `TriangleMesh`가 있으면 `coarseSamples` 기본값이 `24`로 바뀝니다. 끌어서 돌리는 동안에는
+`{ samples: 64, coarseSamples: 16 }`처럼 낮추고, 멈추면 기본값으로 다시 그리는 식이 좋습니다.
+
+```typescript
+const quick = renderer.render(scene, camera, {
+  hlr: { samples: 64, coarseSamples: 16 },
+});
+```
+
+`coarseSamples`는 빠르지만, 성긴 간격보다 좁은 가림 구간을 놓칠 수 있습니다.
+
+## 교선 계산 (`intersections`)
+
+| 속성             | 기본값             | 설명                                                    |
+| ---------------- | ------------------ | ------------------------------------------------------- |
+| `angularSamples` | `160`              | 교선을 따라 찍는 점의 수                                |
+| `useBezierFit`   | `true`             | 점들을 3차 베지어로 맞춤. 끄면 짧은 선분들로 이어짐      |
+| `fitMode`        | `"stitchThenFit"`  | `"perRun"`이면 끊긴 조각마다 따로 맞춤                   |
+
+## 메시 (`mesh`)
+
+| 속성             | 기본값 | 설명                                           |
+| ---------------- | ------ | ---------------------------------------------- |
+| `creaseAngleDeg` | `30`   | 이웃한 삼각형이 이 각도 이상 꺾이면 모서리로 그림 |
+
+## 캐시
+
+- 같은 렌더러로 같은 장면·카메라·옵션을 다시 그리면, 스타일과 배경만 바꿔도 투영된 경로를 재사용합니다.
+- 교선은 카메라와 무관하게 도형 값과 교선 옵션으로 캐시합니다. 시점을 돌려도 다시 계산하지 않습니다.
+- 메서드를 덮어쓴 카메라·장면·도형, 직접 만든 도형은 캐시를 쓰지 않습니다. 메시가 있는 장면은
+  정점 직렬화 비용 때문에 투영 캐시를 건너뜁니다.
+- 결과를 고쳐 쓰고 싶다면 캐시된(얼린) 배열 대신 `intersectionCurvesToOwnedCubics`를 직접 부르세요.
+
+## 함수 하나로 그리기
+
+렌더러를 유지할 필요가 없을 때 씁니다.
+
+```typescript
+import { renderPrimitivesToSvg, renderToSvg } from "hlr";
+
+const a = renderToSvg(scene, camera, { width: 640, height: 480 });
+const b = renderPrimitivesToSvg([sphere, plane], camera, { width: 640, height: 480 });
+```
+
+## 성능 측정
+
+```typescript
+import { createProfiler, formatProfileReport } from "hlr";
+
+const profiler = createProfiler();
+renderer.render(scene, camera, { profiler });
+console.log(formatProfileReport(profiler.report()));
+```
+
+보고서에는 곡선 생성, 교선, 가시성 분할, SVG 쓰기 단계별 시간과 광선 수가 들어 있습니다.
+
+## 파이프라인을 직접 조립하기
+
+곡선 묶음마다 다른 색을 쓰고 싶을 때처럼, 단계별 함수를 직접 부를 수 있습니다.
+
+```typescript
+import {
+  curvesFromPrimitives,
+  DEFAULT_HLR_PARAMS,
+  projectPiecesToSvgPaths,
+  projectedPathsToSvg,
+  splitCubicByVisibility,
+} from "hlr";
+
+const rays = scene.toRaycastScene(camera);
+const curves = curvesFromPrimitives(scene.primitives, camera);
+const pieces = curves.flatMap((bez) => splitCubicByVisibility(bez, rays, DEFAULT_HLR_PARAMS));
+const paths = projectPiecesToSvgPaths(pieces, camera, width, height);
+const svg = projectedPathsToSvg(paths, { width, height, style: { strokeVisible: "#2155c4" } });
+```
+
+`curvesFromPrimitives`는 윤곽선·테두리·모서리·불리언 외곽을 만들고, 세 번째 인자로 `include`의
+`intersections`를 뺀 항목을 고를 수 있습니다. 교선은 들어 있지 않으니 `intersectionCurvesToOwnedCubics`로
+만든 뒤 `splitCubicByVisibilityWithIgnore(bez, rays, params, ignorePrimitiveIds)`로 나누세요.
+`piecesToSvg(pieces, camera, { width, height, style })`는 투영과 쓰기를 한 번에 합니다.

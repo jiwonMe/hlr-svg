@@ -1,0 +1,136 @@
+---
+title: 카메라
+description: 직교·원근 투영, 화면 비율, 도형을 화면에 맞추는 계산, 점을 화면 좌표로 옮기는 방법을 다룹니다.
+group: Guides
+order: 4
+---
+
+카메라는 `Camera.from(params)`로 만드는 불변 객체입니다. 시점을 바꾸려면 새 카메라를 만드세요.
+
+## 두 가지 투영
+
+```typescript
+import { Camera, Vec3 } from "hlr";
+
+const ortho = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3, // 화면 세로 절반에 담기는 월드 길이
+  aspect: 640 / 480, // width / height
+  near: 0.1,
+  far: 100,
+});
+
+const persp = Camera.from({
+  kind: "perspective",
+  position: new Vec3(6, 5, 8),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  fovYRad: (40 * Math.PI) / 180, // 세로 시야각 (라디안)
+  aspect: 640 / 480,
+  near: 0.1,
+  far: 100,
+});
+```
+
+| 속성         | 타입                              | 설명                                               |
+| ------------ | --------------------------------- | -------------------------------------------------- |
+| `kind`       | `"orthographic" \| "perspective"` | 투영 방식                                          |
+| `position`   | `Vec3`                            | 카메라 위치                                        |
+| `target`     | `Vec3`                            | 바라보는 점                                        |
+| `up`         | `Vec3`                            | 화면 위쪽이 될 방향. 시선과 나란하면 안 됩니다      |
+| `halfHeight` | `number`                          | (직교) 화면 세로 절반의 월드 길이                  |
+| `fovYRad`    | `number`                          | (원근) 세로 시야각, 라디안                         |
+| `aspect`     | `number`                          | 화면 가로/세로 비율. 렌더러의 `width / height`와 같게 |
+| `near`·`far` | `number`                          | 보이는 깊이 범위                                    |
+
+**직교 투영**은 평행한 모서리가 평행하게 그려지고 크기가 거리와 무관합니다. 교과서·시험지의
+입체도형 그림은 대부분 직교 투영입니다. 직교 카메라에서는 `position`이 방향만 정하고(거리는 그림
+크기에 영향이 없음), 확대는 `halfHeight`로 합니다.
+
+**원근 투영**은 멀수록 작아집니다. 사진처럼 보이지만 정육면체의 평행한 모서리가 모이므로 시험지
+그림에는 덜 어울립니다.
+
+> `aspect`가 출력 SVG의 `width / height`와 다르면 그림이 한쪽으로 늘어납니다. 렌더러 크기를 바꾸면
+> 카메라도 새로 만드세요.
+
+## 화면에 맞추기
+
+도형 전체를 반지름 `R`인 구로 감쌀 수 있다면, 여백 10%를 두고 다음처럼 맞춥니다.
+
+```typescript
+const margin = 1.1;
+
+// 직교: 세로와 가로 중 좁은 쪽에 맞춤
+const halfHeight = (R * margin) / Math.min(1, aspect);
+
+// 원근: 구가 시야각 안에 들어오는 거리
+const fovYRad = (40 * Math.PI) / 180;
+const fovX = 2 * Math.atan(Math.tan(fovYRad / 2) * aspect);
+const distance = (R * margin) / Math.sin(Math.min(fovYRad, fovX) / 2);
+```
+
+## 궤도 카메라
+
+마우스로 돌리는 뷰어에서는 방위각과 극각으로 위치를 정하면 편합니다.
+
+```typescript
+function orbit(target: Vec3, radius: number, azimuth: number, polar: number) {
+  // polar: 위(+y)에서 잰 각, azimuth: y축 둘레 각
+  const s = Math.sin(polar);
+  return Vec3.add(
+    target,
+    new Vec3(
+      radius * s * Math.sin(azimuth),
+      radius * Math.cos(polar),
+      radius * s * Math.cos(azimuth),
+    ),
+  );
+}
+
+const camera = Camera.from({
+  kind: "orthographic",
+  position: orbit(new Vec3(0, 1, 0), 10, 0.6, 1.1),
+  target: new Vec3(0, 1, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3,
+  aspect: 4 / 3,
+  near: 0.05,
+  far: 1000,
+});
+```
+
+극각이 0이나 π에 가까우면 시선이 `up`과 나란해지므로 0.02 ~ π − 0.02 사이로 제한하세요.
+
+## 점을 화면 좌표로
+
+라벨이나 점을 SVG 위에 덧그릴 때 씁니다. 결과는 SVG 픽셀 좌표이고, `z`는 깊이(NDC)입니다.
+
+```typescript
+const p = camera.projectToSvg(new Vec3(0, 1, 0), width, height);
+// p.x, p.y: 왼쪽 위 원점, y는 아래로 증가
+```
+
+`projectToNdc(p)`는 −1 ~ 1 정규화 좌표를 돌려줍니다.
+
+## 화면 좌표에서 광선으로
+
+클릭한 픽셀 아래의 도형을 고를 때 씁니다.
+
+```typescript
+const ray = camera.screenToRay(clickX, clickY, width, height);
+let best: { id: string; t: number } | null = null;
+for (const primitive of scene.primitives) {
+  const hit = primitive.intersect(ray, 0, Infinity);
+  if (hit && (!best || hit.t < best.t)) best = { id: hit.primitiveId, t: hit.t };
+}
+```
+
+원근 카메라의 광선은 카메라 위치에서, 직교 카메라의 광선은 근평면 위의 그 픽셀 자리에서 시작합니다.
+
+## 그 밖의 속성
+
+카메라는 `forward`(시선 방향 단위 벡터), `view`·`proj`·`viewProj`·`viewProjInv`(`Mat4`)를 공개합니다.
+직접 투영 계산을 할 때 쓰세요.

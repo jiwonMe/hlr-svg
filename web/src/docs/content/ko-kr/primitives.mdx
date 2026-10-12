@@ -1,0 +1,190 @@
+---
+title: 도형
+description: 구, 원기둥, 원뿔, 직육면체, 평면, 원판, 메시와 직접 만드는 도형까지, 장면에 넣을 수 있는 모든 도형을 정리합니다.
+group: Guides
+order: 3
+---
+
+장면(`Scene`)에는 `Primitive` 인터페이스를 구현한 객체를 넣습니다. 내장 도형은 모두 생성자 첫
+인자로 고유한 `id`를 받고, 나머지 인자는 `Vec3`와 숫자입니다. 방향 벡터는 길이와 상관없이
+내부에서 정규화합니다.
+
+```typescript
+import { Scene, Sphere, Vec3 } from "hlr";
+
+const scene = new Scene();
+scene.add(new Sphere("S", new Vec3(0, 1, 0), 1));
+scene.removeById("S");
+scene.clear();
+```
+
+`Scene`은 `new Scene(primitives)`로 한 번에 만들 수도 있고, `add(...primitives)`·`removeById(id)`·
+`clear()`는 자기 자신을 돌려주므로 이어 쓸 수 있습니다. 현재 도형 목록은 `scene.primitives`입니다.
+
+## 한눈에 보기
+
+| 도형           | 생성자                                                   | 자동으로 그리는 선                 |
+| -------------- | -------------------------------------------------------- | ---------------------------------- |
+| `Sphere`       | `(id, center, radius)`                                   | 윤곽선                             |
+| `Cylinder`     | `(id, base, axis, height, radius, caps?)`                | 윤곽선 두 줄, 위아래 원            |
+| `Cone`         | `(id, apex, axis, height, baseRadius, cap?)`             | 윤곽선 두 줄, 밑면 원              |
+| `BoxAabb`      | `(id, min, max)`                                         | 모서리 12개                        |
+| `OrientedBox`  | `(id, center, halfSize, axisX, axisY)`                   | 모서리 12개                        |
+| `PlaneRect`    | `(id, center, normal, uHint, halfWidth, halfHeight)`     | 네 변                              |
+| `Disk`         | `(id, center, normal, radius)`                           | 원                                 |
+| `TriangleMesh` | `(id, vertices, triangles)`                              | 경계·접힘·윤곽 모서리              |
+| `Csg`          | `(id, operation, a, b)`                                  | 결과 입체의 외곽과 이음매          |
+
+여기에 더해 서로 만나는 도형 사이의 **교선**이 그려집니다(아래 "교선이 그려지는 조합").
+
+## Sphere: 구
+
+```typescript
+new Sphere("S", new Vec3(0, 1, 0), 2); // id, 중심, 반지름
+```
+
+윤곽선은 원근 카메라에서는 카메라에서 본 접선 원, 직교 카메라에서는 시선에 수직인 대원입니다.
+카메라가 구 안에 있으면 윤곽선이 없습니다.
+
+## Cylinder: 원기둥
+
+```typescript
+new Cylinder(
+  "can",
+  new Vec3(0, 0, 0), // base: 밑면 중심
+  new Vec3(0, 1, 0), // axis: 밑면에서 윗면 쪽
+  3, // height
+  1.2, // radius
+  "both", // caps: "both"(기본) | "none"
+);
+```
+
+윗면 중심은 `base + axis * height`입니다. `caps: "none"`이면 뚜껑 없는 관이 되어 광선이 안을
+지나갈 수 있지만, 위아래 테두리 원은 여전히 그립니다. 중심을 기준으로 놓고 싶다면
+`base = center - axis * (height / 2)`로 계산하세요.
+
+## Cone: 원뿔
+
+```typescript
+new Cone(
+  "cone",
+  new Vec3(0, 3, 0), // apex: 꼭짓점
+  new Vec3(0, -1, 0), // axis: 꼭짓점에서 밑면 쪽
+  3, // height
+  1.5, // baseRadius
+  "base", // cap: "base"(기본) | "none"
+);
+```
+
+밑면 중심은 `apex + axis * height`입니다. 축이 꼭짓점에서 **밑면을 향한다**는 점을 기억하세요.
+땅 위에 세운 원뿔이라면 축은 아래(`(0, -1, 0)`)입니다.
+
+## BoxAabb: 축에 나란한 직육면체
+
+```typescript
+new BoxAabb("box", new Vec3(-1, 0, -1), new Vec3(1, 2, 1)); // min, max
+```
+
+모서리가 좌표축과 나란한 상자입니다. 가장 빠르고, 평면·구·원기둥·원뿔·다른 상자와의 교선을
+모두 지원합니다.
+
+## OrientedBox: 기울인 직육면체
+
+```typescript
+const turned = new OrientedBox(
+  "tilted",
+  new Vec3(0, 1, 0), // center
+  new Vec3(1, 0.5, 0.75), // halfSize: 자기 축 방향의 절반 길이
+  new Vec3(1, 0, 1), // axisX: 자기 x축 방향
+  new Vec3(0, 1, 0), // axisY: 자기 y축 방향
+);
+```
+
+`axisY`는 `axisX`에 수직이 되도록 고쳐지고, z축은 `axisX × axisY`로 정해집니다(오른손 좌표).
+`turned.axes`로 정규화된 세 축을, `corners()`·`edges()`·`faces()`로 꼭짓점 8개·모서리 12개·면 6개를,
+`toLocal(p)`로 상자 좌표를 얻습니다. 면이 사각형이라 평면·원판·굽은 면과의 교선을 모두 그립니다.
+
+## PlaneRect: 사각형 평면
+
+```typescript
+new PlaneRect(
+  "alpha",
+  new Vec3(0, 0, 0), // center
+  new Vec3(0, 1, 0), // normal
+  new Vec3(1, 0, 0), // uHint: 가로 방향 (법선과 수직이 되도록 고쳐짐)
+  4, // halfWidth: u 방향 절반 길이
+  3, // halfHeight: v = normal × u 방향 절반 길이
+);
+```
+
+평면은 **양면이 모두 불투명**합니다. 평면 아래 또는 뒤에 있는 선은 가려져 점선이 됩니다.
+기울인 평면은 `normal`과 `uHint`를 함께 돌려 만듭니다. 예를 들어 x축을 중심으로 45° 기울인 평면은
+`normal = (0, cos45°, sin45°)`, `uHint = (1, 0, 0)`입니다.
+
+## Disk: 원판
+
+```typescript
+new Disk("lid", new Vec3(0, 2, 0), new Vec3(0, 1, 0), 1.2); // center, normal, radius
+```
+
+양면이 불투명한 원판입니다. 원판의 테두리 원은 `include.rims`가 켜져 있을 때 그립니다.
+
+## TriangleMesh: 삼각형 메시
+
+```typescript
+new TriangleMesh(
+  "tri",
+  [new Vec3(0, 0, 0), new Vec3(2, 0, 0), new Vec3(0, 0, 2)],
+  [[0, 1, 2]],
+);
+```
+
+정점 배열과 삼각형 인덱스로 만듭니다. 가까운 정점은 자동으로 합쳐지고(대각선 길이의 백만분의 일),
+광선 교차는 BVH로 가속됩니다. 경계·접힘(기본 30° 이상)·윤곽 모서리를 그리지만, 다른 도형과의
+교선은 만들지 않습니다. OBJ·STL 파일을 읽는 방법은 [메시 불러오기](/docs/ko-kr/meshes)에 있습니다.
+
+## Csg: 불리언 도형
+
+```typescript
+new Csg("drilled", "subtract", ball, drill);
+```
+
+구·원기둥·원뿔·직육면체(또는 다른 `Csg`)를 합치고(`union`), 빼고(`subtract`), 겹치는 부분만
+남깁니다(`intersect`). [불리언 도형](/docs/ko-kr/booleans)에서 자세히 다룹니다.
+
+## 교선이 그려지는 조합
+
+`include.intersections`(기본 켬)일 때 다음 쌍의 교선을 계산합니다.
+
+| 조합                                   | 비고                                       |
+| -------------------------------------- | ------------------------------------------ |
+| 구·원기둥·원뿔끼리                     | 모든 쌍                                    |
+| 평면·원판·밑면 원 × 구·원기둥·원뿔     | 원, 타원, 원뿔 곡선                         |
+| 평면 × 평면, 원판 × 평면               | 선분                                       |
+| 원기둥·원뿔의 밑면끼리                 | 선분                                       |
+| `BoxAabb` × 평면·구·원기둥·원뿔·상자   |                                            |
+| `OrientedBox` × 위의 모든 해석적 도형  | 면 여섯 개를 평면처럼 다룸                 |
+| `Csg` × 다른 도형, `Csg` × `Csg`       | 재료별 교선 중 결과 입체 위에 있는 부분만  |
+| `TriangleMesh` × 무엇이든              | 그리지 않음                                |
+
+## 직접 만드는 도형
+
+`Primitive`는 두 멤버만 요구합니다.
+
+```typescript
+import type { Hit, Primitive, Ray } from "hlr";
+
+class Slab implements Primitive {
+  constructor(readonly id: string) {}
+
+  intersect(ray: Ray, tMin: number, tMax: number): Hit | null {
+    // ray.origin + ray.dir * t 에서 [tMin, tMax] 안의 가장 가까운 교점
+    // { t, point, normal, primitiveId: this.id } 또는 null
+    return null;
+  }
+}
+```
+
+직접 만든 도형은 **가림**에는 바로 참여합니다. 다만 렌더러는 그 도형의 윤곽선이나 교선을 모르므로
+그릴 선은 `curves`로 직접 넘겨야 하고, 캐시와 빠른 교차 커널도 쓰지 못해 해석적 도형보다 느립니다.
+`intersect`는 `tMin`보다 작은 교점을 돌려주면 안 되고, 법선은 광선 반대쪽을 향하는 것이 좋습니다.

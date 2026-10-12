@@ -1,0 +1,124 @@
+---
+title: 불리언 도형
+description: Csg로 입체를 합치고, 빼고, 겹치는 부분만 남깁니다. 구멍 뚫린 구, 깎은 상자, 두 원기둥의 공통부분을 만들어 봅니다.
+group: Guides
+order: 6
+---
+
+`Csg`는 두 입체를 하나로 묶은 도형입니다. 결과는 다른 도형과 똑같이 장면에 넣고, 가리고,
+교선을 만들고, 면 채색까지 받습니다.
+
+```typescript
+import { Csg, Cylinder, Scene, Sphere, Vec3 } from "hlr";
+
+const ball = new Sphere("ball", new Vec3(0, 1.6, 0), 1.6);
+const drill = new Cylinder("drill", new Vec3(0, -0.4, 0), new Vec3(0, 1, 0), 4, 0.6);
+const drilled = new Csg("drilled", "subtract", ball, drill);
+
+const scene = new Scene([drilled]); // ball·drill은 따로 넣지 않습니다
+```
+
+결과 그림에는 구의 윤곽선, 구멍의 위아래 테두리(구와 원기둥이 만나는 곡선)가 그려지고, 구멍 벽과
+아래쪽 테두리는 구에 가려 점선이 됩니다.
+
+## 세 가지 연산
+
+| `operation`   | 뜻           | 결과                         |
+| ------------- | ------------ | ---------------------------- |
+| `"union"`     | A ∪ B        | 둘을 한 덩어리로             |
+| `"subtract"`  | A − B        | A에서 B와 겹치는 부분을 덜어 냄 |
+| `"intersect"` | A ∩ B        | 둘이 겹치는 부분만           |
+
+`new Csg(id, operation, a, b)`에서 순서가 중요한 것은 `subtract`뿐입니다.
+
+## 재료가 될 수 있는 도형
+
+`Sphere`, `Cylinder`, `Cone`, `BoxAabb`, `OrientedBox`, 그리고 다른 `Csg`입니다(`CsgSolid` 타입).
+`PlaneRect`, `Disk`, `TriangleMesh`처럼 닫히지 않은 면이나 메시는 재료가 될 수 없습니다.
+원기둥은 `caps: "both"`, 원뿔은 `cap: "base"`처럼 막힌 입체로 다룹니다.
+
+재료 도형은 **장면에 따로 넣지 마세요.** 넣으면 재료가 온전한 모양으로 한 번 더 그려집니다.
+재료의 id는 결과의 id와 달라야 하고, 교선에 쓰이므로 장면 안에서 고유해야 합니다.
+
+## 예: 겹쳐 쓰기
+
+`Csg`를 재료로 다시 쓰면 여러 번의 연산을 쌓을 수 있습니다. 구에 직교하는 구멍 두 개를 뚫어 봅니다.
+
+```typescript
+const across = new Cylinder("x-hole", new Vec3(-3, 1, 0), new Vec3(1, 0, 0), 6, 0.5);
+const along = new Cylinder("z-hole", new Vec3(0, 1, -3), new Vec3(0, 0, 1), 6, 0.5);
+const holes = new Csg("holes", "union", across, along);
+const ball = new Sphere("ball", new Vec3(0, 1, 0), 1.5);
+
+scene.add(new Csg("cross-drilled", "subtract", ball, holes));
+```
+
+## 예: 두 원기둥의 공통부분
+
+직교하는 두 원기둥이 겹치는 입체(스타인메츠 입체)는 `intersect` 하나로 만듭니다.
+
+```typescript
+const x = new Cylinder("cx", new Vec3(-1.8, 1.2, 0), new Vec3(1, 0, 0), 3.6, 1.2);
+const z = new Cylinder("cz", new Vec3(0, 1.2, -1.8), new Vec3(0, 0, 1), 3.6, 1.2);
+scene.add(new Csg("common", "intersect", x, z));
+```
+
+## 예: 모서리를 깎은 상자
+
+```typescript
+import { BoxAabb } from "hlr";
+
+const block = new BoxAabb("block", new Vec3(-1.5, 0, -1.2), new Vec3(1.5, 2, 1.2));
+const bite = new Sphere("bite", new Vec3(1.5, 2, 1.2), 1.1);
+scene.add(new Csg("notched", "subtract", block, bite));
+```
+
+## 무엇이 그려지나
+
+`include.csg`(기본 켬)가 결과 입체의 선을 만듭니다.
+
+1. 재료마다 원래 그릴 선을 만듭니다: 윤곽선, 원기둥·원뿔의 테두리 원, 상자의 모서리.
+2. 재료끼리 만나는 **이음매**(교선)를 만듭니다.
+3. 두 묶음의 곡선에서 **결과 입체의 표면 위에 있는 부분만** 남깁니다.
+
+3단계의 판정은 점이 입체 안(−1), 표면 위(0), 밖(1)인지 가르는 `classify(p, tolerance)`입니다.
+허용오차는 가장 큰 재료 크기에 `CSG_TOLERANCE`(0.003)를 곱한 값입니다. 이음매는 `Csg` 객체마다
+한 번만 계산해 기억하므로, 도형이 그대로라면 **같은 `Csg` 객체를 계속 쓰세요**. 시점만 바꿔
+다시 그릴 때 이음매를 다시 계산하지 않습니다.
+
+## 다른 도형과 만날 때
+
+평면이 불리언 도형을 자르거나 구가 박히는 경우에도 교선이 그려집니다. 각 재료와의 교선을 구한 뒤
+결과 입체 위에 있는 부분만 남기므로, 구멍을 지나는 단면은 구멍 자리에서 끊깁니다.
+
+```typescript
+import { PlaneRect } from "hlr";
+
+scene.add(
+  new PlaneRect("cut", new Vec3(0, 1.6, 0), new Vec3(0, 1, 0), new Vec3(1, 0, 0), 3, 3),
+);
+// 구멍 뚫린 구를 지나는 평면: 바깥 원과 구멍의 원이 함께 그려집니다.
+```
+
+## 광선과 판정을 직접 쓰기
+
+```typescript
+const hit = drilled.intersect(ray, 0, Infinity); // 결과 입체의 가장 가까운 교점
+drilled.classify(point, drilled.size() * 1e-3); // -1 안, 0 표면, 1 밖
+drilled.leaves(); // [ball, drill]: 재료 도형 목록(깊이 우선)
+csgSpans(drilled, ray); // 광선이 입체 안을 지나는 구간들 [{ start, end }]
+csgBoundaryCurves(drilled, camera); // 결과 입체의 외곽·이음매 곡선
+```
+
+`intersect`가 돌려주는 법선은 항상 입체 바깥을 향합니다. 구멍 벽에 맞으면 구멍 안쪽을 향합니다.
+
+## 한계
+
+- 결과 입체의 면을 이루는 곡면 자체는 재료의 면입니다. 새로 생긴 평면 단면(예: 상자를 평면으로
+  자른 면) 같은 것은 없습니다. 입체를 평면으로 자르려면 `intersect`에 큰 상자를 쓰세요.
+- 재료가 접하기만 하는(표면이 겹치는) 배치는 허용오차 안에서 경계가 흔들릴 수 있습니다.
+  재료를 조금 더 길게 빼서 확실히 관통시키는 편이 깔끔합니다.
+- 복잡하게 겹쳐 쌓을수록 이음매 계산이 늘어 느려집니다.
+
+[도형 작업실](/playground)에서는 두 입체를 고르고 **합치기·빼기·교집합**을 누르면 됩니다.
+재료는 장면 목록에서 결과 아래에 들어가고, 고르면 초록 윤곽으로 보이며 그대로 옮기고 크기를 바꿀 수 있습니다.

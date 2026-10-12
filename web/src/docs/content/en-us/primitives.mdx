@@ -1,0 +1,194 @@
+---
+title: Primitives
+description: Every shape you can put in a scene, from spheres and boxes to meshes, booleans and shapes of your own.
+group: Guides
+order: 3
+---
+
+A `Scene` holds objects that implement the `Primitive` interface. Built-in shapes all take a unique
+`id` first; the remaining arguments are `Vec3`s and numbers. Direction vectors may have any length;
+they are normalized internally.
+
+```typescript
+import { Scene, Sphere, Vec3 } from "hlr";
+
+const scene = new Scene();
+scene.add(new Sphere("S", new Vec3(0, 1, 0), 1));
+scene.removeById("S");
+scene.clear();
+```
+
+You can also pass the shapes to `new Scene(primitives)`. `add(...primitives)`, `removeById(id)` and
+`clear()` return the scene, so they chain. The current list is `scene.primitives`.
+
+## At a glance
+
+| Shape          | Constructor                                           | Lines drawn automatically          |
+| -------------- | ----------------------------------------------------- | ---------------------------------- |
+| `Sphere`       | `(id, center, radius)`                                | silhouette                         |
+| `Cylinder`     | `(id, base, axis, height, radius, caps?)`             | two silhouette lines, both rims    |
+| `Cone`         | `(id, apex, axis, height, baseRadius, cap?)`          | two silhouette lines, base rim     |
+| `BoxAabb`      | `(id, min, max)`                                      | 12 edges                           |
+| `OrientedBox`  | `(id, center, halfSize, axisX, axisY)`                | 12 edges                           |
+| `PlaneRect`    | `(id, center, normal, uHint, halfWidth, halfHeight)`  | 4 border edges                     |
+| `Disk`         | `(id, center, normal, radius)`                        | circle                             |
+| `TriangleMesh` | `(id, vertices, triangles)`                           | boundary, crease, silhouette edges |
+| `Csg`          | `(id, operation, a, b)`                               | outline and seams of the result    |
+
+On top of these, **intersection curves** are drawn between shapes that meet (see "Which pairs get
+intersection curves" below).
+
+## Sphere
+
+```typescript
+new Sphere("S", new Vec3(0, 1, 0), 2); // id, center, radius
+```
+
+With a perspective camera the silhouette is the circle of tangency seen from the camera; with an
+orthographic camera it is the great circle perpendicular to the view. A camera inside the sphere sees no silhouette.
+
+## Cylinder
+
+```typescript
+new Cylinder(
+  "can",
+  new Vec3(0, 0, 0), // base: center of the bottom
+  new Vec3(0, 1, 0), // axis: from the bottom toward the top
+  3, // height
+  1.2, // radius
+  "both", // caps: "both" (default) | "none"
+);
+```
+
+The top center is `base + axis * height`. With `caps: "none"` the cylinder is an open tube that rays can
+pass through, but both rims are still drawn. To place it by its center, use
+`base = center - axis * (height / 2)`.
+
+## Cone
+
+```typescript
+new Cone(
+  "cone",
+  new Vec3(0, 3, 0), // apex
+  new Vec3(0, -1, 0), // axis: from the apex toward the base
+  3, // height
+  1.5, // baseRadius
+  "base", // cap: "base" (default) | "none"
+);
+```
+
+The base center is `apex + axis * height`. Remember that the axis **points from the apex to the base**:
+a cone standing on the ground has an axis pointing down, `(0, -1, 0)`.
+
+## BoxAabb: axis-aligned box
+
+```typescript
+new BoxAabb("box", new Vec3(-1, 0, -1), new Vec3(1, 2, 1)); // min, max
+```
+
+A box with edges parallel to the coordinate axes. It is the fastest box and supports intersection curves
+with planes, spheres, cylinders, cones and other boxes.
+
+## OrientedBox: a turned box
+
+```typescript
+const turned = new OrientedBox(
+  "tilted",
+  new Vec3(0, 1, 0), // center
+  new Vec3(1, 0.5, 0.75), // halfSize along its own axes
+  new Vec3(1, 0, 1), // axisX: its local x direction
+  new Vec3(0, 1, 0), // axisY: its local y direction
+);
+```
+
+`axisY` is adjusted to be perpendicular to `axisX`, and the z axis is `axisX × axisY` (right-handed).
+`turned.axes` holds the three normalized axes; `corners()`, `edges()` and `faces()` return its 8 corners,
+12 edges and 6 faces, and `toLocal(p)` converts a point to box coordinates. Its faces are rectangles, so it
+gets intersection curves with planes, disks and curved surfaces.
+
+## PlaneRect: a rectangle
+
+```typescript
+new PlaneRect(
+  "alpha",
+  new Vec3(0, 0, 0), // center
+  new Vec3(0, 1, 0), // normal
+  new Vec3(1, 0, 0), // uHint: width direction (made perpendicular to the normal)
+  4, // halfWidth along u
+  3, // halfHeight along v = normal × u
+);
+```
+
+Planes are **opaque on both sides**: lines below or behind them become dashed. Tilt a plane by rotating
+`normal` and `uHint` together; a plane tilted 45° about the x axis has `normal = (0, cos45°, sin45°)` and
+`uHint = (1, 0, 0)`.
+
+## Disk
+
+```typescript
+new Disk("lid", new Vec3(0, 2, 0), new Vec3(0, 1, 0), 1.2); // center, normal, radius
+```
+
+A disk, opaque on both sides. Its rim is drawn when `include.rims` is on.
+
+## TriangleMesh
+
+```typescript
+new TriangleMesh(
+  "tri",
+  [new Vec3(0, 0, 0), new Vec3(2, 0, 0), new Vec3(0, 0, 2)],
+  [[0, 1, 2]],
+);
+```
+
+Built from a vertex array and triangle indices. Nearly coincident vertices are welded (within a millionth
+of the diagonal), and ray hits use a BVH. Boundary, crease (30° and up by default) and silhouette edges are
+drawn, but no intersection curves with other shapes. Reading OBJ and STL files is covered in
+[Meshes](/docs/en-us/meshes).
+
+## Csg: boolean solids
+
+```typescript
+new Csg("drilled", "subtract", ball, drill);
+```
+
+Joins (`union`), subtracts (`subtract`) or keeps the overlap (`intersect`) of spheres, cylinders, cones,
+boxes or other `Csg`s. See [Boolean solids](/docs/en-us/booleans).
+
+## Which pairs get intersection curves
+
+With `include.intersections` on (the default), these pairs get intersection curves.
+
+| Pair                                        | Notes                                           |
+| ------------------------------------------- | ----------------------------------------------- |
+| Spheres, cylinders and cones with each other | every pair                                     |
+| Planes, disks, rims × sphere, cylinder, cone | circles, ellipses, conics                       |
+| Plane × plane, disk × plane                 | line segments                                   |
+| Cylinder and cone rims with each other      | line segments                                   |
+| `BoxAabb` × plane, sphere, cylinder, cone, box |                                              |
+| `OrientedBox` × every analytic shape above  | its six faces are treated as planes             |
+| `Csg` × other shapes, `Csg` × `Csg`         | operand curves, kept where they lie on the result |
+| `TriangleMesh` × anything                   | none                                            |
+
+## Your own shapes
+
+`Primitive` asks for two members only.
+
+```typescript
+import type { Hit, Primitive, Ray } from "hlr";
+
+class Slab implements Primitive {
+  constructor(readonly id: string) {}
+
+  intersect(ray: Ray, tMin: number, tMax: number): Hit | null {
+    // the nearest hit at ray.origin + ray.dir * t with t in [tMin, tMax]:
+    // { t, point, normal, primitiveId: this.id }, or null
+    return null;
+  }
+}
+```
+
+Custom shapes take part in **occlusion** right away. The renderer does not know their silhouettes or
+intersections, though, so pass their lines through `curves`; they also skip the caches and the fast
+intersection kernels, so they are slower than built-in shapes. `intersect` must never return a hit
+before `tMin`, and the normal should face against the ray.

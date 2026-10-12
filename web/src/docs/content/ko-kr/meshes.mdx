@@ -1,0 +1,96 @@
+---
+title: 메시 불러오기
+description: OBJ·STL 파일을 삼각형 메시로 읽어 같은 숨은선 그림으로 렌더링합니다.
+group: Guides
+order: 9
+---
+
+## 파일 읽기
+
+```typescript
+import { readFileSync } from "node:fs";
+import { Camera, Scene, SvgRenderer, Vec3, parseObj, parseStl } from "hlr";
+
+const model = parseObj(readFileSync("teapot.obj")); // Buffer도 Uint8Array입니다
+// const model = parseStl(readFileSync("part.stl"));
+
+console.log(model.warnings); // 무시한 줄에 대한 안내
+const scene = new Scene(model.meshes);
+```
+
+브라우저에서는 `await fetch(url).then((r) => r.arrayBuffer())` 결과나 문자열을 넘기세요.
+두 함수 모두 `string | ArrayBuffer | Uint8Array`를 받고, 파일 경로는 받지 않습니다.
+
+```typescript
+type ImportedModel = {
+  meshes: TriangleMesh[]; // OBJ의 o·g 그룹마다 하나
+  bounds: { min: Vec3; max: Vec3 }; // 모든 메시를 감싸는 상자
+  warnings: string[];
+};
+```
+
+## 지원 범위
+
+- **OBJ**: `v`, `vn`, `f`(삼각형 이상의 다각형은 부채꼴로 나눔), `o`, `g`, 주석. `mtllib`, `usemtl`,
+  `vt`, `l`, `p`, `curv`는 경고와 함께 무시합니다.
+- **STL**: ASCII와 바이너리 모두.
+- 재질, 텍스처, UV, glTF/GLB는 다루지 않습니다.
+
+## 화면에 맞추기
+
+`bounds`로 중심과 크기를 구해 카메라를 맞춥니다.
+
+```typescript
+const { min, max } = model.bounds;
+const center = Vec3.mulScalar(Vec3.add(min, max), 0.5);
+const radius = Vec3.distance(min, max) / 2;
+
+const width = 960;
+const height = 540;
+const camera = Camera.from({
+  kind: "perspective",
+  position: Vec3.add(center, Vec3.mulScalar(new Vec3(1, 0.8, 1.2), radius * 2.2)),
+  target: center,
+  up: new Vec3(0, 1, 0),
+  fovYRad: (40 * Math.PI) / 180,
+  aspect: width / height,
+  near: radius * 0.01,
+  far: radius * 20,
+});
+
+const svg = new SvgRenderer({
+  width,
+  height,
+  include: { intersections: false }, // 메시는 교선을 만들지 않으므로 꺼서 시간을 아낌
+  mesh: { creaseAngleDeg: 30 },
+}).render(scene, camera);
+```
+
+## 어떤 모서리를 그리나
+
+`TriangleMesh`는 카메라마다 다음 모서리를 그립니다(`include.meshEdges`).
+
+| 종류          | 조건                                                |
+| ------------- | --------------------------------------------------- |
+| `boundary`    | 삼각형 하나에만 붙은 모서리(열린 가장자리)          |
+| `nonManifold` | 세 개 이상의 삼각형이 공유하는 모서리               |
+| `crease`      | 이웃한 두 면이 `creaseAngleDeg` 이상 꺾인 모서리    |
+| `silhouette`  | 한 면은 카메라를 보고 다른 면은 등진 모서리         |
+
+매끈한 곡면을 잘게 나눈 메시는 `creaseAngleDeg`를 올려(예: 45 ~ 60) 잔 모서리를 줄이고, 각진 기계
+부품은 낮춰(예: 20) 접힌 선을 살리세요. `mesh.featureEdges(camera, { creaseAngleDeg })`로 모서리를
+직접 받아 볼 수도 있습니다.
+
+## 만들 때 일어나는 일
+
+- 위치가 거의 같은 정점(모델 대각선의 백만분의 일 이내)은 하나로 합칩니다. STL처럼 면마다 정점을
+  따로 가진 파일도 이웃 관계를 되찾습니다.
+- 넓이가 0인 삼각형은 버립니다.
+- 광선 교차를 위해 BVH를 만듭니다. 큰 메시는 만들 때 시간이 들지만, 그다음 렌더는 빠릅니다.
+
+## 한계와 팁
+
+- 메시는 다른 도형과의 **교선을 만들지 않습니다**. 가림은 정상적으로 처리합니다.
+- 메시가 있는 장면은 투영 캐시를 쓰지 않고, 가시성 판정이 `coarseSamples: 24`로 시작합니다.
+  모서리가 많으면 `hlr: { samples: 96 }`처럼 표본을 줄여 속도를 얻을 수 있습니다.
+- 메시 하나만 그린다면 같은 `TriangleMesh` 객체를 재사용하세요. 정점 합치기와 BVH를 다시 하지 않습니다.
