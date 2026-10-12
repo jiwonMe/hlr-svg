@@ -1,586 +1,344 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "./components/ui/button";
-import { Letter3DSwap } from "./components/ui/letter-3d-swap";
-import { cn } from "./lib/utils";
-import { Github, BookOpen } from "lucide-react";
-
-import { Camera } from "@hlr/camera/camera.js";
 import {
-  coneSilhouetteToCubics3,
-  cylinderSilhouetteToCubics3,
-  sphereSilhouetteToCubics3,
-} from "@hlr/curves/builders.js";
-import type { DemoCase } from "@hlr/demo/types.js";
-import { Vec3 } from "@hlr/math/vec3.js";
-import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
-import { Cone } from "@hlr/scene/primitives/cone.js";
-import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
-import { Sphere } from "@hlr/scene/primitives/sphere.js";
+  ArrowDown,
+  ArrowUpRight,
+  Check,
+  Copy,
+  MoveUpRight,
+} from "lucide-react";
+import { EditorialDiagram } from "./components/EditorialDiagram";
+import "./landing.css";
 
-import {
-  orbitFromCamera,
-  orbitPosition,
-  type OrbitState,
-  clamp,
-} from "./runtime/orbit";
-import { useRafLoop } from "./runtime/useRaf";
-import { useFrameState } from "./runtime/useFrameState";
-import { useDemoSvg } from "./runtime/useDemoSvg";
-import { useElementSize } from "./docs/examples/useElementSize";
-
-const RENDER_OPTIONS = {
-  background: false,
-  svgStyle: {
-    strokeWidthVisible: 2,
-    strokeWidthHidden: 2,
-    dashArrayHidden: "6 6",
-    strokeVisible: "#000000",
-    strokeHidden: "#000000",
-    opacityHidden: 0.4,
-  },
-  hlr: { coarseSamples: 12 },
-};
-type DragState = { x: number; y: number; az: number; pol: number; id: number };
-
-type PrimitiveType = "sphere" | "cylinder" | "cone" | "box";
-
-function randomFloat(min: number, max: number): number {
-  return min + Math.random() * (max - min);
-}
-
-function randomVec3(min: number, max: number): Vec3 {
-  return new Vec3(
-    randomFloat(min, max),
-    randomFloat(min, max),
-    randomFloat(min, max),
-  );
-}
-
-function randomUnitVec3(): Vec3 {
-  const x = randomFloat(-1, 1);
-  const y = randomFloat(-1, 1);
-  const z = randomFloat(-1, 1);
-  return Vec3.normalize(new Vec3(x, y, z));
-}
-
-function lineToCubic3(p0: Vec3, p3: Vec3) {
-  const d = Vec3.sub(p3, p0);
-  const p1 = Vec3.add(p0, Vec3.mulScalar(d, 1 / 3));
-  const p2 = Vec3.add(p0, Vec3.mulScalar(d, 2 / 3));
-  return { p0, p1, p2, p3 };
-}
-
-function boxEdgesAsCubics(min: Vec3, max: Vec3) {
-  const [x0, y0, z0] = [min.x, min.y, min.z];
-  const [x1, y1, z1] = [max.x, max.y, max.z];
-  const v = [
-    new Vec3(x0, y0, z0),
-    new Vec3(x1, y0, z0),
-    new Vec3(x0, y1, z0),
-    new Vec3(x1, y1, z0),
-    new Vec3(x0, y0, z1),
-    new Vec3(x1, y0, z1),
-    new Vec3(x0, y1, z1),
-    new Vec3(x1, y1, z1),
-  ];
-  const edges: [Vec3, Vec3][] = [
-    [v[0], v[1]],
-    [v[2], v[3]],
-    [v[4], v[5]],
-    [v[6], v[7]],
-    [v[0], v[2]],
-    [v[1], v[3]],
-    [v[4], v[6]],
-    [v[5], v[7]],
-    [v[0], v[4]],
-    [v[1], v[5]],
-    [v[2], v[6]],
-    [v[3], v[7]],
-  ];
-  return edges.map(([a, b]) => lineToCubic3(a, b));
-}
-
-function createRandomPrimitives(count: number) {
-  const types: PrimitiveType[] = ["sphere", "cylinder", "cone", "box"];
-  const primitives: (Sphere | Cylinder | Cone | BoxAabb)[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const type = types[Math.floor(Math.random() * types.length)]!;
-    const pos = randomVec3(-4, 4);
-    const id = `prim_${i}`;
-
-    if (type === "sphere") {
-      primitives.push(new Sphere(id, pos, randomFloat(0.4, 1.2)));
-    } else if (type === "cylinder") {
-      const axis = randomUnitVec3();
-      primitives.push(
-        new Cylinder(
-          id,
-          pos,
-          axis,
-          randomFloat(1.0, 2.5),
-          randomFloat(0.3, 0.8),
-          "both",
-        ),
-      );
-    } else if (type === "cone") {
-      const axis = randomUnitVec3();
-      primitives.push(
-        new Cone(
-          id,
-          pos,
-          axis,
-          randomFloat(1.0, 2.5),
-          randomFloat(0.4, 1.0),
-          "base",
-        ),
-      );
-    } else {
-      const size = randomFloat(0.4, 1.0);
-      const min = pos;
-      const max = Vec3.add(
-        pos,
-        new Vec3(size, size * randomFloat(0.5, 1.5), size),
-      );
-      primitives.push(new BoxAabb(id, min, max));
-    }
-  }
-  return primitives;
-}
-
-function createRandomDemoCase(): DemoCase {
-  const count = Math.floor(randomFloat(7, 11));
-  const primitives = createRandomPrimitives(count);
-
-  const width = typeof window !== "undefined" ? window.innerWidth : 1920;
-  const height = typeof window !== "undefined" ? window.innerHeight : 1080;
-
-  const cam = Camera.from({
-    kind: "perspective",
-    position: new Vec3(5, 3.5, 6),
-    target: new Vec3(0, 0, 0),
-    up: new Vec3(0, 1, 0),
-    fovYRad: (50 * Math.PI) / 180,
-    aspect: width / height,
-    near: 0.1,
-    far: 100,
-  });
-
-  return {
-    name: "Random Scene",
-    width,
-    height,
-    camera: cam,
-    primitives,
-    includeIntersections: true,
-    curves: ({ camera }) => {
-      const curves: ReturnType<typeof sphereSilhouetteToCubics3> = [];
-      for (const p of primitives) {
-        if (p instanceof Sphere) {
-          curves.push(
-            ...sphereSilhouetteToCubics3({
-              cameraPos: camera.position,
-              center: p.center,
-              radius: p.radius,
-            }),
-          );
-        } else if (p instanceof Cylinder) {
-          curves.push(
-            ...cylinderSilhouetteToCubics3({
-              cameraPos: camera.position,
-              base: p.base,
-              axis: p.axis,
-              height: p.height,
-              radius: p.radius,
-            }),
-          );
-        } else if (p instanceof Cone) {
-          curves.push(
-            ...coneSilhouetteToCubics3({
-              cameraPos: camera.position,
-              apex: p.apex,
-              axis: p.axis,
-              height: p.height,
-              baseRadius: p.baseRadius,
-            }),
-          );
-        } else if (p instanceof BoxAabb) {
-          curves.push(...boxEdgesAsCubics(p.min, p.max));
-        }
-      }
-      return curves.flat();
-    },
-  };
-}
+const DOCS = "/docs/ko-kr";
 
 export function LandingPage(): React.ReactElement {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [demoCase, setDemoCase] = useState<DemoCase>(() =>
-    createRandomDemoCase(),
+  const examplesRef = useRef<HTMLElement>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
   );
 
-  const baseOrbit = useMemo(
-    () => orbitFromCamera(demoCase.camera.position, demoCase.camera.target),
-    [demoCase],
-  );
-  const [orbit, orbitInput] = useFrameState<OrbitState>(baseOrbit);
-  const [playing, setPlaying] = useState(true);
-  const dragRef = useRef<DragState | null>(null);
-  const size = useElementSize(wrapRef);
-  const width = size.width || demoCase.width;
-  const height = size.height || demoCase.height;
-
-  useEffect(() => {
-    orbitInput.reset(baseOrbit);
-    dragRef.current = null;
-  }, [baseOrbit, orbitInput]);
-
-  useRafLoop(playing, (elapsed) => {
-    orbitInput.reset((o) => ({ ...o, azimuth: o.azimuth + 0.48 * elapsed }));
-  });
-
-  const camera = useMemo(() => {
-    const pos = orbitPosition(orbit);
-    return Camera.from({
-      kind: "perspective",
-      position: pos,
-      target: orbit.target,
-      up: demoCase.camera.up,
-      fovYRad: demoCase.camera.fovYRad ?? (50 * Math.PI) / 180,
-      aspect: width / height,
-      near: demoCase.camera.near,
-      far: demoCase.camera.far,
+  function showExamples() {
+    examplesRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "start",
     });
-  }, [demoCase, orbit, width, height]);
+    examplesRef.current?.focus({ preventScroll: true });
+  }
 
-  const runtimeDemo = useMemo<DemoCase>(
-    () => ({ ...demoCase, camera, width, height }),
-    [demoCase, camera, width, height],
-  );
-
-  const svg = useDemoSvg(runtimeDemo, RENDER_OPTIONS);
-
-  // 5초마다 자동으로 새 케이스 생성
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newCase = createRandomDemoCase();
-      setDemoCase(newCase);
-      setPlaying(true);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSaveSvg = useCallback(() => {
-    const blob = new Blob([svg], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `hlr-scene-${Date.now()}.svg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [svg]);
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      const el = wrapRef.current;
-      if (!el) return;
-      el.setPointerCapture(e.pointerId);
-      const current = orbitInput.current();
-      dragRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        az: current.azimuth,
-        pol: current.polar,
-        id: e.pointerId,
-      };
-      setPlaying(false);
-    },
-    [orbitInput],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || drag.id !== e.pointerId) return;
-      const dx = e.clientX - drag.x;
-      const dy = e.clientY - drag.y;
-      const s = 0.005;
-      const az = drag.az + dx * s;
-      const pol = clamp(0.1, drag.pol + dy * s, Math.PI - 0.1);
-      const latest = orbitInput.current();
-      if (latest.azimuth === az && latest.polar === pol) return;
-      orbitInput.schedule((o) => ({ ...o, azimuth: az, polar: pol }));
-    },
-    [orbitInput],
-  );
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || drag.id !== e.pointerId) return;
-      if (e.type === "pointerup") handlePointerMove(e);
-      orbitInput.flush();
-      dragRef.current = null;
-      setPlaying(true);
-    },
-    [handlePointerMove, orbitInput],
-  );
-
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (e.deltaY === 0) return;
-      const k = Math.exp(e.deltaY * 0.001);
-      orbitInput.schedule((current) => {
-        const radius = clamp(3, current.radius * k, 20);
-        return radius === current.radius ? current : { ...current, radius };
-      });
-    },
-    [orbitInput],
-  );
+  async function copyInstall() {
+    try {
+      await navigator.clipboard.writeText("pnpm add hlr");
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
 
   return (
-    <div
-      ref={wrapRef}
-      className={cn(
-        // Full screen container
-        "relative w-screen h-screen overflow-hidden",
-        // Cursor styles
-        "cursor-grab active:cursor-grabbing",
-        // Touch behavior
-        "touch-none select-none",
-      )}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onWheel={handleWheel}
-    >
-      {/* Background with dotted grid */}
-      <div
-        className={cn(
-          // Full coverage
-          "absolute inset-0",
-          // Background color
-          "bg-white",
-          // Z-index to ensure it's below SVG
-          "z-0",
-        )}
-        style={{
-          backgroundImage: `
-            radial-gradient(circle, rgba(0, 0, 0, 0.15) 1px, transparent 1px)
-          `,
-          backgroundSize: "20px 20px",
-          backgroundPosition: "0 0",
+    <div className="geometry-paper">
+      <a
+        className="paper-skip-link"
+        href="#paper-main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("paper-main")?.focus();
         }}
-      />
-
-      <Link
-        to="/playground"
-        onPointerDown={(event) => event.stopPropagation()}
-        className="absolute top-6 right-6 z-30 rounded-xl border border-emerald-200 bg-white/95 px-5 py-3 font-docs text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50"
       >
-        도형 작업실 <span aria-hidden="true">↗</span>
-      </Link>
-
-      {/* Background SVG */}
-      <div
-        data-svg-container
-        className={cn(
-          // Full coverage
-          "absolute inset-0",
-          // Z-index to ensure it's above grid
-          "z-10",
-          // Ensure no background
-          "bg-transparent",
-        )}
-        dangerouslySetInnerHTML={{ __html: svg }}
-        style={
-          {
-            // Make SVG fill the entire viewport
-          }
-        }
-      />
-
-      {/* Make SVG fill viewport */}
-      <style>{`
-        [data-svg-container] svg {
-          width: 100vw;
-          height: 100vh;
-          display: block;
-        }
-      `}</style>
-
-      {/* Content overlay */}
-      <div
-        className={cn(
-          // Positioning
-          "absolute inset-0",
-          // Flex centering
-          "flex flex-col items-center justify-center",
-          // Pointer events for children only
-          "pointer-events-none",
-          // Z-index to ensure it's above SVG
-          "z-20",
-        )}
-      >
-        {/* Title */}
-        <div
-          className={cn(
-            // Typography
-            "font-display tracking-tight uppercase",
-            "text-4xl sm:text-5xl md:text-6xl lg:text-7xl",
-            // Color
-            "text-black",
-            // Spacing
-            "mb-6",
-            // Leading
-            "leading-[0.85]",
-            // Flex layout for vertical stacking
-            "flex flex-col",
-          )}
-        >
-          <Letter3DSwap
-            as="span"
-            rotateDirection="top"
-            staggerFrom="first"
-            staggerDuration={0.03}
-            mainClassName="font-bold cursor-pointer pointer-events-auto"
-          >
-            HLR:
-          </Letter3DSwap>
-          <Letter3DSwap
-            as="span"
-            rotateDirection="bottom"
-            staggerFrom="first"
-            staggerDuration={0.03}
-            mainClassName="font-normal cursor-pointer pointer-events-auto"
-          >
-            HIDDEN
-          </Letter3DSwap>
-          <Letter3DSwap
-            as="span"
-            rotateDirection="top"
-            staggerFrom="last"
-            staggerDuration={0.03}
-            mainClassName="font-normal cursor-pointer pointer-events-auto"
-          >
-            LINE
-          </Letter3DSwap>
-          <Letter3DSwap
-            as="span"
-            rotateDirection="bottom"
-            staggerFrom="center"
-            staggerDuration={0.03}
-            mainClassName="font-normal cursor-pointer pointer-events-auto"
-          >
-            REMOVAL
-          </Letter3DSwap>
-        </div>
-
-        {/* Buttons */}
-        <div
-          className={cn("flex flex-col items-center gap-2 pointer-events-auto")}
-        >
-          <div className={cn("flex items-center gap-3")}>
-            <Button
-              asChild
-              variant="outline"
-              size="xl"
-              className={cn(
-                // Extra styling
-                "rounded-2xl",
-                "font-semibold tracking-wide",
-              )}
-            >
-              <Link to="/docs" onPointerDown={(e) => e.stopPropagation()}>
-                <BookOpen className="w-5 h-5" />
-                docs
-              </Link>
-            </Button>
+        본문으로 건너뛰기
+      </a>
+      <div className="paper-sheet">
+        <header className="paper-header">
+          <div className="paper-edition">
+            <span>THE GEOMETRY PRESS</span>
+            <span>선을 위한 수학, 수학을 위한 선</span>
+            <span>VOL. 01 &nbsp; / &nbsp; OPEN SOURCE</span>
           </div>
-          <Button
-            onClick={handleSaveSvg}
-            onPointerDown={(e) => e.stopPropagation()}
-            variant="link"
-            className={cn(
-              // Text color
-              "text-black/60 hover:text-black",
-              // Underline
-              "underline-offset-4",
-            )}
+          <div className="paper-masthead">
+            <div className="masthead-note">
+              <span className="masthead-cross" aria-hidden="true">
+                ✳
+              </span>
+              <span>
+                공간의 깊이를
+                <br />
+                평면의 언어로.
+              </span>
+            </div>
+            <Link className="paper-wordmark" to="/" aria-label="HLR SVG 홈">
+              HLR<span className="wordmark-divider">/</span>SVG
+            </Link>
+            <div className="masthead-note masthead-note-right">
+              <span>HIDDEN LINE REMOVAL</span>
+              <span>3D GEOMETRY → 2D VECTOR</span>
+            </div>
+          </div>
+          <nav className="paper-nav" aria-label="주 메뉴">
+            <div className="paper-nav-links">
+              <Link to="/" aria-current="page">
+                소개
+              </Link>
+              <button type="button" onClick={showExamples}>
+                예제 도형
+              </button>
+              <Link to={`${DOCS}/quickstart`}>사용 안내</Link>
+              <a
+                href="https://github.com/jiwonMe/hlr-svg"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub <ArrowUpRight aria-hidden="true" size={13} />
+              </a>
+            </div>
+            <Link className="nav-workspace" to="/playground">
+              도형 작업실 <ArrowUpRight aria-hidden="true" size={15} />
+            </Link>
+          </nav>
+        </header>
+        <main id="paper-main" tabIndex={-1}>
+          <section className="paper-lead" aria-labelledby="lead-title">
+            <div className="lead-story">
+              <div className="paper-eyebrow">
+                <span className="edition-dot" /> 공간도형을 그리는 새로운 방법
+              </div>
+              <h1 id="lead-title">
+                공간을 읽고,
+                <br />
+                선을 남기다.
+              </h1>
+              <p className="lead-deck">
+                복잡한 입체도, 한 장의 명료한 그림으로.
+              </p>
+              <p className="lead-description">
+                보이는 선은 실선으로, 가려진 선은 점선으로.
+                <br className="desktop-break" />
+                HLR SVG는 입체의 깊이와 관계를 읽어
+                <br className="desktop-break" />
+                수학 교재 속 도형처럼 정교한 SVG를 만듭니다.
+              </p>
+              <div className="lead-actions">
+                <Link className="paper-button" to="/playground">
+                  직접 그려보기 <ArrowUpRight aria-hidden="true" size={17} />
+                </Link>
+                <Link className="paper-text-link" to={`${DOCS}/quickstart`}>
+                  시작하는 방법 <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+              <div className="lead-footnote">
+                <span className="footnote-mark">*</span>
+                <p>
+                  공간도형과 공간벡터, 교재와 시험지,
+                  <br />
+                  그리고 선으로 설명하는 모든 장면을 위해.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="lead-scroll"
+                onClick={showExamples}
+              >
+                아래에서 도형 살펴보기{" "}
+                <ArrowDown aria-hidden="true" size={14} />
+              </button>
+            </div>
+            <div className="lead-examination">
+              <div className="exam-heading">
+                <span>제 1 교시</span>
+                <h2>기하 영역</h2>
+                <span className="exam-subject">공간도형과 공간벡터</span>
+              </div>
+              <div className="exam-question">
+                <p>
+                  <strong className="question-number">01.</strong> 반지름이 2인
+                  구와 45°의 각을 이루는 두 평면 α, β가 있다. 두 단면 위의 점과
+                  선분이 이루는 공간을 살펴보자.
+                </p>
+                <span className="question-score">[ 예시 도형 ]</span>
+              </div>
+              <EditorialDiagram kind="sphere-sections" interactive />
+              <div className="exam-caption">
+                <span>그림 1. 구와 두 평면의 단면</span>
+                <Link to={`${DOCS}/examples/sphere-plane-sections`}>
+                  예제 자세히 보기 <ArrowUpRight aria-hidden="true" size={13} />
+                </Link>
+              </div>
+            </div>
+          </section>
+          <div className="paper-principles" aria-label="렌더링 특징">
+            <div>
+              <span className="line-sample" aria-hidden="true" />
+              <span>보이는 선은 또렷하게</span>
+            </div>
+            <div>
+              <span
+                className="line-sample line-sample-dashed"
+                aria-hidden="true"
+              />
+              <span>가려진 선은 섬세하게</span>
+            </div>
+            <div>
+              <span className="vector-sample" aria-hidden="true">
+                ↗
+              </span>
+              <span>확대해도 선명한 벡터로</span>
+            </div>
+          </div>
+          <section
+            className="paper-examples"
+            ref={examplesRef}
+            tabIndex={-1}
+            aria-labelledby="examples-title"
           >
-            save as svg
-          </Button>
-        </div>
-
-        {/* Instructions */}
-        <p
-          className={cn(
-            // Typography
-            "text-sm text-black/40",
-            // Spacing
-            "mt-8",
-            // Width
-            "max-w-md text-center",
-          )}
-        >
-          Drag to rotate · Scroll to zoom
-        </p>
-
-        {/* Social Links */}
-        <div
-          className={cn(
-            // Flex
-            "flex items-center gap-4",
-            // Spacing
-            "mt-6",
-            // Pointer events
-            "pointer-events-auto",
-          )}
-        >
-          <a
-            href="https://github.com/jiwonMe/hlr-svg"
-            target="_blank"
-            rel="noopener noreferrer"
-            onPointerDown={(e) => e.stopPropagation()}
-            className={cn(
-              // Color
-              "text-black/40 hover:text-black",
-              // Transition
-              "transition-colors",
-            )}
-            title="GitHub"
-          >
-            <Github className="w-5 h-5" />
-          </a>
-          <a
-            href="https://www.npmjs.com/package/hlr"
-            target="_blank"
-            rel="noopener noreferrer"
-            onPointerDown={(e) => e.stopPropagation()}
-            className={cn(
-              // Color
-              "text-black/40 hover:text-black",
-              // Transition
-              "transition-colors",
-            )}
-            title="npm"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0v1.336H8.001V8.667h5.334v5.332h-2.669v-.001zm12.001 0h-1.33v-4h-1.336v4h-1.335v-4h-1.33v4h-2.671V8.667h8.002v5.331zM10.665 10H12v2.667h-1.335V10z" />
-            </svg>
-          </a>
+            <div className="section-heading">
+              <div>
+                <p className="paper-eyebrow">
+                  도형 연구 &nbsp; / &nbsp; SELECTED EXAMPLES
+                </p>
+                <h2 id="examples-title">한 선 한 선, 공간의 해석.</h2>
+              </div>
+              <Link className="paper-text-link" to={`${DOCS}/examples`}>
+                모든 예제 보기 <ArrowUpRight aria-hidden="true" size={15} />
+              </Link>
+            </div>
+            <div className="example-spread">
+              <article className="example-problem">
+                <div className="example-title-row">
+                  <span className="example-number">02</span>
+                  <div>
+                    <span className="example-category">
+                      공간도형 · 구의 위치 관계
+                    </span>
+                    <h3>서로 접하는 구, 이어지는 관계.</h3>
+                  </div>
+                  <span className="example-points">[ 구와 평면 ]</span>
+                </div>
+                <p className="example-description">
+                  하나의 큰 구에 접하는 세 개의 작은 구. 평면 위에 놓인 구들의
+                  접점과 교선을 따라, 입체의 앞뒤 관계를 읽습니다.
+                </p>
+                <Link
+                  className="example-figure-link"
+                  to={`${DOCS}/examples/tangent-spheres`}
+                  aria-label="구에 접하는 세 구 예제 열기"
+                >
+                  <EditorialDiagram kind="tangent-spheres" />
+                  <span className="figure-open">
+                    <MoveUpRight size={17} aria-hidden="true" />
+                  </span>
+                </Link>
+                <div className="example-endnote">
+                  <span>그림 2. 구에 접하는 세 구</span>
+                  <Link to={`${DOCS}/examples/tangent-spheres`}>
+                    도형 탐구하기 <span aria-hidden="true">↗</span>
+                  </Link>
+                </div>
+              </article>
+              <article className="example-problem">
+                <div className="example-title-row">
+                  <span className="example-number">03</span>
+                  <div>
+                    <span className="example-category">
+                      이차곡선 · 평면과 입체의 교선
+                    </span>
+                    <h3>평면으로 자르면, 곡선이 된다.</h3>
+                  </div>
+                  <span className="example-points">[ 원뿔의 단면 ]</span>
+                </div>
+                <p className="example-description">
+                  원뿔을 비스듬히 지나는 하나의 평면. 두 도형이 만나는 경계를
+                  계산하고, 곡선의 보이는 부분과 숨은 부분을 구분합니다.
+                </p>
+                <Link
+                  className="example-figure-link"
+                  to={`${DOCS}/examples/conic-section`}
+                  aria-label="원뿔과 평면의 단면 예제 열기"
+                >
+                  <EditorialDiagram kind="conic-section" />
+                  <span className="figure-open">
+                    <MoveUpRight size={17} aria-hidden="true" />
+                  </span>
+                </Link>
+                <div className="example-endnote">
+                  <span>그림 3. 원뿔과 평면의 교선</span>
+                  <Link to={`${DOCS}/examples/conic-section`}>
+                    도형 탐구하기 <span aria-hidden="true">↗</span>
+                  </Link>
+                </div>
+              </article>
+            </div>
+            <p className="examples-editor-note">
+              ※ 이 페이지의 그림은 HLR SVG로 렌더링한 예제입니다. 실제
+              수능·모의고사 기출 문항이 아닙니다.
+            </p>
+          </section>
+          <section className="paper-colophon" aria-labelledby="start-title">
+            <div className="colophon-heading">
+              <p className="paper-eyebrow">
+                다음 페이지 &nbsp; / &nbsp; GET STARTED
+              </p>
+              <h2 id="start-title">이제, 당신의 도형을 그릴 차례.</h2>
+            </div>
+            <div className="colophon-body">
+              <p>
+                브라우저에서 바로 도형을 다루거나,
+                <br />
+                TypeScript 프로젝트에 HLR을 더해 보세요.
+              </p>
+              <div className="install-area">
+                <button
+                  className="install-command"
+                  type="button"
+                  onClick={copyInstall}
+                  aria-label="설치 명령어 pnpm add hlr 복사"
+                >
+                  <span aria-hidden="true">$</span>
+                  <code>pnpm add hlr</code>
+                  {copyStatus === "copied" ? (
+                    <Check size={16} aria-hidden="true" />
+                  ) : (
+                    <Copy size={15} aria-hidden="true" />
+                  )}
+                </button>
+                <span className="install-status" role="status">
+                  {copyStatus === "copied"
+                    ? "설치 명령어를 복사했습니다."
+                    : copyStatus === "failed"
+                      ? "복사하지 못했습니다. pnpm add hlr을 직접 입력해 주세요."
+                      : ""}
+                </span>
+              </div>
+            </div>
+            <Link className="colophon-link" to={`${DOCS}/quickstart`}>
+              문서에서 시작하기 <ArrowUpRight aria-hidden="true" size={23} />
+            </Link>
+          </section>
+        </main>
+        <footer className="paper-footer">
+          <Link to="/" className="footer-wordmark">
+            HLR / SVG
+          </Link>
+          <span>수학의 깊이, 선의 명료함.</span>
+          <div>
+            <a
+              href="https://github.com/jiwonMe/hlr-svg/blob/main/LICENSE"
+              target="_blank"
+              rel="noreferrer"
+            >
+              MIT LICENSE
+            </a>
+            <a
+              href="https://www.npmjs.com/package/hlr"
+              target="_blank"
+              rel="noreferrer"
+            >
+              NPM ↗
+            </a>
+          </div>
+        </footer>
+        <div className="paper-page-number" aria-hidden="true">
+          <span>1</span>
         </div>
       </div>
     </div>
