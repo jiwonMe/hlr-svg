@@ -88,15 +88,12 @@ export function buildSpherePlaneSectionsDemo(
     width,
     height,
     camera: Camera.from({
-      kind: "perspective",
-      position: new Vec3(2.56783, 1.23445, 6.16136),
-      target: new Vec3(0, 1, 0),
-      up: new Vec3(0.0357226, 0.9992531, -0.0147382),
-      fovYRad:
-        2 *
-        Math.atan(
-          Math.tan((53 * Math.PI) / 360) * Math.max(1, (height * 1.08) / width),
-        ),
+      kind: "orthographic",
+      // Equal foreshortening of X, Y and Z: azimuth 45°, elevation 35.264°.
+      position: new Vec3(6, 7.2, 6),
+      target: new Vec3(0, 1.2, 0),
+      up: new Vec3(0, 1, 0),
+      halfHeight: 3.45 * Math.max(1, (height * 1.1) / width),
       aspect: width / height,
       near: 0.1,
       far: 100,
@@ -162,12 +159,12 @@ export function renderSpherePlaneSectionsAnnotations(
   const d = Math.sqrt(6);
   // Finite guide patches lie on the true planes and share their actual
   // intersection x=√6, y=0; their framing follows the examination illustration.
-  const E0 = new Vec3(d, 0, 1.83585);
-  const E1 = new Vec3(d, 0, -3.7144);
-  const alpha0 = new Vec3(-1.31445, 0, 2.76878);
-  const alpha1 = new Vec3(-5.37531, 0, -3.02337);
-  const beta0 = new Vec3(0.09597, d - 0.09597, 2.57827);
-  const beta1 = new Vec3(-3.5, d + 3.5, -5);
+  const E0 = new Vec3(d, 0, 2.3);
+  const E1 = new Vec3(d, 0, -2.3);
+  const alpha0 = new Vec3(-2.6, 0, 2.3);
+  const alpha1 = new Vec3(-2.6, 0, -2.3);
+  const beta0 = new Vec3(-0.8, d + 0.8, 2.3);
+  const beta1 = new Vec3(-0.8, d + 0.8, -2.3);
   const planeEdges = [
     lineToCubic3(alpha0, E0),
     lineToCubic3(E0, E1),
@@ -226,7 +223,10 @@ export function renderSpherePlaneSectionsAnnotations(
   ];
 
   const project = (p: Vec3) => camera.projectToSvg(p, width, height);
-  const fontSize = Math.min(23, Math.max(15, height * 0.036));
+  const fontSize = Math.min(
+    23,
+    Math.max(13, Math.min(height * 0.036, width * 0.04)),
+  );
   const text = (
     label: string,
     p: Vec3,
@@ -240,7 +240,7 @@ export function renderSpherePlaneSectionsAnnotations(
   const heightMid = project(Vec3.mulScalar(Vec3.add(A, H), 0.5));
   const hx = heightMid.x - fontSize * 0.9;
   const hy = heightMid.y;
-  const fraction = `<g data-label="height" transform="translate(${hx.toFixed(3)} ${hy.toFixed(3)})" text-anchor="middle" font-size="${fontSize * 0.8}"><text y="-5">√6</text><path d="M -12 0 H 12" stroke="#555" stroke-width="1"/><text y="${fontSize * 0.8}">2</text></g>`;
+  const fraction = `<g data-label="height" transform="translate(${hx.toFixed(3)} ${hy.toFixed(3)})" text-anchor="middle" font-size="${fontSize * 0.8}"><text y="-5">√6</text><path d="M ${(-fontSize * 0.55).toFixed(3)} 0 H ${(fontSize * 0.55).toFixed(3)}" stroke="#555" stroke-width="1"/><text y="${fontSize * 0.8}">2</text></g>`;
   const c1Anchor = new Vec3(1.7, 0, 1);
   const c2Anchor = Vec3.add(
     A,
@@ -267,7 +267,7 @@ export function renderSpherePlaneSectionsAnnotations(
     lineLayer(camera, width, height, angleArc, "#666", 1) +
     leader +
     `<g fill="#292929" font-family="Georgia, 'Times New Roman', serif" font-size="${fontSize}" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">` +
-    text("O", O, -3, fontSize) +
+    text("O", O, -3, fontSize + 4) +
     text("P", P, -7, fontSize) +
     text("Q", Q, -fontSize, 4) +
     text("R", R, -5, -8) +
@@ -275,7 +275,7 @@ export function renderSpherePlaneSectionsAnnotations(
     text("α", alphaLabel, 0, -4) +
     text("β", betaLabel, 3, 15) +
     text("C", c1Anchor, 8, fontSize, "1") +
-    `<text x="${(leaderEnd.x + 5).toFixed(3)}" y="${(leaderEnd.y + 8).toFixed(3)}">C<tspan baseline-shift="sub" font-size="70%">2</tspan></text>` +
+    `<text x="${(leaderEnd.x + 5).toFixed(3)}" y="${(leaderEnd.y - 10).toFixed(3)}">C<tspan baseline-shift="sub" font-size="70%">2</tspan></text>` +
     text("45°", Vec3.add(E, new Vec3(-0.5, 0.12, 0)), -fontSize * 0.7, -5) +
     fraction +
     `</g></g>`

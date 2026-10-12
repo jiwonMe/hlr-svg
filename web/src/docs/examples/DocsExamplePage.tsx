@@ -216,7 +216,11 @@ function InteractiveExample({
         position: pos,
         target: orbit.target,
         up: baseDemo.camera.up,
-        fovYRad: baseDemo.camera.fovYRad ?? (55 * Math.PI) / 180,
+        fovYRad:
+          baseDemo.camera.fovYRad ??
+          (baseDemo.camera.halfHeight
+            ? 2 * Math.atan(baseDemo.camera.halfHeight / baseOrbit.radius)
+            : (55 * Math.PI) / 180),
         aspect,
         near: baseDemo.camera.near,
         far: baseDemo.camera.far,
@@ -493,6 +497,7 @@ function InteractiveExample({
               onClick={() => {
                 orbitInput.reset(baseOrbit);
                 setProjection(initialProjection);
+                setPlaying(false);
                 dragRef.current = null;
                 setDragging(false);
               }}
@@ -536,6 +541,7 @@ function InteractiveExample({
             <div className={cn("flex items-center gap-1")}>
               <button
                 type="button"
+                aria-pressed={projection === "perspective"}
                 onClick={() => setProjection("perspective")}
                 className={cn(
                   // 버튼
@@ -558,8 +564,10 @@ function InteractiveExample({
               </button>
               <button
                 type="button"
+                aria-pressed={projection === "isometric"}
                 onClick={() => {
                   setProjection("isometric");
+                  setPlaying(false);
                   orbitInput.reset((o) => ({
                     ...o,
                     azimuth: ISO_AZ,
