@@ -107,7 +107,7 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 0 10px;
-  background: var(--bg, #fff);
+  background: var(--bg);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -284,7 +284,7 @@
   padding: 0 9px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(var(--paper-rgb), 0.94);
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 600;

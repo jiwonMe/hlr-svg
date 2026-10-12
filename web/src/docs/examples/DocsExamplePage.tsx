@@ -28,6 +28,7 @@ import { ExamProvider, Question, type QuestionSpec } from "../../exam/exam";
 import { LEAD_QUESTION, PAPER_QUESTIONS } from "../../exam/questions";
 import { lineRenderOptions, type HiddenLineMode } from "../../exam/lineStyle";
 import { CodeWindow } from "../../site/Code";
+import { useSurfaceTones } from "../../site/theme";
 import {
   EXAMPLES,
   getExampleById,
@@ -170,6 +171,7 @@ function InteractiveExample({
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const diagramRef = useRef<SurfaceDiagramHandle | null>(null);
+  const surfaceTones = useSurfaceTones();
   const { width, height } = useElementSize(wrapRef);
 
   // per-example interactive params
@@ -523,6 +525,7 @@ function InteractiveExample({
                 : undefined
             }
             selectedId={selectedId}
+            tones={surfaceTones}
             onSelect={setSelectedId}
             ariaLabel={`${info.title}. ${t.hint}`}
             interactive={dragging || playing}

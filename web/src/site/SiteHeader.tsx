@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 import { Logo } from "./Logo";
+import { ThemeButton } from "./ThemeToggle";
 import { GITHUB_URL, siteText, type SiteLocale } from "./siteText";
 
 export type SiteHeaderProps = {
@@ -71,6 +72,7 @@ export function SiteHeader({
         </nav>
         <div className="site-header-end">
           {children}
+          <ThemeButton locale={locale} />
           <Link className="btn btn-primary btn-sm" to={`${docs}/quickstart`}>
             {t.start}
           </Link>

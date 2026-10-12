@@ -12,6 +12,7 @@ import {
   buildSurfaceClipPaths,
   lightDirectionFromAngles,
   shadeSurfaceBuffer,
+  type SurfaceTones,
 } from "@hlr/core/surfaceRenderer.js";
 import type { Primitive } from "@hlr/scene/primitive.js";
 import { Scene } from "@hlr/scene/scene.js";
@@ -34,6 +35,8 @@ export type SurfaceDiagramProps = {
     ambient: number;
   };
   selectedId?: string | null;
+  /** Shading greys on screen, e.g. for a dark page; exports stay on white paper. */
+  tones?: Partial<SurfaceTones>;
   onSelect?: (id: string | null) => void;
   onPointerDown?: React.PointerEventHandler<HTMLDivElement>;
   onPointerMove?: React.PointerEventHandler<HTMLDivElement>;
@@ -74,6 +77,7 @@ export const SurfaceDiagram = forwardRef<
     unlitPrimitiveIds,
     lighting,
     selectedId = null,
+    tones,
     onSelect,
     onPointerDown,
     onPointerMove,
@@ -115,9 +119,10 @@ export const SurfaceDiagram = forwardRef<
             ambient,
             selectedId,
             unlitPrimitiveIds,
+            tones,
           })
         : null,
-    [buffer, azimuth, elevation, ambient, selectedId, unlitPrimitiveIds],
+    [buffer, azimuth, elevation, ambient, selectedId, unlitPrimitiveIds, tones],
   );
   const lines = useMemo(() => withoutBackground(lineSvg), [lineSvg]);
   const pickingScene = useMemo(

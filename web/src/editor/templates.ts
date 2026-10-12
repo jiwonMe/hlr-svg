@@ -1,14 +1,22 @@
+import type { CsgOperation } from "@hlr/scene/primitives/csg.js";
 import {
   DEFAULT_SETTINGS,
+  withDefaults,
   type EditorDoc,
   type EditorObject,
+  type PointConstraint,
   type RenderSettings,
 } from "./model";
 import type { Tuple3 } from "./math";
 
-// Omit must distribute over the union to keep each kind's own fields.
-type DraftOf<T> = T extends unknown ? Omit<T, "hidden" | "name"> : never;
-type Draft = DraftOf<EditorObject> & { name?: string };
+// Optional fields must stay per kind, so the helper distributes over the union.
+type Loose<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K & keyof T> & Partial<Pick<T, K & keyof T>>
+  : never;
+type Draft = Loose<
+  EditorObject,
+  "hidden" | "name" | "opaque" | "line" | "arrow" | "mark" | "showValue"
+>;
 
 function doc(
   title: string,
@@ -18,32 +26,68 @@ function doc(
   return {
     version: 1,
     title,
-    objects: drafts.map(
-      (draft) =>
-        ({
-          hidden: false,
-          name: draft.name ?? (draft.label || draft.id),
-          ...draft,
-        }) as EditorObject,
+    objects: drafts.map((draft) =>
+      withDefaults({
+        hidden: false,
+        name: draft.name ?? (draft.label || draft.id),
+        ...draft,
+      } as EditorObject),
     ),
     settings: { ...DEFAULT_SETTINGS, ...settings },
   };
 }
 
-function point(id: string, label: string, position: Tuple3): Draft {
-  return { id, kind: "point", label, name: `점 ${label}`, position };
-}
-
-function segment(id: string, from: string, to: string, arrow = false): Draft {
+function point(
+  id: string,
+  label: string,
+  position: Tuple3,
+  constraint?: PointConstraint,
+): Draft {
   return {
     id,
-    kind: "segment",
-    label: "",
-    from,
-    to,
-    arrow,
-    name: `선분 ${id}`,
+    kind: "point",
+    label,
+    name: `점 ${label}`,
+    position,
+    ...(constraint ? { constraint } : {}),
   };
+}
+
+function segment(
+  id: string,
+  from: string,
+  to: string,
+  options: { arrow?: boolean; line?: "auto" | "dashed" | "solid" } = {},
+): Draft {
+  return { id, kind: "segment", label: "", from, to, name: `선분 ${id}`, ...options };
+}
+
+function face(id: string, points: string[], name = `면 ${id}`): Draft {
+  return { id, kind: "face", label: "", name, points };
+}
+
+function angle(
+  id: string,
+  from: string,
+  vertex: string,
+  to: string,
+  label = "",
+): Draft {
+  return { id, kind: "angle", label, from, vertex, to, radius: 0.36, name: `각 ${from}${vertex}${to}` };
+}
+
+function measure(id: string, from: string, to: string, label: string): Draft {
+  return { id, kind: "measure", label, from, to, name: `길이 ${from}${to}` };
+}
+
+function boolean(
+  id: string,
+  name: string,
+  op: CsgOperation,
+  a: string,
+  b: string,
+): Draft {
+  return { id, kind: "boolean", label: "", name, op, a, b };
 }
 
 export type Template = {
@@ -52,6 +96,9 @@ export type Template = {
   description: string;
   create: () => EditorDoc;
 };
+
+const S3 = Math.sqrt(3);
+const S6 = Math.sqrt(6);
 
 export const TEMPLATES: readonly Template[] = [
   {
@@ -78,8 +125,91 @@ export const TEMPLATES: readonly Template[] = [
           width: 6.4,
           depth: 6.4,
         },
-        point("O", "O", [0, 1.2, 0]),
+        point("O", "O", [0, 1.2, 0], { type: "center", of: "sphere" }),
       ]),
+  },
+  {
+    id: "sphere-two-planes",
+    name: "구와 두 평면",
+    description: "투명한 평면, 작도한 점, 직각과 길이 표시",
+    create: () =>
+      doc(
+        "구와 두 평면",
+        [
+          {
+            id: "S",
+            kind: "sphere",
+            label: "S",
+            name: "구 S",
+            position: [0, 1, 0],
+            radius: 2,
+          },
+          {
+            id: "alpha",
+            kind: "plane",
+            label: "α",
+            name: "평면 α",
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            width: 7,
+            depth: 7,
+          },
+          {
+            id: "beta",
+            kind: "plane",
+            label: "β",
+            name: "평면 β",
+            position: [0, 1.7, 0],
+            rotation: [90, 0, 0],
+            width: 6,
+            depth: 3.4,
+            opaque: false,
+          },
+          point("O", "O", [0, 1, 0], { type: "center", of: "S" }),
+          point("H", "H", [0, 0, 0], { type: "foot", point: "O", onto: "alpha" }),
+          point("A", "A", [S3, 0, 0], {
+            type: "onSphere",
+            sphere: "S",
+            azimuth: 0,
+            elevation: -30,
+          }),
+          segment("OH", "O", "H"),
+          segment("HA", "H", "A"),
+          segment("OA", "O", "A"),
+          angle("OHA", "O", "H", "A"),
+          angle("OAH", "O", "A", "H"),
+          measure("mOH", "O", "H", "1"),
+          measure("mHA", "H", "A", "√3"),
+        ],
+        { grid: false },
+      ),
+  },
+  {
+    id: "tetrahedron",
+    name: "정사면체와 수선의 발",
+    description: "면에 내린 수선, 중점, 이면각 θ",
+    create: () =>
+      doc(
+        "정사면체와 수선의 발",
+        [
+          point("A", "A", [-1.5, 0, S3 / 2]),
+          point("B", "B", [1.5, 0, S3 / 2]),
+          point("C", "C", [0, 0, -S3]),
+          point("D", "D", [0, S6, 0]),
+          face("ABC", ["A", "B", "C"], "면 ABC"),
+          face("DAB", ["D", "A", "B"], "면 DAB"),
+          face("DBC", ["D", "B", "C"], "면 DBC"),
+          face("DCA", ["D", "C", "A"], "면 DCA"),
+          point("H", "H", [0, 0, 0], { type: "foot", point: "D", onto: "ABC" }),
+          point("M", "M", [0, 0, S3 / 2], { type: "midpoint", a: "A", b: "B" }),
+          segment("DH", "D", "H"),
+          segment("DM", "D", "M"),
+          segment("MH", "M", "H"),
+          angle("theta", "D", "M", "H", "θ"),
+          angle("DHM", "D", "H", "M"),
+        ],
+        { pointDots: false, grid: false },
+      ),
   },
   {
     id: "cube-section",
@@ -116,7 +246,7 @@ export const TEMPLATES: readonly Template[] = [
   {
     id: "coordinate-plane",
     name: "좌표공간과 평면 ABC",
-    description: "평면 뒤로 지나는 좌표축이 점선이 됩니다",
+    description: "원점에서 평면에 내린 수선의 발 H",
     // 수학의 (x, y, z)를 y가 위인 장면 좌표 (y, z, x)로 옮겼습니다.
     create: () =>
       doc(
@@ -126,21 +256,20 @@ export const TEMPLATES: readonly Template[] = [
           point("A", "A", [0, 0, 2]),
           point("B", "B", [2, 0, 0]),
           point("C", "C", [0, 2, 0]),
-          point("H", "H", [2 / 3, 2 / 3, 2 / 3]),
           point("x", "x", [0, 0, 3.2]),
           point("y", "y", [3.2, 0, 0]),
           point("z", "z", [0, 3.1, 0]),
-          {
-            id: "ABC",
-            kind: "face",
-            label: "",
-            name: "평면 ABC",
-            points: ["A", "B", "C"],
-          },
-          segment("Ox", "O", "x", true),
-          segment("Oy", "O", "y", true),
-          segment("Oz", "O", "z", true),
+          face("ABC", ["A", "B", "C"], "평면 ABC"),
+          point("H", "H", [2 / 3, 2 / 3, 2 / 3], {
+            type: "foot",
+            point: "O",
+            onto: "ABC",
+          }),
+          segment("Ox", "O", "x", { arrow: true }),
+          segment("Oy", "O", "y", { arrow: true }),
+          segment("Oz", "O", "z", { arrow: true }),
           segment("OH", "O", "H"),
+          angle("OHA", "O", "H", "A"),
         ],
         { pointDots: false, grid: false },
       ),
@@ -271,6 +400,88 @@ export const TEMPLATES: readonly Template[] = [
           position: [-0.45, 1.45, 0.15],
           radius: 1.2,
         },
+      ]),
+  },
+  {
+    id: "drilled-sphere",
+    name: "구멍 뚫린 구",
+    description: "불리언 빼기: 구 − 원기둥",
+    create: () =>
+      doc("구멍 뚫린 구", [
+        {
+          id: "ball",
+          kind: "sphere",
+          label: "",
+          name: "구",
+          position: [0, 1.6, 0],
+          radius: 1.6,
+        },
+        {
+          id: "drill",
+          kind: "cylinder",
+          label: "",
+          name: "원기둥 구멍",
+          position: [0, 1.6, 0],
+          rotation: [0, 0, 0],
+          radius: 0.62,
+          height: 4,
+        },
+        boolean("drilled", "구멍 뚫린 구", "subtract", "ball", "drill"),
+      ]),
+  },
+  {
+    id: "notched-box",
+    name: "모서리를 깎은 직육면체",
+    description: "불리언 빼기: 직육면체 − 구",
+    create: () =>
+      doc("모서리를 깎은 직육면체", [
+        {
+          id: "block",
+          kind: "box",
+          label: "",
+          name: "직육면체",
+          position: [0, 1, 0],
+          rotation: [0, 0, 0],
+          size: [3, 2, 2.4],
+        },
+        {
+          id: "bite",
+          kind: "sphere",
+          label: "",
+          name: "깎을 구",
+          position: [1.5, 2, 1.2],
+          radius: 1.1,
+        },
+        boolean("notched", "깎은 직육면체", "subtract", "block", "bite"),
+      ]),
+  },
+  {
+    id: "steinmetz",
+    name: "두 원기둥의 공통부분",
+    description: "불리언 교집합: 직교하는 두 원기둥",
+    create: () =>
+      doc("두 원기둥의 공통부분", [
+        {
+          id: "along-x",
+          kind: "cylinder",
+          label: "",
+          name: "x축 원기둥",
+          position: [0, 1.2, 0],
+          rotation: [0, 0, 90],
+          radius: 1.2,
+          height: 3.6,
+        },
+        {
+          id: "along-z",
+          kind: "cylinder",
+          label: "",
+          name: "z축 원기둥",
+          position: [0, 1.2, 0],
+          rotation: [90, 0, 0],
+          radius: 1.2,
+          height: 3.6,
+        },
+        boolean("common", "공통부분", "intersect", "along-x", "along-z"),
       ]),
   },
   {

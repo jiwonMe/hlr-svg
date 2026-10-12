@@ -86,7 +86,7 @@
   color: var(--ink);
 }
 .docs-nav-link.is-active {
-  background: #f0f0f0;
+  background: var(--active);
   color: var(--ink);
   font-weight: 600;
 }
@@ -117,7 +117,7 @@
   position: absolute !important;
   inset: 0;
   width: 100%;
-  background: rgba(0, 0, 0, 0.32) !important;
+  background: var(--scrim) !important;
 }
 .docs-drawer-panel {
   position: absolute;
@@ -126,7 +126,7 @@
   overflow-y: auto;
   padding: 16px 16px 32px;
   background: var(--bg);
-  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.16);
+  box-shadow: 12px 0 40px var(--shadow);
 }
 .docs-drawer-head {
   display: flex;
@@ -195,7 +195,7 @@
   padding-top: 8px;
   font-size: 15.5px;
   line-height: 1.85;
-  color: #262626;
+  color: var(--prose);
   word-break: keep-all;
 }
 .prose > :first-child {
@@ -328,6 +328,17 @@
 .prose pre code {
   display: grid;
   font: inherit;
+}
+/* 두 테마로 칠한 코드: 토큰마다 밝은/어두운 색이 변수로 들어 있다. */
+.prose code[data-theme*=" "] span {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style, inherit);
+  font-weight: var(--shiki-light-font-weight, inherit);
+}
+:root[data-theme="dark"] .prose code[data-theme*=" "] span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style, inherit);
+  font-weight: var(--shiki-dark-font-weight, inherit);
 }
 .prose pre[data-language]::before {
   content: attr(data-language);
@@ -480,6 +491,11 @@
   }
   .docs-toc {
     display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .docs .site-header-end .docs-search {
+    width: 150px;
   }
 }
 @media (max-width: 860px) {

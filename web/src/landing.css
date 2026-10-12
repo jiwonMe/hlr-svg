@@ -15,7 +15,7 @@
   border-top: 0;
   text-align: center;
   background:
-    radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.035), transparent 62%),
+    radial-gradient(circle at 50% 0%, rgba(var(--ink-rgb), 0.035), transparent 62%),
     var(--bg);
 }
 .hero::before,

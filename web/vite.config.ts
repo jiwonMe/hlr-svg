@@ -46,6 +46,28 @@ const EXAM_CODE_THEME = {
   ],
 };
 
+// 어두운 화면용: 같은 규칙을 검은 종이 위 흰 분필로.
+const EXAM_CODE_THEME_DARK = {
+  name: "exam-paper-dark",
+  type: "dark",
+  colors: {
+    "editor.background": "#0a0a0a",
+    "editor.foreground": "#ededed",
+  },
+  tokenColors: EXAM_CODE_THEME.tokenColors.map((rule) => ({
+    ...rule,
+    settings: {
+      ...rule.settings,
+      foreground:
+        rule.settings.foreground === "#9b9b9b"
+          ? "#6e6e6e"
+          : rule.settings.foreground === "#616161"
+            ? "#a8a8a8"
+            : "#ededed",
+    },
+  })),
+};
+
 export default defineConfig(({ command }) => {
   /**
    * 배포 환경(Vercel/GitHub Pages)은 사이트가 루트(`/`)가 아닐 수 있어요.
@@ -83,7 +105,7 @@ export default defineConfig(({ command }) => {
             rehypePrettyCode,
             {
               // 시험지처럼 흑백: 키워드는 굵게, 문자열과 주석만 회색으로.
-              theme: EXAM_CODE_THEME,
+              theme: { light: EXAM_CODE_THEME, dark: EXAM_CODE_THEME_DARK },
               keepBackground: false,
             },
           ],

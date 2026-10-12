@@ -28,6 +28,12 @@ const TEXT = {
     fonts: "글꼴 · 부크크 고딕·명조, Pretendard",
     status: "이 사이트의 그림은 모두 HLR SVG로 렌더링했습니다",
     notice: "실제 시험 문항이 아닙니다.",
+    theme: "화면 테마",
+    themeSystem: "시스템 설정 따르기",
+    themeLight: "밝은 화면",
+    themeDark: "어두운 화면",
+    toDark: "어두운 화면으로",
+    toLight: "밝은 화면으로",
   },
   "en-us": {
     home: "HLR SVG home",
@@ -51,6 +57,12 @@ const TEXT = {
     fonts: "Fonts · Bookk Gothic & Myungjo, Pretendard",
     status: "Every figure on this site is rendered with HLR SVG",
     notice: "Not real exam questions.",
+    theme: "Theme",
+    themeSystem: "Match system",
+    themeLight: "Light",
+    themeDark: "Dark",
+    toDark: "Switch to dark theme",
+    toLight: "Switch to light theme",
   },
 } as const;
 

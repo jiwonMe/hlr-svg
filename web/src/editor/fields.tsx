@@ -153,3 +153,47 @@ export function Segmented<T extends string>({
     </div>
   );
 }
+
+/**
+ * A text input that updates the figure as you type. The first keystroke
+ * takes an undo checkpoint, so the whole edit undoes in one step.
+ */
+export function TextField({
+  label,
+  value,
+  placeholder,
+  onBegin,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onBegin: () => void;
+  onChange: (value: string) => void;
+}) {
+  const began = useRef(false);
+  return (
+    <label className="ed-text">
+      <span>{label}</span>
+      <input
+        value={value}
+        placeholder={placeholder}
+        spellCheck={false}
+        onFocus={() => {
+          began.current = false;
+        }}
+        onChange={(event) => {
+          if (!began.current) {
+            onBegin();
+            began.current = true;
+          }
+          onChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === "Escape")
+            event.currentTarget.blur();
+        }}
+      />
+    </label>
+  );
+}

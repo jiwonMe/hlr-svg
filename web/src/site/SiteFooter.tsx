@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "./Logo";
+import { ThemeSwitch } from "./ThemeToggle";
 import {
   GITHUB_URL,
   LICENSE_URL,
@@ -57,6 +58,7 @@ export function SiteFooter({
           {t.status}
         </p>
         <p>{t.notice}</p>
+        <ThemeSwitch locale={locale} />
       </div>
     </footer>
   );

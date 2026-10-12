@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -6,13 +7,16 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  ChevronDown,
   Code2,
   Download,
   FileDown,
   FolderOpen,
+  ImageDown,
   LayoutTemplate,
+  Link2,
   Maximize2,
   Redo2,
   Undo2,
@@ -22,31 +26,41 @@ import { Vec3 } from "@hlr/math/vec3.js";
 import { clamp, type OrbitState } from "./runtime/orbit";
 import { useFrameState } from "./runtime/useFrameState";
 import { LogoMark } from "./site/Logo";
+import { ThemeButton } from "./site/ThemeToggle";
 import { CodeWindow } from "./site/Code";
 import {
   boundsCenter,
+  boundsOf,
   boundsRadius,
   buildScene,
   type Bounds,
+  type BuiltScene,
 } from "./editor/build";
 import { generateCode } from "./editor/codegen";
+import {
+  clipboardText,
+  decodeScene,
+  encodeScene,
+  parseClipboard,
+  svgToPng,
+} from "./editor/exporters";
 import { Segmented } from "./editor/fields";
 import { Inspector } from "./editor/Inspector";
 import { formatNumber, snapValue, vec, type Tuple3 } from "./editor/math";
 import {
-  createFace,
   createObject,
-  createSegment,
   isPositioned,
   KIND_NAMES,
   parseDoc,
+  parseView,
   type EditorDoc,
-  type EditorObject,
-  type ObjectKind,
+  type SavedView,
 } from "./editor/model";
-import { AddPalette, Outliner } from "./editor/Outliner";
-import { editorReducer, type EditorState } from "./editor/state";
+import { AddPalette, Outliner, type ShapeKind } from "./editor/Outliner";
+import { copyClosure, editorReducer, type EditorState } from "./editor/state";
 import { DEFAULT_TEMPLATE, TEMPLATES } from "./editor/templates";
+import type { ToolContext } from "./editor/tools";
+import { movePatches, transformTargets } from "./editor/transform";
 import {
   Viewport,
   type GizmoMode,
@@ -57,7 +71,8 @@ import "./site/site.css";
 import "./exam/exam.css";
 import "./editor/editor.css";
 
-const STORAGE_KEY = "hlr-studio:doc";
+const DOC_KEY = "hlr-studio:doc";
+const VIEW_KEY = "hlr-studio:view";
 
 const VIEWS = {
   // A three-quarter view like exam figures; exact isometric stacks cube corners.
@@ -71,19 +86,51 @@ type ViewName = keyof typeof VIEWS;
 
 const SNAP_OPTIONS = [0, 0.1, 0.25, 0.5, 1] as const;
 
-function loadInitial(): EditorState {
-  let doc: EditorDoc | null = null;
+const MemoPalette = memo(AddPalette);
+const MemoOutliner = memo(Outliner);
+
+function readStorage(key: string): unknown {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) doc = parseDoc(JSON.parse(raw));
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    doc = null;
+    return null;
   }
+}
+
+function writeStorage(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage may be unavailable */
+  }
+}
+
+function loadInitial(): EditorState {
   return {
-    doc: doc ?? DEFAULT_TEMPLATE.create(),
-    selection: null,
+    doc: parseDoc(readStorage(DOC_KEY)) ?? DEFAULT_TEMPLATE.create(),
+    selection: [],
     past: [],
     future: [],
+  };
+}
+
+function toSaved(view: OrbitState, projection: Projection): SavedView {
+  return {
+    target: [view.target.x, view.target.y, view.target.z],
+    radius: view.radius,
+    azimuth: view.azimuth,
+    polar: view.polar,
+    projection,
+  };
+}
+
+function fromSaved(saved: SavedView): OrbitState {
+  return {
+    target: vec(saved.target),
+    radius: saved.radius,
+    azimuth: saved.azimuth,
+    polar: saved.polar,
   };
 }
 
@@ -102,8 +149,21 @@ function fitView(
   };
 }
 
-function download(name: string, content: string, type: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+function selectionBounds(
+  selection: readonly string[],
+  scene: BuiltScene,
+): Bounds | null {
+  const parts = selection
+    .map((id) => scene.bounds.get(id))
+    .filter((b): b is Bounds => !!b);
+  return parts.length
+    ? boundsOf(parts.flatMap((b) => [b.min, b.max]))
+    : scene.sceneBounds;
+}
+
+function download(name: string, content: string | Blob, type: string) {
+  const blob = typeof content === "string" ? new Blob([content], { type }) : content;
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = name;
@@ -128,21 +188,90 @@ function isTyping(target: EventTarget | null) {
   );
 }
 
+type ExportItem = {
+  id: string;
+  label: string;
+  hint: string;
+  icon: React.ReactNode;
+  run: () => void;
+};
+
+function ExportMenu({ items }: { items: readonly ExportItem[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  return (
+    <div className="ed-menu" ref={ref}>
+      <button
+        type="button"
+        className="tool-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <FileDown size={14} />
+        내보내기
+        <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div className="ed-menu-list" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                item.run();
+              }}
+            >
+              {item.icon}
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.hint}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Lays shapes, points and planes out in 3D and draws them as exam figures. */
 export function GeometryPlayground(): React.ReactElement {
   const [state, dispatch] = useReducer(editorReducer, undefined, loadInitial);
   const { doc, selection, past, future } = state;
+  const objects = doc.objects;
   // Settings changes keep the same objects array, so the scene is reused.
-  const scene = useMemo(() => buildScene(doc), [doc.objects]);
-  const [initialView] = useState(() =>
-    fitView(scene.sceneBounds, 1.6, {
-      ...VIEWS.start,
-      target: Vec3.zero(),
-      radius: 12,
-    }),
+  const scene = useMemo(() => buildScene({ objects }), [objects]);
+  const [stored] = useState(() => parseView(readStorage(VIEW_KEY)));
+  const [view, viewInput] = useFrameState<OrbitState>(
+    stored
+      ? fromSaved(stored)
+      : fitView(scene.sceneBounds, 1.6, {
+          ...VIEWS.start,
+          target: Vec3.zero(),
+          radius: 12,
+        }),
   );
-  const [view, viewInput] = useFrameState<OrbitState>(initialView);
-  const [projection, setProjection] = useState<Projection>("orthographic");
+  const [projection, setProjection] = useState<Projection>(
+    stored?.projection ?? "orthographic",
+  );
   const [gizmo, setGizmo] = useState<GizmoMode>("move");
   const [snap, setSnap] = useState<number>(0.5);
   const [renderMs, setRenderMs] = useState(0);
@@ -150,25 +279,33 @@ export function GeometryPlayground(): React.ReactElement {
   const [message, setMessage] = useState("");
   const viewportRef = useRef<ViewportHandle | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const titleEdit = useRef(false);
+  const [params, setParams] = useSearchParams();
 
-  const selected =
-    doc.objects.find((object) => object.id === selection) ?? null;
+  const step = snap || 0.5;
+  const dropX = snapValue(view.target.x, step);
+  const dropZ = snapValue(view.target.z, step);
+  const ctx: ToolContext = useMemo(
+    () => ({ objects, selection, dropAt: [dropX, 0, dropZ] }),
+    [objects, selection, dropX, dropZ],
+  );
 
   // Autosave is a per-browser convenience; failures are silent.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
-      } catch {
-        /* storage may be unavailable */
-      }
-    }, 300);
+    const timer = window.setTimeout(() => writeStorage(DOC_KEY, doc), 300);
     return () => window.clearTimeout(timer);
   }, [doc]);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => writeStorage(VIEW_KEY, toSaved(view, projection)),
+      400,
+    );
+    return () => window.clearTimeout(timer);
+  }, [view, projection]);
 
   useEffect(() => {
     if (!message) return;
-    const timer = window.setTimeout(() => setMessage(""), 2600);
+    const timer = window.setTimeout(() => setMessage(""), 2800);
     return () => window.clearTimeout(timer);
   }, [message]);
 
@@ -185,70 +322,48 @@ export function GeometryPlayground(): React.ReactElement {
   const setView = (name: ViewName) =>
     viewInput.reset((current) => ({ ...current, ...VIEWS[name] }));
 
-  // New shapes land on the floor under the view centre, snapped.
-  const dropPoint = (): Tuple3 => {
-    const target = viewInput.current().target;
-    const step = snap || 0.5;
-    return [snapValue(target.x, step), 0, snapValue(target.z, step)];
-  };
+  const loadScene = useCallback(
+    (next: EditorDoc, saved?: SavedView | null) => {
+      dispatch({ type: "load", doc: next });
+      if (saved) {
+        viewInput.reset(fromSaved(saved));
+        setProjection(saved.projection);
+      } else {
+        viewInput.reset((current) => ({ ...current, ...VIEWS.start }));
+        frame(buildScene(next).sceneBounds);
+      }
+    },
+    [frame, viewInput],
+  );
 
-  const addObject = (kind: ObjectKind) => {
-    const objects = doc.objects;
-    const points = objects.filter((object) => object.kind === "point");
-    const at = dropPoint();
-    const newPoints = (count: number): EditorObject[] => {
-      const made: EditorObject[] = [];
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2 + Math.PI / 6;
-        made.push(
-          createObject([...objects, ...made], "point", [
-            at[0] + 1.5 * Math.cos(angle),
-            at[1],
-            at[2] + 1.5 * Math.sin(angle),
-          ]),
-        );
-      }
-      return made;
+  // Scenes shared as links open once, then the address goes back to normal.
+  useEffect(() => {
+    const code = params.get("scene");
+    if (!code) return;
+    let cancelled = false;
+    void decodeScene(code).then((shared) => {
+      if (cancelled) return;
+      if (shared) {
+        loadScene(shared.doc, shared.view);
+        setMessage(`공유된 장면 ‘${shared.doc.title}’을 열었습니다`);
+      } else setMessage("공유 링크를 읽지 못했습니다");
+      setParams({}, { replace: true });
+    });
+    return () => {
+      cancelled = true;
     };
-    if (kind === "segment") {
-      const tail =
-        selected?.kind === "point" ? selected : points[points.length - 1];
-      const head = points.filter((p) => p.id !== tail?.id).at(-1);
-      if (tail && head)
-        dispatch({ type: "addSegment", from: head.id, to: tail.id });
-      else {
-        const made = newPoints(2);
-        dispatch({
-          type: "addMany",
-          objects: [
-            ...made,
-            createSegment([...objects, ...made], made[0]!.id, made[1]!.id),
-          ],
-        });
-      }
-      return;
-    }
-    if (kind === "face") {
-      const recent = points.slice(-3);
-      if (recent.length === 3)
-        dispatch({ type: "addFace", points: recent.map((p) => p.id) });
-      else {
-        const made = newPoints(3);
-        dispatch({
-          type: "addMany",
-          objects: [
-            ...made,
-            createFace(
-              [...objects, ...made],
-              made.map((p) => p.id),
-            ),
-          ],
-        });
-      }
-      return;
-    }
-    dispatch({ type: "add", object: createObject(objects, kind, at) });
-  };
+  }, [params, setParams, loadScene]);
+
+  const latest = useRef({ doc, selection, snap, scene, dropAt: ctx.dropAt });
+  latest.current = { doc, selection, snap, scene, dropAt: ctx.dropAt };
+
+  const addShape = useCallback((kind: ShapeKind) => {
+    const { doc: current, dropAt } = latest.current;
+    dispatch({
+      type: "add",
+      objects: [createObject(current.objects, kind, dropAt)],
+    });
+  }, []);
 
   const exportSvg = () => {
     const svg = viewportRef.current?.exportSvg();
@@ -257,34 +372,103 @@ export function GeometryPlayground(): React.ReactElement {
     setMessage("SVG로 저장했습니다");
   };
 
+  const exportPng = async () => {
+    const svg = viewportRef.current?.exportSvg();
+    if (!svg) return;
+    try {
+      setMessage("PNG를 만드는 중…");
+      download(`${fileName(doc.title)}.png`, await svgToPng(svg, 2), "image/png");
+      setMessage("PNG(2배 해상도)로 저장했습니다");
+    } catch {
+      setMessage("PNG를 만들지 못했습니다");
+    }
+  };
+
   const saveJson = () => {
     download(
       `${fileName(doc.title)}.json`,
-      JSON.stringify(doc, null, 2),
+      JSON.stringify(
+        { ...doc, view: toSaved(viewInput.current(), projection) },
+        null,
+        2,
+      ),
       "application/json",
     );
-    setMessage("장면을 JSON으로 저장했습니다");
+    setMessage("장면과 시점을 JSON으로 저장했습니다");
   };
 
   const openJson = async (file: File) => {
     try {
-      const parsed = parseDoc(JSON.parse(await file.text()));
+      const value = JSON.parse(await file.text()) as { view?: unknown };
+      const parsed = parseDoc(value);
       if (!parsed) throw new Error("invalid");
-      dispatch({ type: "load", doc: parsed });
-      frame(buildScene(parsed).sceneBounds);
+      loadScene(parsed, parseView(value.view));
       setMessage(`‘${parsed.title}’을 불러왔습니다`);
     } catch {
       setMessage("HLR SVG 장면 파일이 아닙니다");
     }
   };
 
+  const copyLink = async () => {
+    try {
+      const code = await encodeScene({
+        doc,
+        view: toSaved(viewInput.current(), projection),
+      });
+      const url = `${window.location.origin}${window.location.pathname}#/playground?scene=${code}`;
+      await navigator.clipboard.writeText(url);
+      setMessage(`공유 링크를 복사했습니다 (${url.length.toLocaleString()}자)`);
+    } catch {
+      setMessage("링크를 클립보드에 넣지 못했습니다");
+    }
+  };
+
+  // Copy and paste go through the system clipboard as JSON.
+  useEffect(() => {
+    const onCopy = (event: ClipboardEvent, cut: boolean) => {
+      const { doc: current, selection: picked } = latest.current;
+      if (isTyping(event.target) || !picked.length) return;
+      if (window.getSelection()?.toString()) return;
+      const closure = copyClosure(current.objects, picked);
+      event.clipboardData?.setData(
+        "text/plain",
+        clipboardText(closure, picked),
+      );
+      event.preventDefault();
+      if (cut) dispatch({ type: "remove", ids: picked });
+      setMessage(`${picked.length}개를 ${cut ? "잘라 냈습니다" : "복사했습니다"}`);
+    };
+    const copy = (event: ClipboardEvent) => onCopy(event, false);
+    const cut = (event: ClipboardEvent) => onCopy(event, true);
+    const paste = (event: ClipboardEvent) => {
+      if (isTyping(event.target)) return;
+      const pasted = parseClipboard(
+        event.clipboardData?.getData("text/plain") ?? "",
+      );
+      if (!pasted?.objects.length) return;
+      event.preventDefault();
+      dispatch({ type: "paste", objects: pasted.objects, roots: pasted.roots });
+    };
+    document.addEventListener("copy", copy);
+    document.addEventListener("cut", cut);
+    document.addEventListener("paste", paste);
+    return () => {
+      document.removeEventListener("copy", copy);
+      document.removeEventListener("cut", cut);
+      document.removeEventListener("paste", paste);
+    };
+  }, []);
+
   // Keyboard shortcuts read the latest state through a ref.
-  const latest = useRef({ selected, snap, scene });
-  latest.current = { selected, snap, scene };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isTyping(event.target)) return;
-      const { selected: sel, snap: step, scene: built } = latest.current;
+      const {
+        doc: current,
+        selection: picked,
+        snap: grid,
+        scene: built,
+      } = latest.current;
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
       if (mod && key === "z") {
@@ -295,49 +479,113 @@ export function GeometryPlayground(): React.ReactElement {
         dispatch({ type: "redo" });
       } else if (mod && key === "d") {
         event.preventDefault();
-        if (sel) dispatch({ type: "duplicate", id: sel.id });
-      } else if (mod) {
-        return;
-      } else if ((key === "delete" || key === "backspace") && sel) {
+        if (picked.length) dispatch({ type: "duplicate", ids: picked });
+      } else if (mod && key === "a") {
         event.preventDefault();
-        dispatch({ type: "remove", id: sel.id });
+        dispatch({ type: "selectAll" });
+      } else if (mod || event.altKey) {
+        return;
+      } else if ((key === "delete" || key === "backspace") && picked.length) {
+        event.preventDefault();
+        dispatch({ type: "remove", ids: picked });
       } else if (key === "escape") {
         if (dialog) setDialog(null);
-        else dispatch({ type: "select", id: null });
+        else dispatch({ type: "select", ids: [] });
       } else if (key === "w") setGizmo("move");
       else if (key === "e") setGizmo("rotate");
-      else if (key === "f")
-        frame(sel ? (built.bounds.get(sel.id) ?? null) : built.sceneBounds);
-      else if (key === "0") setView("iso");
+      else if (key === "r") setGizmo("scale");
+      else if (key === "f") frame(selectionBounds(picked, built));
+      else if (key === "h" && picked.length) {
+        const hide = !picked.every(
+          (id) => current.objects.find((o) => o.id === id)?.hidden,
+        );
+        dispatch({
+          type: "updateMany",
+          patches: picked.map((id) => ({ id, patch: { hidden: hide } })),
+        });
+      } else if (key === "0") setView("iso");
       else if (key === "1") setView("front");
       else if (key === "3") setView("side");
       else if (key === "7") setView("top");
-      else if (key.startsWith("arrow") && sel && isPositioned(sel)) {
+      else if (key === "5")
+        setProjection((p) =>
+          p === "orthographic" ? "perspective" : "orthographic",
+        );
+      else if (key.startsWith("arrow") && picked.length) {
+        const targets = transformTargets(current.objects, picked);
+        if (!targets.length) return;
         event.preventDefault();
-        const d = step || 0.1;
-        const [x, y, z] = sel.position;
-        const position: Tuple3 =
+        const d = grid || 0.1;
+        const delta: Tuple3 =
           key === "arrowleft"
-            ? [x - d, y, z]
+            ? [-d, 0, 0]
             : key === "arrowright"
-              ? [x + d, y, z]
+              ? [d, 0, 0]
               : event.shiftKey
-                ? [x, y + (key === "arrowup" ? d : -d), z]
-                : [x, y, z + (key === "arrowup" ? -d : d)];
-        dispatch({ type: "update", id: sel.id, patch: { position } });
+                ? [0, key === "arrowup" ? d : -d, 0]
+                : [0, 0, key === "arrowup" ? -d : d];
+        dispatch({ type: "updateMany", patches: movePatches(targets, delta) });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [dialog, frame]);
 
-  const selectionText = selected
-    ? `${KIND_NAMES[selected.kind]} · ${selected.name}${
-        isPositioned(selected)
-          ? ` · (${selected.position.map((v) => formatNumber(v, 2)).join(", ")})`
-          : ""
-      }`
-    : "선택 없음 · 도형을 누르거나 목록에서 고르세요";
+  const single =
+    selection.length === 1
+      ? objects.find((object) => object.id === selection[0])
+      : undefined;
+  const selectionText = single
+    ? `${KIND_NAMES[single.kind]} · ${single.name}${
+        single.kind === "point"
+          ? ` · (${(scene.points.get(single.id) ?? single.position)
+              .map((v) => formatNumber(v, 2))
+              .join(", ")})`
+          : isPositioned(single)
+            ? ` · (${single.position.map((v) => formatNumber(v, 2)).join(", ")})`
+            : ""
+      }${scene.consumed.has(single.id) ? " · 불리언 재료" : ""}`
+    : selection.length > 1
+      ? `${selection.length}개 고름 · Shift+누르기로 더하거나 빼기`
+      : "선택 없음 · 도형을 누르거나 목록에서 고르세요";
+
+  const exportItems: ExportItem[] = [
+    {
+      id: "svg",
+      label: "SVG",
+      hint: "선 그림 그대로, 라벨 포함",
+      icon: <Download size={15} />,
+      run: exportSvg,
+    },
+    {
+      id: "png",
+      label: "PNG",
+      hint: "2배 해상도 그림, 흰 바탕",
+      icon: <ImageDown size={15} />,
+      run: () => void exportPng(),
+    },
+    {
+      id: "json",
+      label: "장면 JSON",
+      hint: "다시 열 수 있는 파일, 시점 포함",
+      icon: <FileDown size={15} />,
+      run: saveJson,
+    },
+    {
+      id: "link",
+      label: "공유 링크 복사",
+      hint: "주소 하나에 장면과 시점을 담습니다",
+      icon: <Link2 size={15} />,
+      run: () => void copyLink(),
+    },
+    {
+      id: "code",
+      label: "TypeScript 코드",
+      hint: "라이브러리로 같은 그림을 그리는 코드",
+      icon: <Code2 size={15} />,
+      run: () => setDialog("code"),
+    },
+  ];
 
   return (
     <div className="site ed">
@@ -354,9 +602,22 @@ export function GeometryPlayground(): React.ReactElement {
           className="ed-title"
           aria-label="장면 이름"
           value={doc.title}
-          onChange={(event) =>
-            dispatch({ type: "title", title: event.target.value })
-          }
+          onFocus={() => {
+            titleEdit.current = false;
+          }}
+          onChange={(event) => {
+            // One undo step per edit, taken on the first keystroke.
+            if (!titleEdit.current) dispatch({ type: "checkpoint" });
+            titleEdit.current = true;
+            dispatch({
+              type: "title",
+              title: event.target.value,
+              transient: true,
+            });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
         />
         <div className="ed-top-actions">
           <button
@@ -379,6 +640,7 @@ export function GeometryPlayground(): React.ReactElement {
           >
             <Redo2 size={16} />
           </button>
+          <ThemeButton className="ed-icon-btn" />
           <span className="ed-top-sep" aria-hidden="true" />
           <button
             type="button"
@@ -396,18 +658,7 @@ export function GeometryPlayground(): React.ReactElement {
             <FolderOpen size={14} />
             열기
           </button>
-          <button type="button" className="tool-btn" onClick={saveJson}>
-            <FileDown size={14} />
-            JSON
-          </button>
-          <button
-            type="button"
-            className="tool-btn"
-            onClick={() => setDialog("code")}
-          >
-            <Code2 size={14} />
-            코드
-          </button>
+          <ExportMenu items={exportItems} />
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -432,10 +683,10 @@ export function GeometryPlayground(): React.ReactElement {
       </header>
 
       <div className="ed-body">
-        <aside className="ed-left" aria-label="도형 추가와 장면 목록">
-          <AddPalette onAdd={addObject} />
-          <Outliner
-            objects={doc.objects}
+        <aside className="ed-left" aria-label="만들기와 장면 목록">
+          <MemoPalette onAdd={addShape} ctx={ctx} dispatch={dispatch} />
+          <MemoOutliner
+            objects={objects}
             selection={selection}
             dispatch={dispatch}
           />
@@ -449,6 +700,7 @@ export function GeometryPlayground(): React.ReactElement {
               options={[
                 { value: "move", label: "이동", title: "이동 (W)" },
                 { value: "rotate", label: "회전", title: "회전 (E)" },
+                { value: "scale", label: "크기", title: "크기 (R)" },
               ]}
               onChange={setGizmo}
             />
@@ -490,22 +742,16 @@ export function GeometryPlayground(): React.ReactElement {
               label="투영"
               value={projection}
               options={[
-                { value: "orthographic", label: "직교" },
-                { value: "perspective", label: "원근" },
+                { value: "orthographic", label: "직교", title: "직교 (5)" },
+                { value: "perspective", label: "원근", title: "원근 (5)" },
               ]}
               onChange={setProjection}
             />
             <button
               type="button"
               className="tool-btn"
-              onClick={() =>
-                frame(
-                  selected
-                    ? (scene.bounds.get(selected.id) ?? null)
-                    : scene.sceneBounds,
-                )
-              }
-              title="선택한 도형에 맞춤 (F)"
+              onClick={() => frame(selectionBounds(selection, scene))}
+              title="고른 도형에 맞춤 (F)"
             >
               <Maximize2 size={14} />
               맞춤
@@ -529,8 +775,8 @@ export function GeometryPlayground(): React.ReactElement {
           <footer className="ed-statusbar">
             <span className="ed-status-selection">{selectionText}</span>
             <span className="ed-status-hint">
-              끌기 회전 · Shift/오른쪽 끌기 이동 · 휠 확대 · W 이동 · E 회전 · F
-              맞춤 · ⌘Z 되돌리기
+              끌기 회전 · Shift 끌기 이동 · Shift+누르기 여럿 · W·E·R
+              이동·회전·크기 · F 맞춤 · ⌘C·⌘V 복사
             </span>
             <span className="ed-status-meta" role="status">
               {message || `렌더 ${renderMs.toFixed(0)}ms · 자동 저장`}
@@ -545,6 +791,7 @@ export function GeometryPlayground(): React.ReactElement {
             selection={selection}
             dispatch={dispatch}
             renderMs={renderMs}
+            ctx={ctx}
           />
         </aside>
       </div>
@@ -593,13 +840,7 @@ export function GeometryPlayground(): React.ReactElement {
                       <button
                         type="button"
                         onClick={() => {
-                          const next = template.create();
-                          dispatch({ type: "load", doc: next });
-                          viewInput.reset((current) => ({
-                            ...current,
-                            ...VIEWS.start,
-                          }));
-                          frame(buildScene(next).sceneBounds);
+                          loadScene(template.create());
                           setDialog(null);
                         }}
                       >
@@ -625,7 +866,7 @@ function CodeDialogBody({
 }: {
   doc: EditorDoc;
   viewport: ViewportHandle | null;
-  scene: ReturnType<typeof buildScene>;
+  scene: BuiltScene;
 }) {
   const code = useMemo(() => {
     if (!viewport) return "";

@@ -308,7 +308,7 @@
   font-size: 11px;
 }
 .example-selected button:hover {
-  background: rgba(13, 138, 78, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
 }
 .example-light {
   display: flex;
@@ -409,7 +409,7 @@
   place-items: center;
   border: 2px dashed var(--ink);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--paper-rgb), 0.86);
   font-family: var(--display);
   font-weight: 700;
   font-size: 18px;

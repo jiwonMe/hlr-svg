@@ -42,6 +42,22 @@
   --plus: #9a9a9a;
   --accent: #0d8a4e;
   --accent-wash: #e6f4ec;
+  /* 같은 이름이 어두운 화면에서는 아래 값으로 바뀐다. */
+  --on-ink: #ffffff;
+  --ink-hover: #2e2e2e;
+  --hover: #f3f3f3;
+  --active: #ededed;
+  --paper-rgb: 255, 255, 255;
+  --ink-rgb: 10, 10, 10;
+  --accent-rgb: 13, 138, 78;
+  --scrim: rgba(10, 10, 10, 0.32);
+  --shadow: rgba(0, 0, 0, 0.35);
+  --tok-string: #616161;
+  --tok-comment: #9b9b9b;
+  --prose: #262626;
+  --grid-minor: #f1f1f1;
+  --grid-major: #e3e3e3;
+  --grid-axis: #c9c9c9;
   --serif: "Bookk Myungjo", "AppleMyungjo", "Nanum Myeongjo", "Batang", serif;
   --display:
     "Bookk Gothic", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
@@ -66,6 +82,40 @@
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+/* 어두운 화면: 검은 종이에 흰 분필. 그림도 같은 토큰을 따라 뒤집힌다. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  background: #0a0a0a;
+}
+:root[data-theme="dark"] .site {
+  --bg: #0a0a0a;
+  --wash: #111111;
+  --ink: #ededed;
+  --ink-2: #a1a1a1;
+  --ink-3: #707070;
+  --line: #222222;
+  --line-2: #333333;
+  --plus: #555555;
+  --accent: #3ecf8e;
+  --accent-wash: #0d2a1c;
+  --on-ink: #0a0a0a;
+  --ink-hover: #c8c8c8;
+  --hover: #1a1a1a;
+  --active: #242424;
+  --paper-rgb: 10, 10, 10;
+  --ink-rgb: 237, 237, 237;
+  --accent-rgb: 62, 207, 142;
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow: rgba(0, 0, 0, 0.7);
+  --tok-string: #a8a8a8;
+  --tok-comment: #6e6e6e;
+  --prose: #d4d4d4;
+  --grid-minor: #151515;
+  --grid-major: #1f1f1f;
+  --grid-axis: #333333;
+  color-scheme: dark;
+}
+
 /* Resets stay at element specificity so component classes always win. */
 :where(.site) *,
 :where(.site) *::before,
@@ -113,11 +163,74 @@
   padding: 10px 16px;
   border-radius: 8px;
   background: var(--ink);
-  color: #fff !important;
+  color: var(--on-ink) !important;
   font-weight: 600;
 }
 .skip-link:focus {
   top: 12px;
+}
+
+/* ── 그림: 라이브러리가 쓴 먹색·흰 테두리를 화면 토큰으로 ──────────────── */
+/* 저장하는 SVG는 그대로 흑백이고, 화면에서만 테마를 따른다. */
+:is(.fig-canvas, .example-canvas, .ed-surface)
+  svg
+  :is([fill="#0a0a0a"], [fill="#141414"], [fill="black"]) {
+  fill: var(--ink);
+}
+/* 흰 테두리(라벨의 바탕 테, 선을 끊는 흰 선)와 흰 칠은 종이 색을 따른다. */
+:is(.fig-canvas, .example-canvas, .ed-surface)
+  svg
+  :is(.fig-labels, [stroke="white"], [stroke="#fff"], [stroke="#ffffff"]) {
+  stroke: var(--bg);
+}
+:is(.fig-canvas, .example-canvas, .ed-surface)
+  svg
+  :is([fill="white"], [fill="#fff"], [fill="#ffffff"]) {
+  fill: var(--bg);
+}
+
+/* ── 테마 단추 ────────────────────────────────────────────────────────── */
+.theme-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line-2) !important;
+  border-radius: 999px;
+  color: var(--ink-2);
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.theme-btn:hover {
+  border-color: var(--ink) !important;
+  color: var(--ink);
+}
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+}
+.theme-switch button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.theme-switch button:hover {
+  color: var(--ink);
+}
+.theme-switch button[aria-checked="true"] {
+  background: var(--active);
+  color: var(--ink);
 }
 
 /* ── 로고 ─────────────────────────────────────────────────────────────── */
@@ -128,6 +241,7 @@
   color: var(--ink);
 }
 .logo-word {
+  white-space: nowrap;
   font-family: var(--display);
   font-weight: 700;
   font-size: 19px;
@@ -141,7 +255,7 @@
   top: 0;
   z-index: 40;
   height: var(--header);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--paper-rgb), 0.86);
   border-bottom: 1px solid var(--line);
   -webkit-backdrop-filter: saturate(1.4) blur(10px);
   backdrop-filter: saturate(1.4) blur(10px);
@@ -179,6 +293,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  white-space: nowrap;
   transition: color 0.15s;
 }
 .site-nav a:hover,
@@ -222,10 +337,10 @@
 }
 .btn-primary {
   background: var(--ink);
-  color: #fff !important;
+  color: var(--on-ink) !important;
 }
 .btn-primary:hover {
-  background: #2e2e2e;
+  background: var(--ink-hover);
 }
 .btn-secondary {
   background: var(--bg);
@@ -233,7 +348,7 @@
   color: var(--ink);
 }
 .btn-secondary:hover {
-  background: #f3f3f3;
+  background: var(--hover);
 }
 .btn-lg {
   height: 48px;
@@ -280,7 +395,7 @@
 .tool-btn[aria-pressed="true"] {
   border-color: var(--ink) !important;
   background: var(--ink) !important;
-  color: #fff;
+  color: var(--on-ink);
 }
 /* ── 분할 단추 ─────────────────────────────────────────────────── */
 .seg {
@@ -309,7 +424,7 @@
 }
 .seg button[aria-pressed="true"] {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 .seg-sm {
   padding: 2px;
@@ -342,7 +457,7 @@
   padding: 3px 11px;
   border-radius: 999px;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -496,7 +611,7 @@ a.exam-pill:hover .exam-pill-text {
   font-weight: 600;
 }
 .code-window-copy:hover {
-  background: #ededed;
+  background: var(--active);
   color: var(--ink);
 }
 .code-window-body {
@@ -513,10 +628,10 @@ a.exam-pill:hover .exam-pill-text {
   font-weight: 700;
 }
 .tok-s {
-  color: #616161;
+  color: var(--tok-string);
 }
 .tok-c {
-  color: #9b9b9b;
+  color: var(--tok-comment);
   font-style: italic;
 }
 
@@ -563,6 +678,7 @@ a.exam-pill:hover .exam-pill-text {
 .site-footer-base {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: 8px 24px;
   width: min(var(--frame), 100% - 2 * var(--gutter));
@@ -603,7 +719,7 @@ a.exam-pill:hover .exam-pill-text {
     padding: 6px var(--gutter) 14px;
     border-bottom: 1px solid var(--line);
     background: var(--bg);
-    box-shadow: 0 18px 30px -24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 18px 30px -24px var(--shadow);
   }
   .site-mobile-nav a {
     display: flex;

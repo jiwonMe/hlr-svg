@@ -162,3 +162,42 @@ export function isRightAngleRotation(rotation: Tuple3): boolean {
     (value) => Math.abs(value / 90 - Math.round(value / 90)) < 1e-6,
   );
 }
+
+/** Local axes of a rotated object in world space. */
+export function frameOf(rotation: Tuple3) {
+  const m = eulerToMatrix(rotation);
+  return {
+    right: applyMat(m, [1, 0, 0]),
+    up: applyMat(m, [0, 1, 0]),
+    forward: applyMat(m, [0, 0, 1]),
+  };
+}
+
+export function sub3(a: Tuple3, b: Tuple3): Tuple3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+export function dot3(a: Tuple3, b: Tuple3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+export function cross3(a: Tuple3, b: Tuple3): Tuple3 {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+export function length3(a: Tuple3): number {
+  return Math.hypot(a[0], a[1], a[2]);
+}
+
+export function normalize3(a: Tuple3): Tuple3 {
+  const l = length3(a);
+  return l < 1e-12 ? [0, 0, 0] : [a[0] / l, a[1] / l, a[2] / l];
+}
+
+export function lerp3(a: Tuple3, b: Tuple3, t: number): Tuple3 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
