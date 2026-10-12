@@ -1,15 +1,25 @@
-import type { Camera } from "../camera/camera.js";
+import { Camera } from "../camera/camera.js";
 import type { CubicBezier3 } from "../curves/cubicBezier3.js";
 import type { Primitive } from "../scene/primitive.js";
 import { TriangleMesh } from "../scene/primitives/triangleMesh.js";
-import { intersectionCurvesToOwnedCubics } from "../scene/intersections/intersectionCurves.js";
+import {
+  cachedIntersectionCurvesToOwnedCubics,
+  intersectionGeometrySignature,
+  intersectionCurvesToOwnedCubics,
+} from "../scene/intersections/intersectionCurves.js";
 import {
   splitCubicByVisibility,
   splitCubicByVisibilityWithIgnore,
   splitLineCubicByVisibilityAdaptive,
   type StyledPiece,
 } from "../hlr/splitByVisibility.js";
-import { piecesToSvg, type SvgRenderOptions, type SvgStyle } from "../svg/svgWriter.js";
+import {
+  projectPiecesToSvgPaths,
+  projectedPathsToSvg,
+  type ProjectedSvgPath,
+  type SvgRenderOptions,
+  type SvgStyle,
+} from "../svg/svgWriter.js";
 import {
   curvesFromPrimitives,
   meshFeatureCurves,
@@ -17,7 +27,14 @@ import {
   type MeshCurveOptions,
 } from "./curves.js";
 import { Scene } from "./scene.js";
+import { Scene as RaycastScene } from "../scene/scene.js";
 import type { Profiler } from "./profiler.js";
+
+const originalProjectToSvg = Camera.prototype.projectToSvg;
+const originalProjectToNdc = Camera.prototype.projectToNdc;
+const originalToRaycastScene = Scene.prototype.toRaycastScene;
+const originalVisibleAtPoint = RaycastScene.prototype.visibleAtPoint;
+const originalRaycastClosest = RaycastScene.prototype.raycastClosest;
 
 export type HlrParams = {
   samples: number;
@@ -92,6 +109,7 @@ function defaultInclude(): Required<RenderInclude> {
  * ```
  */
 export class SvgRenderer {
+  private projectedCache?: { key: string; paths: readonly ProjectedSvgPath[] };
   private readonly base: Pick<
     RenderOptions,
     | "width"
@@ -109,23 +127,118 @@ export class SvgRenderer {
     this.base = opts;
   }
 
-  render(scene: Scene, camera: Camera, opts: Partial<Omit<RenderOptions, "width" | "height">> = {}): string {
+  render(
+    scene: Scene,
+    camera: Camera,
+    opts: Partial<Omit<RenderOptions, "width" | "height">> = {},
+  ): string {
     const width = this.base.width;
     const height = this.base.height;
     const profiler = opts.profiler ?? this.base.profiler;
     if (profiler) profiler.reset();
     if (profiler) profiler.begin("render.total");
 
-    const include = { ...defaultInclude(), ...(this.base.include ?? {}), ...(opts.include ?? {}) };
-    const ix = { ...DEFAULT_INTERSECTION_PARAMS, ...(this.base.intersections ?? {}), ...(opts.intersections ?? {}) };
-    const mesh = { ...DEFAULT_MESH_PARAMS, ...(this.base.mesh ?? {}), ...(opts.mesh ?? {}) };
+    const include = {
+      ...defaultInclude(),
+      ...(this.base.include ?? {}),
+      ...(opts.include ?? {}),
+    };
+    const ix = {
+      ...DEFAULT_INTERSECTION_PARAMS,
+      ...(this.base.intersections ?? {}),
+      ...(opts.intersections ?? {}),
+    };
+    const mesh = {
+      ...DEFAULT_MESH_PARAMS,
+      ...(this.base.mesh ?? {}),
+      ...(opts.mesh ?? {}),
+    };
 
     const primitives = scene.primitives;
     const hasTriangleMesh = primitives.some((p) => p instanceof TriangleMesh);
     const hlrDefaults = hasTriangleMesh
       ? { ...DEFAULT_HLR_PARAMS, coarseSamples: 24 }
       : DEFAULT_HLR_PARAMS;
-    const hlr = { ...hlrDefaults, ...(this.base.hlr ?? {}), ...(opts.hlr ?? {}) };
+    const hlr = {
+      ...hlrDefaults,
+      ...(this.base.hlr ?? {}),
+      ...(opts.hlr ?? {}),
+    };
+    const svgOpts: SvgRenderOptions = {
+      width,
+      height,
+      background: opts.background ?? this.base.background,
+      style: { ...(this.base.style ?? {}), ...(opts.style ?? {}) },
+    };
+    // Serializing an entire mesh each frame can cost more than rendering it.
+    // Value-based caches are reserved for the small analytic scene descriptions.
+    const geometry = hasTriangleMesh
+      ? undefined
+      : intersectionGeometrySignature(primitives);
+    const cacheKey =
+      geometry === undefined
+        ? undefined
+        : geometry +
+          JSON.stringify([
+            width,
+            height,
+            camera.kind,
+            camera.near,
+            camera.far,
+            camera.fovYRad,
+            camera.halfHeight,
+            camera.position.x,
+            camera.position.y,
+            camera.position.z,
+            camera.forward.x,
+            camera.forward.y,
+            camera.forward.z,
+            camera.view.m,
+            camera.proj.m,
+            include,
+            ix,
+            mesh,
+            hlr,
+            opts.curves?.map((b) => [
+              b.p0.x,
+              b.p0.y,
+              b.p0.z,
+              b.p1.x,
+              b.p1.y,
+              b.p1.z,
+              b.p2.x,
+              b.p2.y,
+              b.p2.z,
+              b.p3.x,
+              b.p3.y,
+              b.p3.z,
+            ]),
+          ]);
+    const cameraMethods =
+      Object.getPrototypeOf(camera) === Camera.prototype &&
+      camera.projectToSvg === originalProjectToSvg &&
+      camera.projectToNdc === originalProjectToNdc &&
+      Object.getPrototypeOf(scene) === Scene.prototype &&
+      scene.toRaycastScene === originalToRaycastScene &&
+      RaycastScene.prototype.visibleAtPoint === originalVisibleAtPoint &&
+      RaycastScene.prototype.raycastClosest === originalRaycastClosest;
+    if (
+      cacheKey !== undefined &&
+      cameraMethods &&
+      this.projectedCache?.key === cacheKey
+    ) {
+      if (profiler) {
+        profiler.inc("render.visibility.cacheHit");
+        profiler.begin("render.svgWrite");
+      }
+      const out = projectedPathsToSvg(this.projectedCache.paths, svgOpts);
+      if (profiler) {
+        profiler.end("render.svgWrite");
+        profiler.end("render.total");
+      }
+      return out;
+    }
+    this.projectedCache = undefined;
     const cubics: CubicBezier3[] = [];
     const meshCubics: CubicBezier3[] = [];
 
@@ -149,18 +262,26 @@ export class SvgRenderer {
 
     // 3) Intersection curves (owned intersections): participating primitives are partially ignored in visibility rays
     if (profiler) profiler.begin("render.intersections");
+    const intersectionsForScene = hasTriangleMesh
+      ? intersectionCurvesToOwnedCubics
+      : cachedIntersectionCurvesToOwnedCubics;
     const ownedIntersections = include.intersections
-      ? intersectionCurvesToOwnedCubics(primitives, { angularSamples: ix.angularSamples, useBezierFit: ix.useBezierFit, fitMode: ix.fitMode })
+      ? intersectionsForScene(primitives, {
+          angularSamples: ix.angularSamples,
+          useBezierFit: ix.useBezierFit,
+          fitMode: ix.fitMode,
+        })
       : [];
     if (profiler) profiler.end("render.intersections");
 
-    const rayScene = scene.toRaycastScene(camera, profiler);
+    const rayScene = scene.toRaycastScene(camera, profiler, true);
 
     const hiddenPieces: StyledPiece[] = [];
     const visiblePieces: StyledPiece[] = [];
     if (profiler) profiler.begin("render.visibilitySplit");
     for (const b of cubics) {
-      for (const p of splitCubicByVisibility(b, rayScene, hlr)) (p.visible ? visiblePieces : hiddenPieces).push(p);
+      for (const p of splitCubicByVisibility(b, rayScene, hlr))
+        (p.visible ? visiblePieces : hiddenPieces).push(p);
     }
     for (const b of meshCubics) {
       for (const p of splitLineCubicByVisibilityAdaptive(
@@ -175,7 +296,12 @@ export class SvgRenderer {
       }
     }
     for (const x of ownedIntersections) {
-      for (const p of splitCubicByVisibilityWithIgnore(x.bez, rayScene, hlr, x.ignorePrimitiveIds)) {
+      for (const p of splitCubicByVisibilityWithIgnore(
+        x.bez,
+        rayScene,
+        hlr,
+        x.ignorePrimitiveIds,
+      )) {
         (p.visible ? visiblePieces : hiddenPieces).push(p);
       }
     }
@@ -184,15 +310,11 @@ export class SvgRenderer {
     // Place dashed (hidden) below solid (visible), but keep per-curve order within each group.
     const sorted = [...hiddenPieces, ...visiblePieces];
 
-    const svgOpts: SvgRenderOptions = {
-      width,
-      height,
-      background: opts.background ?? this.base.background,
-      style: { ...(this.base.style ?? {}), ...(opts.style ?? {}) },
-    };
-
     if (profiler) profiler.begin("render.svgWrite");
-    const out = piecesToSvg(sorted, camera, svgOpts);
+    const paths = projectPiecesToSvgPaths(sorted, camera, width, height);
+    if (cacheKey !== undefined && cameraMethods)
+      this.projectedCache = { key: cacheKey, paths };
+    const out = projectedPathsToSvg(paths, svgOpts);
     if (profiler) profiler.end("render.svgWrite");
     if (profiler) profiler.end("render.total");
     return out;

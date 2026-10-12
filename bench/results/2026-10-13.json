@@ -1,0 +1,1135 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-13",
+  "baseline": {
+    "commit": "42da7e5dcba0aac2b12c068ea8b1ebfbd5c65141",
+    "source": "Built git archive of the actual baseline commit",
+    "measurements": {
+      "node": "v24.19.0",
+      "rows": [
+        {
+          "name": "sphere-cylinder",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 7.761,
+            "p95Ms": 8.817
+          },
+          "orbit": {
+            "medianMs": 7.519,
+            "p95Ms": 8.534
+          },
+          "style": {
+            "medianMs": 7.885,
+            "p95Ms": 8.503
+          },
+          "surface720": {
+            "medianMs": 48.589,
+            "p95Ms": 49.623
+          },
+          "surface320": {
+            "medianMs": 9.804,
+            "p95Ms": 10.159
+          },
+          "lighting": {
+            "medianMs": 0.644,
+            "p95Ms": 0.712
+          }
+        },
+        {
+          "name": "sphere-cylinder",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 7.655,
+            "p95Ms": 8.623
+          },
+          "orbit": {
+            "medianMs": 7.921,
+            "p95Ms": 8.254
+          },
+          "style": {
+            "medianMs": 7.64,
+            "p95Ms": 8.582
+          },
+          "surface720": {
+            "medianMs": 60.985,
+            "p95Ms": 61.673
+          },
+          "surface320": {
+            "medianMs": 12.212,
+            "p95Ms": 13.011
+          },
+          "lighting": {
+            "medianMs": 0.654,
+            "p95Ms": 0.86
+          }
+        },
+        {
+          "name": "cone-sphere",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 7.188,
+            "p95Ms": 8.553
+          },
+          "orbit": {
+            "medianMs": 6.942,
+            "p95Ms": 7.541
+          },
+          "style": {
+            "medianMs": 6.896,
+            "p95Ms": 7.732
+          },
+          "surface720": {
+            "medianMs": 45.782,
+            "p95Ms": 46.577
+          },
+          "surface320": {
+            "medianMs": 8.992,
+            "p95Ms": 9.452
+          },
+          "lighting": {
+            "medianMs": 0.678,
+            "p95Ms": 0.906
+          }
+        },
+        {
+          "name": "cone-sphere",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 6.947,
+            "p95Ms": 7.617
+          },
+          "orbit": {
+            "medianMs": 7.025,
+            "p95Ms": 8.011
+          },
+          "style": {
+            "medianMs": 7.016,
+            "p95Ms": 7.714
+          },
+          "surface720": {
+            "medianMs": 50.877,
+            "p95Ms": 52.705
+          },
+          "surface320": {
+            "medianMs": 10.036,
+            "p95Ms": 10.896
+          },
+          "lighting": {
+            "medianMs": 0.64,
+            "p95Ms": 0.807
+          }
+        },
+        {
+          "name": "sphere-sphere",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 0.294,
+            "p95Ms": 0.357
+          },
+          "orbit": {
+            "medianMs": 0.262,
+            "p95Ms": 0.308
+          },
+          "style": {
+            "medianMs": 0.257,
+            "p95Ms": 0.282
+          },
+          "surface720": {
+            "medianMs": 27.209,
+            "p95Ms": 28.237
+          },
+          "surface320": {
+            "medianMs": 5.233,
+            "p95Ms": 5.733
+          },
+          "lighting": {
+            "medianMs": 0.683,
+            "p95Ms": 0.81
+          }
+        },
+        {
+          "name": "sphere-sphere",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 0.286,
+            "p95Ms": 0.327
+          },
+          "orbit": {
+            "medianMs": 0.263,
+            "p95Ms": 0.32
+          },
+          "style": {
+            "medianMs": 0.244,
+            "p95Ms": 0.368
+          },
+          "surface720": {
+            "medianMs": 33.12,
+            "p95Ms": 33.814
+          },
+          "surface320": {
+            "medianMs": 6.567,
+            "p95Ms": 7.045
+          },
+          "lighting": {
+            "medianMs": 0.743,
+            "p95Ms": 0.853
+          }
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "source": "Uncommitted optimized working tree based on baseline commit; current built dist",
+    "measurements": {
+      "node": "v24.19.0",
+      "rows": [
+        {
+          "name": "sphere-cylinder",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 0.012,
+            "p95Ms": 0.038
+          },
+          "orbit": {
+            "medianMs": 1.747,
+            "p95Ms": 2.044
+          },
+          "style": {
+            "medianMs": 0.012,
+            "p95Ms": 0.014
+          },
+          "surface720": {
+            "medianMs": 9.384,
+            "p95Ms": 19.789
+          },
+          "surface320": {
+            "medianMs": 1.969,
+            "p95Ms": 2.144
+          },
+          "lighting": {
+            "medianMs": 0.693,
+            "p95Ms": 0.765
+          }
+        },
+        {
+          "name": "sphere-cylinder",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 0.012,
+            "p95Ms": 0.013
+          },
+          "orbit": {
+            "medianMs": 1.663,
+            "p95Ms": 1.824
+          },
+          "style": {
+            "medianMs": 0.012,
+            "p95Ms": 0.022
+          },
+          "surface720": {
+            "medianMs": 16.276,
+            "p95Ms": 23.813
+          },
+          "surface320": {
+            "medianMs": 3.362,
+            "p95Ms": 3.622
+          },
+          "lighting": {
+            "medianMs": 0.717,
+            "p95Ms": 0.801
+          }
+        },
+        {
+          "name": "cone-sphere",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 0.01,
+            "p95Ms": 0.013
+          },
+          "orbit": {
+            "medianMs": 1.315,
+            "p95Ms": 1.532
+          },
+          "style": {
+            "medianMs": 0.01,
+            "p95Ms": 0.01
+          },
+          "surface720": {
+            "medianMs": 12.769,
+            "p95Ms": 18.656
+          },
+          "surface320": {
+            "medianMs": 2.582,
+            "p95Ms": 2.75
+          },
+          "lighting": {
+            "medianMs": 0.688,
+            "p95Ms": 0.834
+          }
+        },
+        {
+          "name": "cone-sphere",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 0.01,
+            "p95Ms": 0.044
+          },
+          "orbit": {
+            "medianMs": 1.404,
+            "p95Ms": 1.537
+          },
+          "style": {
+            "medianMs": 0.011,
+            "p95Ms": 0.019
+          },
+          "surface720": {
+            "medianMs": 20.523,
+            "p95Ms": 22.237
+          },
+          "surface320": {
+            "medianMs": 3.997,
+            "p95Ms": 4.394
+          },
+          "lighting": {
+            "medianMs": 0.629,
+            "p95Ms": 0.824
+          }
+        },
+        {
+          "name": "sphere-sphere",
+          "kind": "orthographic",
+          "stationary": {
+            "medianMs": 0.006,
+            "p95Ms": 0.007
+          },
+          "orbit": {
+            "medianMs": 0.28,
+            "p95Ms": 0.381
+          },
+          "style": {
+            "medianMs": 0.005,
+            "p95Ms": 0.006
+          },
+          "surface720": {
+            "medianMs": 9.409,
+            "p95Ms": 9.944
+          },
+          "surface320": {
+            "medianMs": 1.921,
+            "p95Ms": 2.062
+          },
+          "lighting": {
+            "medianMs": 0.684,
+            "p95Ms": 0.746
+          }
+        },
+        {
+          "name": "sphere-sphere",
+          "kind": "perspective",
+          "stationary": {
+            "medianMs": 0.006,
+            "p95Ms": 0.01
+          },
+          "orbit": {
+            "medianMs": 0.267,
+            "p95Ms": 0.366
+          },
+          "style": {
+            "medianMs": 0.006,
+            "p95Ms": 0.008
+          },
+          "surface720": {
+            "medianMs": 15.085,
+            "p95Ms": 16.142
+          },
+          "surface320": {
+            "medianMs": 3.063,
+            "p95Ms": 3.442
+          },
+          "lighting": {
+            "medianMs": 0.704,
+            "p95Ms": 0.801
+          }
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "node": "v24.19.0",
+    "v8": "13.6.233.17-node.51",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "macOS": "26.6.2",
+    "macOSBuild": "25G83",
+    "cpuModel": null
+  },
+  "method": {
+    "script": "bench/render-performance.mjs",
+    "sequentialRuns": true,
+    "warmupCalls": 6,
+    "measuredCalls": {
+      "default": 24,
+      "surface720": 12
+    },
+    "median": "sorted[floor(n / 2)]",
+    "p95": "sorted[min(n - 1, floor(n * 0.95))]",
+    "units": "milliseconds",
+    "baselineAndCandidateUseSameScript": true,
+    "browserFrameRateMeasured": false,
+    "limitations": [
+      "Single local run with unpinned CPU frequency and OS scheduling",
+      "surface720 p95 is the maximum of 12 samples",
+      "Stationary and style include warm geometry-cache reuse",
+      "Excludes React, canvas encoding, export clip generation, layout, GPU and network"
+    ]
+  },
+  "comparisons": [
+    {
+      "name": "sphere-cylinder",
+      "kind": "orthographic",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 7.761,
+            "p95Ms": 8.817
+          },
+          "candidate": {
+            "medianMs": 0.012,
+            "p95Ms": 0.038
+          },
+          "medianSpeedup": 646.75,
+          "medianChangePercent": -99.845
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 7.519,
+            "p95Ms": 8.534
+          },
+          "candidate": {
+            "medianMs": 1.747,
+            "p95Ms": 2.044
+          },
+          "medianSpeedup": 4.304,
+          "medianChangePercent": -76.766
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 7.885,
+            "p95Ms": 8.503
+          },
+          "candidate": {
+            "medianMs": 0.012,
+            "p95Ms": 0.014
+          },
+          "medianSpeedup": 657.083,
+          "medianChangePercent": -99.848
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 48.589,
+            "p95Ms": 49.623
+          },
+          "candidate": {
+            "medianMs": 9.384,
+            "p95Ms": 19.789
+          },
+          "medianSpeedup": 5.178,
+          "medianChangePercent": -80.687
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 9.804,
+            "p95Ms": 10.159
+          },
+          "candidate": {
+            "medianMs": 1.969,
+            "p95Ms": 2.144
+          },
+          "medianSpeedup": 4.979,
+          "medianChangePercent": -79.916
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.644,
+            "p95Ms": 0.712
+          },
+          "candidate": {
+            "medianMs": 0.693,
+            "p95Ms": 0.765
+          },
+          "medianSpeedup": 0.929,
+          "medianChangePercent": 7.609
+        }
+      }
+    },
+    {
+      "name": "sphere-cylinder",
+      "kind": "perspective",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 7.655,
+            "p95Ms": 8.623
+          },
+          "candidate": {
+            "medianMs": 0.012,
+            "p95Ms": 0.013
+          },
+          "medianSpeedup": 637.917,
+          "medianChangePercent": -99.843
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 7.921,
+            "p95Ms": 8.254
+          },
+          "candidate": {
+            "medianMs": 1.663,
+            "p95Ms": 1.824
+          },
+          "medianSpeedup": 4.763,
+          "medianChangePercent": -79.005
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 7.64,
+            "p95Ms": 8.582
+          },
+          "candidate": {
+            "medianMs": 0.012,
+            "p95Ms": 0.022
+          },
+          "medianSpeedup": 636.667,
+          "medianChangePercent": -99.843
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 60.985,
+            "p95Ms": 61.673
+          },
+          "candidate": {
+            "medianMs": 16.276,
+            "p95Ms": 23.813
+          },
+          "medianSpeedup": 3.747,
+          "medianChangePercent": -73.311
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 12.212,
+            "p95Ms": 13.011
+          },
+          "candidate": {
+            "medianMs": 3.362,
+            "p95Ms": 3.622
+          },
+          "medianSpeedup": 3.632,
+          "medianChangePercent": -72.47
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.654,
+            "p95Ms": 0.86
+          },
+          "candidate": {
+            "medianMs": 0.717,
+            "p95Ms": 0.801
+          },
+          "medianSpeedup": 0.912,
+          "medianChangePercent": 9.633
+        }
+      }
+    },
+    {
+      "name": "cone-sphere",
+      "kind": "orthographic",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 7.188,
+            "p95Ms": 8.553
+          },
+          "candidate": {
+            "medianMs": 0.01,
+            "p95Ms": 0.013
+          },
+          "medianSpeedup": 718.8,
+          "medianChangePercent": -99.861
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 6.942,
+            "p95Ms": 7.541
+          },
+          "candidate": {
+            "medianMs": 1.315,
+            "p95Ms": 1.532
+          },
+          "medianSpeedup": 5.279,
+          "medianChangePercent": -81.057
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 6.896,
+            "p95Ms": 7.732
+          },
+          "candidate": {
+            "medianMs": 0.01,
+            "p95Ms": 0.01
+          },
+          "medianSpeedup": 689.6,
+          "medianChangePercent": -99.855
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 45.782,
+            "p95Ms": 46.577
+          },
+          "candidate": {
+            "medianMs": 12.769,
+            "p95Ms": 18.656
+          },
+          "medianSpeedup": 3.585,
+          "medianChangePercent": -72.109
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 8.992,
+            "p95Ms": 9.452
+          },
+          "candidate": {
+            "medianMs": 2.582,
+            "p95Ms": 2.75
+          },
+          "medianSpeedup": 3.483,
+          "medianChangePercent": -71.286
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.678,
+            "p95Ms": 0.906
+          },
+          "candidate": {
+            "medianMs": 0.688,
+            "p95Ms": 0.834
+          },
+          "medianSpeedup": 0.985,
+          "medianChangePercent": 1.475
+        }
+      }
+    },
+    {
+      "name": "cone-sphere",
+      "kind": "perspective",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 6.947,
+            "p95Ms": 7.617
+          },
+          "candidate": {
+            "medianMs": 0.01,
+            "p95Ms": 0.044
+          },
+          "medianSpeedup": 694.7,
+          "medianChangePercent": -99.856
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 7.025,
+            "p95Ms": 8.011
+          },
+          "candidate": {
+            "medianMs": 1.404,
+            "p95Ms": 1.537
+          },
+          "medianSpeedup": 5.004,
+          "medianChangePercent": -80.014
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 7.016,
+            "p95Ms": 7.714
+          },
+          "candidate": {
+            "medianMs": 0.011,
+            "p95Ms": 0.019
+          },
+          "medianSpeedup": 637.818,
+          "medianChangePercent": -99.843
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 50.877,
+            "p95Ms": 52.705
+          },
+          "candidate": {
+            "medianMs": 20.523,
+            "p95Ms": 22.237
+          },
+          "medianSpeedup": 2.479,
+          "medianChangePercent": -59.662
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 10.036,
+            "p95Ms": 10.896
+          },
+          "candidate": {
+            "medianMs": 3.997,
+            "p95Ms": 4.394
+          },
+          "medianSpeedup": 2.511,
+          "medianChangePercent": -60.173
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.64,
+            "p95Ms": 0.807
+          },
+          "candidate": {
+            "medianMs": 0.629,
+            "p95Ms": 0.824
+          },
+          "medianSpeedup": 1.017,
+          "medianChangePercent": -1.719
+        }
+      }
+    },
+    {
+      "name": "sphere-sphere",
+      "kind": "orthographic",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 0.294,
+            "p95Ms": 0.357
+          },
+          "candidate": {
+            "medianMs": 0.006,
+            "p95Ms": 0.007
+          },
+          "medianSpeedup": 49,
+          "medianChangePercent": -97.959
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 0.262,
+            "p95Ms": 0.308
+          },
+          "candidate": {
+            "medianMs": 0.28,
+            "p95Ms": 0.381
+          },
+          "medianSpeedup": 0.936,
+          "medianChangePercent": 6.87
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 0.257,
+            "p95Ms": 0.282
+          },
+          "candidate": {
+            "medianMs": 0.005,
+            "p95Ms": 0.006
+          },
+          "medianSpeedup": 51.4,
+          "medianChangePercent": -98.054
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 27.209,
+            "p95Ms": 28.237
+          },
+          "candidate": {
+            "medianMs": 9.409,
+            "p95Ms": 9.944
+          },
+          "medianSpeedup": 2.892,
+          "medianChangePercent": -65.42
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 5.233,
+            "p95Ms": 5.733
+          },
+          "candidate": {
+            "medianMs": 1.921,
+            "p95Ms": 2.062
+          },
+          "medianSpeedup": 2.724,
+          "medianChangePercent": -63.291
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.683,
+            "p95Ms": 0.81
+          },
+          "candidate": {
+            "medianMs": 0.684,
+            "p95Ms": 0.746
+          },
+          "medianSpeedup": 0.999,
+          "medianChangePercent": 0.146
+        }
+      }
+    },
+    {
+      "name": "sphere-sphere",
+      "kind": "perspective",
+      "metrics": {
+        "stationary": {
+          "baseline": {
+            "medianMs": 0.286,
+            "p95Ms": 0.327
+          },
+          "candidate": {
+            "medianMs": 0.006,
+            "p95Ms": 0.01
+          },
+          "medianSpeedup": 47.667,
+          "medianChangePercent": -97.902
+        },
+        "orbit": {
+          "baseline": {
+            "medianMs": 0.263,
+            "p95Ms": 0.32
+          },
+          "candidate": {
+            "medianMs": 0.267,
+            "p95Ms": 0.366
+          },
+          "medianSpeedup": 0.985,
+          "medianChangePercent": 1.521
+        },
+        "style": {
+          "baseline": {
+            "medianMs": 0.244,
+            "p95Ms": 0.368
+          },
+          "candidate": {
+            "medianMs": 0.006,
+            "p95Ms": 0.008
+          },
+          "medianSpeedup": 40.667,
+          "medianChangePercent": -97.541
+        },
+        "surface720": {
+          "baseline": {
+            "medianMs": 33.12,
+            "p95Ms": 33.814
+          },
+          "candidate": {
+            "medianMs": 15.085,
+            "p95Ms": 16.142
+          },
+          "medianSpeedup": 2.196,
+          "medianChangePercent": -54.454
+        },
+        "surface320": {
+          "baseline": {
+            "medianMs": 6.567,
+            "p95Ms": 7.045
+          },
+          "candidate": {
+            "medianMs": 3.063,
+            "p95Ms": 3.442
+          },
+          "medianSpeedup": 2.144,
+          "medianChangePercent": -53.358
+        },
+        "lighting": {
+          "baseline": {
+            "medianMs": 0.743,
+            "p95Ms": 0.853
+          },
+          "candidate": {
+            "medianMs": 0.704,
+            "p95Ms": 0.801
+          },
+          "medianSpeedup": 1.055,
+          "medianChangePercent": -5.249
+        }
+      }
+    }
+  ],
+  "accuracy": {
+    "baselineCommit": "42da7e5dcba0aac2b12c068ea8b1ebfbd5c65141",
+    "cases": 12,
+    "rows": [
+      {
+        "name": "sphere-cylinder",
+        "kind": "orthographic",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-cylinder",
+        "kind": "orthographic",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-cylinder",
+        "kind": "perspective",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-cylinder",
+        "kind": "perspective",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "cone-sphere",
+        "kind": "orthographic",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "cone-sphere",
+        "kind": "orthographic",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "cone-sphere",
+        "kind": "perspective",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "cone-sphere",
+        "kind": "perspective",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-sphere",
+        "kind": "orthographic",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-sphere",
+        "kind": "orthographic",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-sphere",
+        "kind": "perspective",
+        "width": 720,
+        "height": 520,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      },
+      {
+        "name": "sphere-sphere",
+        "kind": "perspective",
+        "width": 320,
+        "height": 231,
+        "owner": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "depth": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        },
+        "normals": {
+          "elements": 0,
+          "bytes": 0,
+          "maxAbsolute": 0
+        }
+      }
+    ],
+    "shadeCases": 144,
+    "shadeDifferingBytes": 0,
+    "checks": [
+      "Actual baseline vs candidate built libraries instantiate matching primitives independently",
+      "Byte comparisons include typed-array representations, including background infinities"
+    ],
+    "regressionTests": {
+      "command": "node --test test/surface-rendering.test.mjs test/surface-kernels.test.mjs",
+      "passed": 30,
+      "failed": 0,
+      "scope": "Surface correctness, generic public-method oracle, lighting bytes, bounds/camera/custom primitive compatibility"
+    }
+  },
+  "assets": {
+    "units": "decimal kB as reported by production build",
+    "baselineEntryApproxKb": 344,
+    "candidateEntryKb": 184.19,
+    "candidateEntryGzipKb": 60.51,
+    "source": "Previously completed production build snapshot supplied by root before final example addition",
+    "scope": "Entry JavaScript chunk only; excludes asynchronous chunks, CSS, fonts and total transfer size",
+    "finalExampleBuildIncluded": false
+  }
+}

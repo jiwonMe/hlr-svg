@@ -115,10 +115,6 @@ export const SurfaceDiagram = forwardRef<
         : null,
     [buffer, azimuth, elevation, ambient, selectedId],
   );
-  const clipPaths = useMemo(
-    () => (buffer ? buildSurfaceClipPaths(buffer, { width, height }) : []),
-    [buffer, width, height],
-  );
   const lines = useMemo(() => withoutBackground(lineSvg), [lineSvg]);
   const pickingScene = useMemo(
     () => new Scene(primitives, camera),
@@ -130,13 +126,17 @@ export const SurfaceDiagram = forwardRef<
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (pixels)
       ctx.putImageData(
-        new ImageData(new Uint8ClampedArray(pixels), rasterWidth, rasterHeight),
+        new ImageData(
+          pixels as Uint8ClampedArray<ArrayBuffer>,
+          rasterWidth,
+          rasterHeight,
+        ),
         0,
         0,
       );
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, [pixels, rasterWidth, rasterHeight]);
 
   // React wheel listeners can be passive; a native listener lets zoom stop page scrolling.
@@ -156,6 +156,7 @@ export const SurfaceDiagram = forwardRef<
         const svg = doc.documentElement;
         svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
         if (enabled && buffer) {
+          const clipPaths = buildSurfaceClipPaths(buffer, { width, height });
           const exportCanvas = document.createElement("canvas");
           exportCanvas.width = rasterWidth;
           exportCanvas.height = rasterHeight;
@@ -192,7 +193,7 @@ export const SurfaceDiagram = forwardRef<
             });
             ctx.putImageData(
               new ImageData(
-                new Uint8ClampedArray(fullPixels),
+                fullPixels as Uint8ClampedArray<ArrayBuffer>,
                 rasterWidth,
                 rasterHeight,
               ),
@@ -234,7 +235,6 @@ export const SurfaceDiagram = forwardRef<
       lineSvg,
       enabled,
       buffer,
-      clipPaths,
       clipPrefix,
       primitives,
       camera,

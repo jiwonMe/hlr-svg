@@ -5,7 +5,9 @@ export type ElementSize = {
   height: number;
 };
 
-export function useElementSize<T extends HTMLElement>(ref: React.RefObject<T | null>): ElementSize {
+export function useElementSize<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+): ElementSize {
   const [size, setSize] = useState<ElementSize>({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -16,7 +18,13 @@ export function useElementSize<T extends HTMLElement>(ref: React.RefObject<T | n
       const entry = entries[0];
       if (!entry) return;
       const box = entry.contentRect;
-      setSize({ width: Math.max(0, Math.floor(box.width)), height: Math.max(0, Math.floor(box.height)) });
+      const width = Math.max(0, Math.floor(box.width));
+      const height = Math.max(0, Math.floor(box.height));
+      setSize((previous) =>
+        previous.width === width && previous.height === height
+          ? previous
+          : { width, height },
+      );
     });
 
     ro.observe(el);

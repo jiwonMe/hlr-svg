@@ -17,7 +17,6 @@ import {
   cylinderSilhouetteToCubics3,
   sphereSilhouetteToCubics3,
 } from "@hlr/curves/builders.js";
-import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
@@ -31,7 +30,24 @@ import {
   type OrbitState,
   clamp,
 } from "./runtime/orbit";
-import { useRafTick } from "./runtime/useRaf";
+import { useRafLoop } from "./runtime/useRaf";
+import { useFrameState } from "./runtime/useFrameState";
+import { useDemoSvg } from "./runtime/useDemoSvg";
+import { useElementSize } from "./docs/examples/useElementSize";
+
+const RENDER_OPTIONS = {
+  background: false,
+  svgStyle: {
+    strokeWidthVisible: 2,
+    strokeWidthHidden: 2,
+    dashArrayHidden: "6 6",
+    strokeVisible: "#000000",
+    strokeHidden: "#000000",
+    opacityHidden: 0.4,
+  },
+  hlr: { coarseSamples: 12 },
+};
+type DragState = { x: number; y: number; az: number; pol: number; id: number };
 
 type PrimitiveType = "sphere" | "cylinder" | "cone" | "box";
 
@@ -214,32 +230,24 @@ export function LandingPage(): React.ReactElement {
     () => orbitFromCamera(demoCase.camera.position, demoCase.camera.target),
     [demoCase],
   );
-  const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
+  const [orbit, orbitInput] = useFrameState<OrbitState>(baseOrbit);
   const [playing, setPlaying] = useState(true);
-  const [drag, setDrag] = useState<null | {
-    x: number;
-    y: number;
-    az: number;
-    pol: number;
-    id: number;
-  }>(null);
-  const [dirty, setDirty] = useState(0);
-
-  const tick = useRafTick(playing);
+  const dragRef = useRef<DragState | null>(null);
+  const size = useElementSize(wrapRef);
+  const width = size.width || demoCase.width;
+  const height = size.height || demoCase.height;
 
   useEffect(() => {
-    setOrbit(baseOrbit);
-  }, [baseOrbit]);
+    orbitInput.reset(baseOrbit);
+    dragRef.current = null;
+  }, [baseOrbit, orbitInput]);
 
-  useEffect(() => {
-    if (!playing) return;
-    setOrbit((o) => ({ ...o, azimuth: o.azimuth + 0.008 }));
-  }, [tick, playing]);
+  useRafLoop(playing, (elapsed) => {
+    orbitInput.reset((o) => ({ ...o, azimuth: o.azimuth + 0.48 * elapsed }));
+  });
 
   const camera = useMemo(() => {
     const pos = orbitPosition(orbit);
-    const width = typeof window !== "undefined" ? window.innerWidth : 1920;
-    const height = typeof window !== "undefined" ? window.innerHeight : 1080;
     return Camera.from({
       kind: "perspective",
       position: pos,
@@ -250,31 +258,14 @@ export function LandingPage(): React.ReactElement {
       near: demoCase.camera.near,
       far: demoCase.camera.far,
     });
-  }, [demoCase, orbit, dirty]);
+  }, [demoCase, orbit, width, height]);
 
   const runtimeDemo = useMemo<DemoCase>(
-    () => ({ ...demoCase, camera }),
-    [demoCase, camera],
+    () => ({ ...demoCase, camera, width, height }),
+    [demoCase, camera, width, height],
   );
 
-  const svg = useMemo(
-    () =>
-      renderCaseToSvgString(runtimeDemo, {
-        background: false,
-        svgStyle: {
-          strokeWidthVisible: 2,
-          strokeWidthHidden: 2,
-          dashArrayHidden: "6 6",
-          strokeVisible: "#000000",
-          strokeHidden: "#000000",
-          opacityHidden: 0.4,
-        },
-        hlr: {
-          coarseSamples: 12,
-        },
-      }),
-    [runtimeDemo],
-  );
+  const svg = useDemoSvg(runtimeDemo, RENDER_OPTIONS);
 
   // 5초마다 자동으로 새 케이스 생성
   useEffect(() => {
@@ -301,50 +292,62 @@ export function LandingPage(): React.ReactElement {
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
       const el = wrapRef.current;
       if (!el) return;
       el.setPointerCapture(e.pointerId);
-      setDrag({
+      const current = orbitInput.current();
+      dragRef.current = {
         x: e.clientX,
         y: e.clientY,
-        az: orbit.azimuth,
-        pol: orbit.polar,
+        az: current.azimuth,
+        pol: current.polar,
         id: e.pointerId,
-      });
+      };
       setPlaying(false);
     },
-    [orbit],
+    [orbitInput],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      const drag = dragRef.current;
       if (!drag || drag.id !== e.pointerId) return;
       const dx = e.clientX - drag.x;
       const dy = e.clientY - drag.y;
       const s = 0.005;
       const az = drag.az + dx * s;
       const pol = clamp(0.1, drag.pol + dy * s, Math.PI - 0.1);
-      setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
-      setDirty((x) => x + 1);
+      const latest = orbitInput.current();
+      if (latest.azimuth === az && latest.polar === pol) return;
+      orbitInput.schedule((o) => ({ ...o, azimuth: az, polar: pol }));
     },
-    [drag],
+    [orbitInput],
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      const drag = dragRef.current;
       if (!drag || drag.id !== e.pointerId) return;
-      setDrag(null);
+      if (e.type === "pointerup") handlePointerMove(e);
+      orbitInput.flush();
+      dragRef.current = null;
       setPlaying(true);
     },
-    [drag],
+    [handlePointerMove, orbitInput],
   );
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const k = Math.exp(e.deltaY * 0.001);
-    setOrbit((o) => ({ ...o, radius: clamp(3, o.radius * k, 20) }));
-    setDirty((x) => x + 1);
-  }, []);
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (e.deltaY === 0) return;
+      const k = Math.exp(e.deltaY * 0.001);
+      orbitInput.schedule((current) => {
+        const radius = clamp(3, current.radius * k, 20);
+        return radius === current.radius ? current : { ...current, radius };
+      });
+    },
+    [orbitInput],
+  );
 
   return (
     <div
@@ -360,6 +363,7 @@ export function LandingPage(): React.ReactElement {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
     >
       {/* Background with dotted grid */}

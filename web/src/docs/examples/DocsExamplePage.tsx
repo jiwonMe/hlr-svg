@@ -15,8 +15,12 @@ import {
   lineToCubic3,
   sphereSilhouetteToCubics3,
 } from "@hlr/curves/builders.js";
-import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
+import {
+  buildSpherePlaneSectionsDemo,
+  renderSpherePlaneSectionsAnnotations,
+  SPHERE_PLANE_SECTIONS_STYLE,
+} from "@hlr/demo/spherePlaneSections.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
 import { Cone } from "@hlr/scene/primitives/cone.js";
@@ -30,7 +34,9 @@ import {
   type OrbitState,
   clamp,
 } from "../../runtime/orbit";
-import { useRafTick } from "../../runtime/useRaf";
+import { useRafLoop } from "../../runtime/useRaf";
+import { useFrameState } from "../../runtime/useFrameState";
+import { useDemoSvg } from "../../runtime/useDemoSvg";
 import {
   EXAMPLES,
   getExampleById,
@@ -50,6 +56,22 @@ type Projection = "perspective" | "isometric";
 
 const ISO_AZ = Math.PI / 4;
 const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
+const RENDER_OPTIONS = {
+  background: false,
+  svgStyle: {
+    strokeWidthVisible: 2,
+    strokeWidthHidden: 2,
+    dashArrayHidden: "6 6",
+    strokeVisible: "#000000",
+    strokeHidden: "#000000",
+    opacityHidden: 0.4,
+  },
+};
+const SPHERE_SECTIONS_RENDER_OPTIONS = {
+  background: false,
+  svgStyle: SPHERE_PLANE_SECTIONS_STYLE,
+};
+type DragState = { x: number; y: number; az: number; pol: number; id: number };
 
 const TEXT = {
   "ko-kr": {
@@ -139,7 +161,7 @@ function InteractiveExample({
   // per-example interactive params
   const [seed, setSeed] = useState(1337);
   const [planeTilt, setPlaneTilt] = useState(0.25);
-  const [lighting, setLighting] = useState(true);
+  const [lighting, setLighting] = useState(ex.id !== "sphere-plane-sections");
   const [lightAzimuth, setLightAzimuth] = useState(-35);
   const [lightElevation, setLightElevation] = useState(45);
   const [ambient, setAmbient] = useState(0.28);
@@ -154,6 +176,8 @@ function InteractiveExample({
     if (ex.id === "simple-primitives") return buildSimplePrimitivesDemo(w, h);
     if (ex.id === "random-primitives")
       return buildRandomPrimitivesDemo(w, h, seed);
+    if (ex.id === "sphere-plane-sections")
+      return buildSpherePlaneSectionsDemo(w, h);
     return buildConicSectionDemo(w, h, planeTilt);
   }, [ex.id, width, height, seed, planeTilt]);
 
@@ -161,23 +185,26 @@ function InteractiveExample({
     () => orbitFromCamera(baseDemo.camera.position, baseDemo.camera.target),
     [baseDemo],
   );
-  const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
-  const [projection, setProjection] = useState<Projection>("perspective");
+  const [orbit, orbitInput] = useFrameState<OrbitState>(baseOrbit);
+  const initialProjection: Projection =
+    baseDemo.camera.kind === "orthographic" ? "isometric" : "perspective";
+  const [projection, setProjection] = useState<Projection>(initialProjection);
+  const dragRef = useRef<DragState | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   // animation
   const [playing, setPlaying] = useState(false);
-  const tick = useRafTick(playing);
-
   useEffect(() => {
-    setOrbit(baseOrbit);
-    setProjection("perspective");
+    orbitInput.reset(baseOrbit);
+    dragRef.current = null;
+    setDragging(false);
+    setProjection(initialProjection);
     setPlaying(false);
-  }, [baseOrbit]);
+  }, [baseOrbit, initialProjection, orbitInput]);
 
-  useEffect(() => {
-    if (!playing) return;
-    setOrbit((o) => ({ ...o, azimuth: o.azimuth + 0.012 }));
-  }, [tick, playing]);
+  useRafLoop(playing, (elapsed) => {
+    orbitInput.reset((o) => ({ ...o, azimuth: o.azimuth + 0.72 * elapsed }));
+  });
 
   const camera = useMemo(() => {
     const pos = orbitPosition(orbit);
@@ -201,12 +228,18 @@ function InteractiveExample({
       position: pos,
       target: orbit.target,
       up: baseDemo.camera.up,
-      halfHeight: clamp(0.2, orbit.radius * 0.55, 30),
+      halfHeight: clamp(
+        0.2,
+        ((baseDemo.camera.halfHeight ?? baseOrbit.radius * 0.55) *
+          orbit.radius) /
+          baseOrbit.radius,
+        30,
+      ),
       aspect,
       near: baseDemo.camera.near,
       far: baseDemo.camera.far,
     });
-  }, [baseDemo, orbit, projection]);
+  }, [baseDemo, baseOrbit.radius, orbit, projection]);
 
   const runtimeDemo = useMemo<DemoCase>(
     () => ({ ...baseDemo, camera }),
@@ -214,21 +247,21 @@ function InteractiveExample({
   );
 
   // Lighting only changes the surface layer; expensive HLR stays memoized.
-  const lineSvg = useMemo(
-    () =>
-      renderCaseToSvgString(runtimeDemo, {
-        background: false,
-        svgStyle: {
-          strokeWidthVisible: 2,
-          strokeWidthHidden: 2,
-          dashArrayHidden: "6 6",
-          strokeVisible: "#000000",
-          strokeHidden: "#000000",
-          opacityHidden: 0.4,
-        },
-      }),
-    [runtimeDemo],
+  const renderedLines = useDemoSvg(
+    runtimeDemo,
+    ex.id === "sphere-plane-sections"
+      ? SPHERE_SECTIONS_RENDER_OPTIONS
+      : RENDER_OPTIONS,
   );
+  const lineSvg = useMemo(() => {
+    if (ex.id !== "sphere-plane-sections") return renderedLines;
+    const annotations = renderSpherePlaneSectionsAnnotations(
+      camera,
+      runtimeDemo.width,
+      runtimeDemo.height,
+    );
+    return renderedLines.replace(/<\/svg>\s*$/, () => `${annotations}</svg>`);
+  }, [camera, ex.id, renderedLines, runtimeDemo.width, runtimeDemo.height]);
 
   const lightSettings = useMemo(
     () => ({
@@ -269,14 +302,61 @@ function InteractiveExample({
     return () => window.clearTimeout(timeout);
   }, [copyStatus]);
 
-  const [drag, setDrag] = useState<null | {
-    x: number;
-    y: number;
-    az: number;
-    pol: number;
-    id: number;
-  }>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.id !== event.pointerId) return;
+      const azimuth = drag.az + (event.clientX - drag.x) * 0.0075;
+      const polar = clamp(
+        0.05,
+        drag.pol + (event.clientY - drag.y) * 0.0075,
+        Math.PI - 0.05,
+      );
+      const latest = orbitInput.current();
+      if (latest.azimuth === azimuth && latest.polar === polar) return;
+      orbitInput.schedule((current) => ({ ...current, azimuth, polar }));
+    },
+    [orbitInput],
+  );
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (dragRef.current?.id !== event.pointerId) return;
+      if (event.type === "pointerup") handlePointerMove(event);
+      orbitInput.flush();
+      dragRef.current = null;
+      setDragging(false);
+    },
+    [handlePointerMove, orbitInput],
+  );
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      const current = orbitInput.current();
+      dragRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        az: current.azimuth,
+        pol: current.polar,
+        id: event.pointerId,
+      };
+      setDragging(true);
+      setPlaying(false);
+    },
+    [orbitInput],
+  );
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (event.deltaY === 0) return;
+      const factor = Math.exp(event.deltaY * 0.0012);
+      orbitInput.schedule((current) => {
+        const radius = clamp(0.2, current.radius * factor, 50);
+        return radius === current.radius ? current : { ...current, radius };
+      });
+    },
+    [orbitInput],
+  );
 
   useEffect(() => {
     setSelectedId(null);
@@ -410,7 +490,12 @@ function InteractiveExample({
           <div className={cn("flex flex-wrap items-center justify-end gap-2")}>
             <button
               type="button"
-              onClick={() => setOrbit(baseOrbit)}
+              onClick={() => {
+                orbitInput.reset(baseOrbit);
+                setProjection(initialProjection);
+                dragRef.current = null;
+                setDragging(false);
+              }}
               className={cn(
                 // 버튼
                 "h-9 px-3",
@@ -475,7 +560,7 @@ function InteractiveExample({
                 type="button"
                 onClick={() => {
                   setProjection("isometric");
-                  setOrbit((o) => ({
+                  orbitInput.reset((o) => ({
                     ...o,
                     azimuth: ISO_AZ,
                     polar: ISO_POLAR,
@@ -730,36 +815,13 @@ function InteractiveExample({
             selectedId={selectedId}
             onSelect={setSelectedId}
             ariaLabel={t.hint}
-            interactive={!!drag || playing}
+            interactive={dragging || playing}
             className="h-full w-full"
-            onPointerDown={(e) => {
-              setDrag({
-                x: e.clientX,
-                y: e.clientY,
-                az: orbit.azimuth,
-                pol: orbit.polar,
-                id: e.pointerId,
-              });
-              setPlaying(false);
-            }}
-            onPointerMove={(e) => {
-              if (!drag || drag.id !== e.pointerId) return;
-              const dx = e.clientX - drag.x;
-              const dy = e.clientY - drag.y;
-              const s = 0.0075;
-              const az = drag.az + dx * s;
-              const pol = clamp(0.05, drag.pol + dy * s, Math.PI - 0.05);
-              setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
-            }}
-            onPointerUp={(e) => {
-              if (!drag || drag.id !== e.pointerId) return;
-              setDrag(null);
-            }}
-            onPointerCancel={() => setDrag(null)}
-            onWheel={(e) => {
-              const k = Math.exp(e.deltaY * 0.0012);
-              setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
-            }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onWheel={handleWheel}
           />
         </div>
       </section>

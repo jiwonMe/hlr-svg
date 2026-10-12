@@ -12,6 +12,7 @@ import {
 } from "./components/SurfaceDiagram";
 import { useElementSize } from "./docs/examples/useElementSize";
 import { clamp, orbitPosition, type OrbitState } from "./runtime/orbit";
+import { useFrameState } from "./runtime/useFrameState";
 import {
   DEFAULT_PLAYGROUND_PRESET,
   PLAYGROUND_PRESETS,
@@ -160,7 +161,7 @@ export function GeometryPlayground(): React.ReactElement {
   const diagramRef = useRef<SurfaceDiagramHandle | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const [presetId, setPresetId] = useState(DEFAULT_PLAYGROUND_PRESET.id);
-  const [orbit, setOrbit] = useState(INITIAL_ORBIT);
+  const [orbit, orbitInput] = useFrameState(INITIAL_ORBIT);
   const [projection, setProjection] = useState<"orthographic" | "perspective">(
     "orthographic",
   );
@@ -219,12 +220,21 @@ export function GeometryPlayground(): React.ReactElement {
         });
   }, [height, orbit, preset.halfHeight, projection, width]);
 
-  const lineSvg = useMemo(
+  const renderer = useMemo(
     () =>
       new SvgRenderer({
         width,
         height,
         background: false,
+        hlr: { samples: 112, coarseSamples: 0, refineIters: 18 },
+        intersections: { angularSamples: 112 },
+      }),
+    [height, width],
+  );
+  const lineSvg = useMemo(
+    () =>
+      renderer.render(scene, camera, {
+        curves: auxiliaryCurves,
         include: { intersections: showIntersections },
         style: {
           strokeVisible: "#293632",
@@ -234,14 +244,13 @@ export function GeometryPlayground(): React.ReactElement {
           dashArrayHidden: "5 5",
           opacityHidden: showHidden ? 0.5 : 0,
         },
-        hlr: { samples: 112, coarseSamples: 0, refineIters: 18 },
-        intersections: { angularSamples: 112 },
-      }).render(scene, camera, { curves: auxiliaryCurves }),
+      }),
     [
       auxiliaryCurves,
       camera,
       height,
       scene,
+      renderer,
       showHidden,
       showIntersections,
       strokeWidth,
@@ -250,10 +259,7 @@ export function GeometryPlayground(): React.ReactElement {
   );
   const annotatedLineSvg = useMemo(() => {
     if (!showLabels || !preset.annotations?.length) return lineSvg;
-    const doc = new DOMParser().parseFromString(lineSvg, "image/svg+xml");
-    const group = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    group.setAttribute("data-annotations", "true");
-    group.setAttribute("pointer-events", "none");
+    const labels: string[] = [];
     for (const label of preset.annotations) {
       const point = camera.projectToSvg(label.point, width, height);
       if (
@@ -263,31 +269,19 @@ export function GeometryPlayground(): React.ReactElement {
         point.z > 1
       )
         continue;
-      const marker = doc.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle",
+      const escapedText = label.text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+      labels.push(
+        `<circle cx="${point.x}" cy="${point.y}" r="2" fill="#263b30"/>` +
+          `<text class="pg-point-label" x="${point.x + label.dx}" y="${point.y + label.dy}" text-anchor="${label.dx < 0 ? "end" : "start"}" fill="#263b30" stroke="white" stroke-width="3" paint-order="stroke" font-size="16" font-family="Georgia, serif" font-style="italic">${escapedText}</text>`,
       );
-      marker.setAttribute("cx", String(point.x));
-      marker.setAttribute("cy", String(point.y));
-      marker.setAttribute("r", "2");
-      marker.setAttribute("fill", "#263b30");
-      const text = doc.createElementNS("http://www.w3.org/2000/svg", "text");
-      text.textContent = label.text;
-      text.setAttribute("class", "pg-point-label");
-      text.setAttribute("x", String(point.x + label.dx));
-      text.setAttribute("y", String(point.y + label.dy));
-      text.setAttribute("text-anchor", label.dx < 0 ? "end" : "start");
-      text.setAttribute("fill", "#263b30");
-      text.setAttribute("stroke", "white");
-      text.setAttribute("stroke-width", "3");
-      text.setAttribute("paint-order", "stroke");
-      text.setAttribute("font-size", "16");
-      text.setAttribute("font-family", "Georgia, serif");
-      text.setAttribute("font-style", "italic");
-      group.append(marker, text);
     }
-    doc.documentElement.append(group);
-    return new XMLSerializer().serializeToString(doc);
+    return lineSvg.replace(
+      /<\/svg>\s*$/,
+      `<g data-annotations="true" pointer-events="none">${labels.join("")}</g></svg>`,
+    );
   }, [camera, height, lineSvg, preset.annotations, showLabels, width]);
 
   const lighting = useMemo(
@@ -306,7 +300,9 @@ export function GeometryPlayground(): React.ReactElement {
   const selectPreset = (next: PlaygroundPreset): void => {
     setPresetId(next.id);
     setSelectedId(null);
-    setOrbit(INITIAL_ORBIT);
+    orbitInput.reset(INITIAL_ORBIT);
+    dragRef.current = null;
+    setDragging(false);
     setNotice(`${next.name} 장면입니다. ${next.description}`);
   };
 
@@ -326,16 +322,17 @@ export function GeometryPlayground(): React.ReactElement {
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.button !== 0) return;
+      const current = orbitInput.current();
       dragRef.current = {
         id: event.pointerId,
         x: event.clientX,
         y: event.clientY,
-        azimuth: orbit.azimuth,
-        polar: orbit.polar,
+        azimuth: current.azimuth,
+        polar: current.polar,
       };
       setDragging(true);
     },
-    [orbit.azimuth, orbit.polar],
+    [orbitInput],
   );
 
   const handlePointerMove = useCallback(
@@ -344,26 +341,42 @@ export function GeometryPlayground(): React.ReactElement {
       if (!drag || drag.id !== event.pointerId) return;
       const dx = event.clientX - drag.x;
       const dy = event.clientY - drag.y;
-      setOrbit((current) => ({
+      const azimuth = drag.azimuth + dx * 0.006;
+      const polar = clamp(0.12, drag.polar + dy * 0.006, Math.PI - 0.12);
+      const latest = orbitInput.current();
+      if (latest.azimuth === azimuth && latest.polar === polar) return;
+      orbitInput.schedule((current) => ({
         ...current,
-        azimuth: drag.azimuth + dx * 0.006,
-        polar: clamp(0.12, drag.polar + dy * 0.006, Math.PI - 0.12),
+        azimuth,
+        polar,
       }));
     },
-    [],
+    [orbitInput],
   );
 
-  const handlePointerUp = useCallback(() => {
-    dragRef.current = null;
-    setDragging(false);
-  }, []);
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.id !== event.pointerId) return;
+      if (event.type === "pointerup") handlePointerMove(event);
+      orbitInput.flush();
+      dragRef.current = null;
+      setDragging(false);
+    },
+    [handlePointerMove, orbitInput],
+  );
 
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    setOrbit((current) => ({
-      ...current,
-      radius: clamp(4, current.radius * Math.exp(event.deltaY * 0.001), 18),
-    }));
-  }, []);
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      const delta = event.deltaY;
+      if (delta === 0) return;
+      orbitInput.schedule((current) => {
+        const radius = clamp(4, current.radius * Math.exp(delta * 0.001), 18);
+        return radius === current.radius ? current : { ...current, radius };
+      });
+    },
+    [orbitInput],
+  );
 
   const saveSvg = useCallback(() => {
     const svg = diagramRef.current?.toSvg();
@@ -480,7 +493,9 @@ export function GeometryPlayground(): React.ReactElement {
                   className="pg-icon-button"
                   type="button"
                   onClick={() => {
-                    setOrbit(INITIAL_ORBIT);
+                    orbitInput.reset(INITIAL_ORBIT);
+                    dragRef.current = null;
+                    setDragging(false);
                     setNotice("처음 시점으로 돌아왔습니다.");
                   }}
                   aria-label="시점 초기화"
@@ -520,7 +535,9 @@ export function GeometryPlayground(): React.ReactElement {
               <button
                 type="button"
                 onClick={() => {
-                  setOrbit(INITIAL_ORBIT);
+                  orbitInput.reset(INITIAL_ORBIT);
+                  dragRef.current = null;
+                  setDragging(false);
                   setProjection("orthographic");
                 }}
               >

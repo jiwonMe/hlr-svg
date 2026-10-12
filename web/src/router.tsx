@@ -1,8 +1,12 @@
 import React, { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { LandingPage } from "./LandingPage";
 import { DEFAULT_LOCALE } from "./docs/locale";
 
+const LandingPage = lazy(() =>
+  import("./LandingPage").then((module) => ({
+    default: module.LandingPage,
+  })),
+);
 const GeometryPlayground = lazy(() =>
   import("./GeometryPlayground").then((module) => ({
     default: module.GeometryPlayground,

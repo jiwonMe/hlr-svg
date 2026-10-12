@@ -36,8 +36,16 @@ export class Scene {
   }
 
   /** Convert to internal Scene for visibility/raycasting */
-  toRaycastScene(camera: Camera, profiler?: Profiler): RaycastScene {
-    return new RaycastScene(this._primitives, camera, profiler);
+  toRaycastScene(
+    camera: Camera,
+    profiler?: Profiler,
+    preparedGeometry = false,
+  ): RaycastScene {
+    return new RaycastScene(
+      this._primitives,
+      camera,
+      profiler,
+      preparedGeometry,
+    );
   }
 }
-

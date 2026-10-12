@@ -39,6 +39,8 @@
     "build": "tsc -p tsconfig.json",
     "pretest": "pnpm build",
     "test": "node --test test/*.test.mjs",
+    "bench": "pnpm build && node bench/render-performance.mjs",
+    "bench:surfaces": "pnpm build && node bench/surface-rendering.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit && tsc -p web/tsconfig.node.json --noEmit",
     "lint": "eslint src web/src web/vite.config.ts",
     "format": "prettier --write .",

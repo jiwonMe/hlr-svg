@@ -35,9 +35,34 @@ const defaultStyle: SvgStyle = {
   lineJoin: "round",
 };
 
+export type ProjectedSvgPath = { d: string; visible: boolean };
+
+/** Camera-dependent work can be reused when only line styling changes. */
+export function projectPiecesToSvgPaths(
+  pieces: StyledPiece[],
+  camera: Camera,
+  width: number,
+  height: number,
+): ProjectedSvgPath[] {
+  return chainPieces(pieces, 1e-6).map((chain) => ({
+    d: chainToSvgPathD(chain, camera, width, height),
+    visible: chain[0]?.visible ?? true,
+  }));
+}
+
 export function piecesToSvg(
   pieces: StyledPiece[],
   camera: Camera,
+  opts: SvgRenderOptions,
+): string {
+  return projectedPathsToSvg(
+    projectPiecesToSvgPaths(pieces, camera, opts.width, opts.height),
+    opts,
+  );
+}
+
+export function projectedPathsToSvg(
+  projected: readonly ProjectedSvgPath[],
   opts: SvgRenderOptions,
 ): string {
   const style = { ...defaultStyle, ...(opts.style ?? {}) };
@@ -46,9 +71,7 @@ export function piecesToSvg(
 
   const paths: string[] = [];
   // Use slightly larger epsilon to connect pieces that may have minor numerical differences
-  for (const chain of chainPieces(pieces, 1e-6)) {
-    const d = chainToSvgPathD(chain, camera, width, height);
-    const visible = chain[0]?.visible ?? true;
+  for (const { d, visible } of projected) {
     const stroke = visible ? style.strokeVisible : style.strokeHidden;
     const strokeWidth = visible
       ? style.strokeWidthVisible

@@ -19,6 +19,22 @@ A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HL
 - **Node runtime**: `20.x`
 - **Primary validation**: `pnpm check`
 
+## Performance
+
+Keep a `SvgRenderer` instance for repeated renders. It reuses projected visible/hidden paths when only styles or the background change. Analytic intersections are cached independently of the camera, with value-based invalidation for geometry and sampling options. Custom methods bypass caches; mesh scenes avoid costly per-frame vertex serialization.
+
+Surface rendering uses allocation-free analytic raycasts and conservative screen bounds while retaining nearest-surface ownership, clipping and normals. Lighting changes reuse the surface buffer. The playground batches orbit/zoom input per animation frame, pauses hidden-page animation, and generates SVG clip paths only when exporting. HLR sample counts and intersection fitting accuracy are unchanged.
+
+```bash
+pnpm bench           # Median/p95 line, surface and relighting CPU timings
+pnpm bench:surfaces  # Optimized surfaces vs brute rays, including output checks
+
+# Compare a separately built baseline checkout using the same fixtures:
+node bench/render-performance.mjs /path/to/baseline
+```
+
+See [measured results](bench/RESULTS.md) for the baseline commit, runtime and comparison. These timings measure CPU functions; browser frame rate also depends on layout, painting, display refresh rate and hardware.
+
 ## Local Development
 
 ```bash
