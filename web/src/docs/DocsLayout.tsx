@@ -1,125 +1,100 @@
-import React, { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { cn } from "../lib/utils";
-import { DocsTopbar } from "./DocsTopbar";
+import React, { useEffect, useState } from "react";
+import { Outlet, useLocation, useParams } from "react-router-dom";
+import { X } from "lucide-react";
+import { SiteHeader } from "../site/SiteHeader";
+import { SiteFooter } from "../site/SiteFooter";
+import { DocsSearch, LocaleSwitch } from "./DocsTopbar";
 import { DocsSidebar } from "./DocsSidebar";
+import { DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
+import "../site/site.css";
+import "./docs.css";
 
-/**
- * 문서 레이아웃
- * flex 디자인 시스템 스타일 적용
- * - 좌측 사이드바 (흰색)
- * - 상단 헤더
- * - 메인 콘텐츠 (연한 회색 배경 + 흰색 카드)
- */
+/** Docs share the site header and footer; the page itself scrolls. */
 export function DocsLayout(): React.ReactElement {
+  const { locale } = useParams<{ locale: string }>();
+  const lang: Locale =
+    locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    setSidebarOpen(false);
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [sidebarOpen]);
 
   return (
-    <div
-      className={cn(
-        // 전체 화면 (main을 스크롤 컨테이너로 고정)
-        "h-screen",
-        // 바깥 스크롤 방지
-        "overflow-hidden",
-        // 플렉스 레이아웃
-        "flex"
-      )}
-      style={{ fontFamily: "var(--font-docs)" }}
-    >
-      {/* 데스크탑 사이드바 */}
-      <aside
-        className={cn(
-          // 숨김 (모바일)
-          "hidden md:flex md:flex-col",
-          // 너비
-          "w-60 shrink-0",
-          // 배경 (zinc-50)
-          "bg-[hsl(240,4.8%,95.9%)]",
-          // 보더
-          "border-r border-[hsl(220,13%,91%)]",
-          // 높이
-          "h-screen",
-          // 고정
-          "sticky top-0"
-        )}
+    <div className="site docs" lang={lang === "ko-kr" ? "ko" : "en"}>
+      <a
+        className="skip-link"
+        href="#docs-main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("docs-main")?.focus();
+        }}
       >
-        <DocsSidebar searchQuery={searchQuery} />
-      </aside>
-
-      {/* 모바일 사이드바 오버레이 */}
-      {sidebarOpen && (
-        <>
-          <div
-            className={cn(
-              // 위치
-              "fixed inset-0 z-40",
-              // 배경
-              "bg-black/40",
-              // 모바일에서만
-              "md:hidden"
-            )}
-            onClick={() => setSidebarOpen(false)}
-            aria-hidden="true"
-          />
-          <aside
-            className={cn(
-              // 위치
-              "fixed inset-y-0 left-0 z-50",
-              // 배경 (zinc-50)
-              "bg-[hsl(240,4.8%,95.9%)]",
-              // 너비
-              "w-60",
-              // 모바일에서만
-              "md:hidden",
-              // 그림자
-              "shadow-xl"
-            )}
-          >
-            <DocsSidebar
-              searchQuery={searchQuery}
-              onClose={() => setSidebarOpen(false)}
-            />
-          </aside>
-        </>
-      )}
-
-      {/* 메인 영역 */}
-      <div
-        className={cn(
-          // 플렉스
-          "flex-1 flex flex-col",
-          // 최소 너비
-          "min-w-0",
-          // 높이 고정
-          "h-screen",
-          // 내부에서만 스크롤
-          "overflow-hidden"
-        )}
+        {lang === "ko-kr" ? "본문 바로가기" : "Skip to content"}
+      </a>
+      <SiteHeader
+        locale={lang}
+        onMenu={() => setSidebarOpen(true)}
+        menuOpen={sidebarOpen}
+        wide
       >
-        {/* 상단 바 */}
-        <DocsTopbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        <DocsSearch
+          locale={lang}
+          value={searchQuery}
+          onChange={setSearchQuery}
         />
-
-        {/* 메인 콘텐츠 */}
-        <main
-          id="docs-scroll"
-          className={cn(
-            // 플렉스
-            "flex-1",
-            // 배경 (흰색)
-            "bg-white",
-            // 오버플로우
-            "overflow-y-auto"
-          )}
-        >
+        <LocaleSwitch locale={lang} />
+      </SiteHeader>
+      <div className="docs-shell">
+        <aside className="docs-sidebar">
+          <DocsSidebar locale={lang} searchQuery={searchQuery} />
+        </aside>
+        {sidebarOpen && (
+          <div className="docs-drawer" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="docs-drawer-backdrop"
+              aria-label={lang === "ko-kr" ? "메뉴 닫기" : "Close menu"}
+              onClick={() => setSidebarOpen(false)}
+            />
+            <div className="docs-drawer-panel">
+              <div className="docs-drawer-head">
+                <DocsSearch
+                  locale={lang}
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  inDrawer
+                />
+                <button
+                  type="button"
+                  className="docs-drawer-close"
+                  onClick={() => setSidebarOpen(false)}
+                  aria-label={lang === "ko-kr" ? "메뉴 닫기" : "Close menu"}
+                >
+                  <X aria-hidden="true" size={18} strokeWidth={1.7} />
+                </button>
+              </div>
+              <DocsSidebar locale={lang} searchQuery={searchQuery} />
+            </div>
+          </div>
+        )}
+        <main id="docs-main" className="docs-main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
+      <SiteFooter locale={lang} />
     </div>
   );
 }

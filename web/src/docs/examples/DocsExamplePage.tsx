@@ -6,32 +6,10 @@ import React, {
   useState,
 } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { cn } from "../../lib/utils";
+import { ArrowLeft, ArrowUpRight, Pause, Play, RotateCcw } from "lucide-react";
 
 import { Camera } from "@hlr/camera/camera.js";
-import {
-  coneSilhouetteToCubics3,
-  cylinderSilhouetteToCubics3,
-  lineToCubic3,
-  sphereSilhouetteToCubics3,
-} from "@hlr/curves/builders.js";
 import type { DemoCase } from "@hlr/demo/types.js";
-import {
-  buildSpherePlaneSectionsDemo,
-  renderSpherePlaneSectionsAnnotations,
-  SPHERE_PLANE_SECTIONS_STYLE,
-} from "@hlr/demo/spherePlaneSections.js";
-import {
-  buildTangentSpheresDemo,
-  renderTangentSpheresAnnotations,
-  TANGENT_SPHERES_STYLE,
-} from "@hlr/demo/tangentSpheres.js";
-import { Vec3 } from "@hlr/math/vec3.js";
-import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
-import { Cone } from "@hlr/scene/primitives/cone.js";
-import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
-import { PlaneRect } from "@hlr/scene/primitives/planeRect.js";
-import { Sphere } from "@hlr/scene/primitives/sphere.js";
 
 import {
   orbitFromCamera,
@@ -43,59 +21,52 @@ import { useRafLoop } from "../../runtime/useRaf";
 import { useFrameState } from "../../runtime/useFrameState";
 import { useDemoSvg } from "../../runtime/useDemoSvg";
 import {
+  SurfaceDiagram,
+  type SurfaceDiagramHandle,
+} from "../../components/SurfaceDiagram";
+import { ExamProvider, Question, type QuestionSpec } from "../../exam/exam";
+import { LEAD_QUESTION, PAPER_QUESTIONS } from "../../exam/questions";
+import { lineRenderOptions, type HiddenLineMode } from "../../exam/lineStyle";
+import { CodeWindow } from "../../site/Code";
+import {
   EXAMPLES,
   getExampleById,
   getGithubUrl,
   type ExampleId,
 } from "./examplesRegistry";
+import { buildExampleModel, DEFAULT_EXAMPLE_PARAMS } from "./exampleFigures";
 import { MeshImportExample } from "./MeshImportExample";
 import { useElementSize } from "./useElementSize";
-import {
-  SurfaceDiagram,
-  type SurfaceDiagramHandle,
-} from "../../components/SurfaceDiagram";
+import "./examples.css";
 
 type Locale = "ko-kr" | "en-us";
-
 type Projection = "perspective" | "isometric";
 
 const ISO_AZ = Math.PI / 4;
 const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
-const RENDER_OPTIONS = {
-  background: false,
-  svgStyle: {
-    strokeWidthVisible: 2,
-    strokeWidthHidden: 2,
-    dashArrayHidden: "6 6",
-    strokeVisible: "#000000",
-    strokeHidden: "#000000",
-    opacityHidden: 0.4,
-  },
-};
-const SPHERE_SECTIONS_RENDER_OPTIONS = {
-  background: false,
-  svgStyle: SPHERE_PLANE_SECTIONS_STYLE,
-};
-const TANGENT_SPHERES_RENDER_OPTIONS = {
-  background: false,
-  svgStyle: TANGENT_SPHERES_STYLE,
-};
 const TANGENT_SPHERES_UNLIT_IDS = ["beta"] as const;
+const QUESTIONS: readonly QuestionSpec[] = [...PAPER_QUESTIONS, LEAD_QUESTION];
+
 type DragState = { x: number; y: number; az: number; pol: number; id: number };
 
-const TEXT = {
+export const EXAMPLE_TEXT = {
   "ko-kr": {
-    back: "Examples로",
-    hint: "드래그: 회전 · 휠: 줌 · 클릭: 객체 선택",
+    gallery: "예제 갤러리",
+    question: (n: number) => `${n}번 문항`,
+    example: (n: number) => `예제 ${n}`,
+    hint: "끌어서 회전 · 휠로 확대 · 눌러서 도형 선택",
     github: "GitHub 코드",
-    reset: "리셋",
-    play: "재생",
-    stop: "정지",
-    perspective: "Perspective",
-    isometric: "Isometric",
-    regen: "재생성",
+    reset: "처음 시점",
+    play: "회전",
+    stop: "멈춤",
+    projection: "투영",
+    perspective: "원근",
+    isometric: "등각",
+    hiddenLines: "가려진 선",
+    modes: { dashed: "점선", removed: "지우기", solid: "실선" },
+    regen: "다시 만들기",
     seed: "seed",
-    planeTilt: "plane tilt",
+    planeTilt: "평면 기울기",
     selected: "선택",
     deselect: "선택 해제",
     lighting: "조명 채색",
@@ -103,22 +74,33 @@ const TEXT = {
     lightElevation: "광원 높이",
     ambient: "주변광",
     copySvg: "SVG 복사",
-    copiedSvg: "SVG 복사됨",
+    copiedSvg: "복사했습니다",
     copyFailed: "SVG를 복사하지 못했습니다. 파일로 저장해 주세요.",
     exportSvg: "SVG 저장",
+    paper: "이 그림이 나온 문항",
+    paperNote: "답을 고르면 바로 채점합니다.",
+    solution: "풀이",
+    drawing: "그림",
+    code: "코드",
+    codeNote: "이 예제를 그리는 전체 스크립트입니다.",
   },
   "en-us": {
-    back: "Back to Examples",
-    hint: "Drag: rotate · Wheel: zoom · Click: select object",
+    gallery: "Example gallery",
+    question: (n: number) => `Question ${n}`,
+    example: (n: number) => `Example ${n}`,
+    hint: "Drag to rotate · Wheel to zoom · Click to select",
     github: "GitHub code",
-    reset: "Reset",
-    play: "Play",
+    reset: "Reset view",
+    play: "Spin",
     stop: "Stop",
+    projection: "Projection",
     perspective: "Perspective",
     isometric: "Isometric",
+    hiddenLines: "Hidden lines",
+    modes: { dashed: "Dashed", removed: "Removed", solid: "Solid" },
     regen: "Regenerate",
     seed: "seed",
-    planeTilt: "plane tilt",
+    planeTilt: "Plane tilt",
     selected: "Selected",
     deselect: "Deselect",
     lighting: "Lighting",
@@ -126,11 +108,26 @@ const TEXT = {
     lightElevation: "Light elevation",
     ambient: "Ambient light",
     copySvg: "Copy SVG",
-    copiedSvg: "SVG copied",
+    copiedSvg: "Copied",
     copyFailed: "Could not copy SVG. Download the file instead.",
     exportSvg: "Download SVG",
+    paper: "The question this figure comes from",
+    paperNote: "Pick an answer to grade it.",
+    solution: "Solution",
+    drawing: "Figure",
+    code: "Code",
+    codeNote: "The complete script that draws this example.",
   },
 } as const;
+
+/** Exam pill text for an example: its question number, or a running number. */
+export function exampleLabel(id: ExampleId, lang: Locale): string {
+  const t = EXAMPLE_TEXT[lang];
+  const spec = getExampleById(id);
+  if (spec?.question) return t.question(spec.question);
+  const basic = EXAMPLES.filter((x) => x.kind === "basic");
+  return t.example(basic.findIndex((x) => x.id === id) + 1);
+}
 
 export function DocsExamplePage(): React.ReactElement {
   const { locale, exampleId } = useParams<{
@@ -140,14 +137,20 @@ export function DocsExamplePage(): React.ReactElement {
   const lang: Locale =
     locale === "ko-kr" || locale === "en-us" ? locale : "en-us";
   const ex = exampleId ? getExampleById(exampleId) : undefined;
-  if (!ex) {
-    return <Navigate to={`/docs/${lang}/examples`} replace />;
-  }
+  if (!ex) return <Navigate to={`/docs/${lang}/examples`} replace />;
 
   const info = ex.text[lang];
   const githubUrl = getGithubUrl(ex.githubPath);
   if (ex.id === "mesh-import") {
-    return <MeshImportExample lang={lang} info={info} githubUrl={githubUrl} />;
+    return (
+      <MeshImportExample
+        lang={lang}
+        info={info}
+        githubUrl={githubUrl}
+        label={exampleLabel(ex.id, lang)}
+        code={ex.code}
+      />
+    );
   }
 
   return <InteractiveExample key={ex.id} ex={ex} lang={lang} />;
@@ -160,18 +163,21 @@ function InteractiveExample({
   ex: NonNullable<ReturnType<typeof getExampleById>>;
   lang: Locale;
 }): React.ReactElement {
-  const t = TEXT[lang];
+  const t = EXAMPLE_TEXT[lang];
   const info = ex.text[lang];
   const githubUrl = getGithubUrl(ex.githubPath);
+  const question = QUESTIONS.find((q) => q.no === ex.question);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const diagramRef = useRef<SurfaceDiagramHandle | null>(null);
   const { width, height } = useElementSize(wrapRef);
 
   // per-example interactive params
-  const [seed, setSeed] = useState(1337);
-  const [planeTilt, setPlaneTilt] = useState(0.25);
-  const [lighting, setLighting] = useState(ex.id !== "sphere-plane-sections");
+  const [seed, setSeed] = useState(DEFAULT_EXAMPLE_PARAMS.seed);
+  const [planeTilt, setPlaneTilt] = useState(DEFAULT_EXAMPLE_PARAMS.planeTilt);
+  const [hiddenLines, setHiddenLines] = useState<HiddenLineMode>("dashed");
+  // Exam figures read best as pure line work; shading suits the others.
+  const [lighting, setLighting] = useState(ex.kind === "basic");
   const [lightAzimuth, setLightAzimuth] = useState(-35);
   const [lightElevation, setLightElevation] = useState(45);
   const [ambient, setAmbient] = useState(0.28);
@@ -179,18 +185,17 @@ function InteractiveExample({
     "idle",
   );
 
-  const baseDemo = useMemo<DemoCase>(() => {
-    const w = width > 0 ? width : 900;
-    const h = height > 0 ? height : 560;
-
-    if (ex.id === "simple-primitives") return buildSimplePrimitivesDemo(w, h);
-    if (ex.id === "random-primitives")
-      return buildRandomPrimitivesDemo(w, h, seed);
-    if (ex.id === "sphere-plane-sections")
-      return buildSpherePlaneSectionsDemo(w, h);
-    if (ex.id === "tangent-spheres") return buildTangentSpheresDemo(w, h);
-    return buildConicSectionDemo(w, h, planeTilt);
-  }, [ex.id, width, height, seed, planeTilt]);
+  const model = useMemo(
+    () =>
+      buildExampleModel(
+        ex.id,
+        width > 0 ? width : 900,
+        height > 0 ? height : 560,
+        { seed, planeTilt },
+      ),
+    [ex.id, width, height, seed, planeTilt],
+  );
+  const baseDemo = model.demo;
 
   const baseOrbit = useMemo(
     () => orbitFromCamera(baseDemo.camera.position, baseDemo.camera.target),
@@ -264,27 +269,17 @@ function InteractiveExample({
   // Lighting only changes the surface layer; expensive HLR stays memoized.
   const renderedLines = useDemoSvg(
     runtimeDemo,
-    ex.id === "sphere-plane-sections"
-      ? SPHERE_SECTIONS_RENDER_OPTIONS
-      : ex.id === "tangent-spheres"
-        ? TANGENT_SPHERES_RENDER_OPTIONS
-        : RENDER_OPTIONS,
+    lineRenderOptions(hiddenLines, dragging || playing),
   );
   const lineSvg = useMemo(() => {
-    const renderAnnotations =
-      ex.id === "sphere-plane-sections"
-        ? renderSpherePlaneSectionsAnnotations
-        : ex.id === "tangent-spheres"
-          ? renderTangentSpheresAnnotations
-          : null;
-    if (!renderAnnotations) return renderedLines;
-    const annotations = renderAnnotations(
+    const annotations = model.annotate(
       camera,
       runtimeDemo.width,
       runtimeDemo.height,
     );
+    if (!annotations) return renderedLines;
     return renderedLines.replace(/<\/svg>\s*$/, () => `${annotations}</svg>`);
-  }, [camera, ex.id, renderedLines, runtimeDemo.width, runtimeDemo.height]);
+  }, [camera, model, renderedLines, runtimeDemo.width, runtimeDemo.height]);
 
   const lightSettings = useMemo(
     () => ({
@@ -331,10 +326,10 @@ function InteractiveExample({
     (event: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (!drag || drag.id !== event.pointerId) return;
-      const azimuth = drag.az + (event.clientX - drag.x) * 0.0075;
+      const azimuth = drag.az - (event.clientX - drag.x) * 0.0075;
       const polar = clamp(
         0.05,
-        drag.pol + (event.clientY - drag.y) * 0.0075,
+        drag.pol - (event.clientY - drag.y) * 0.0075,
         Math.PI - 0.05,
       );
       const latest = orbitInput.current();
@@ -386,133 +381,35 @@ function InteractiveExample({
   }, [runtimeDemo.primitives]);
 
   return (
-    <div
-      className={cn(
-        // 전체
-        "w-full",
-        // 패딩
-        "px-6 py-6",
-        // 오버플로우
-        "overflow-x-hidden",
-      )}
-    >
-      <header
-        className={cn(
-          // 레이아웃
-          "flex flex-col gap-3",
-          // 간격
-          "mb-5",
-        )}
+    <div className="example">
+      <ExampleHeader
+        lang={lang}
+        label={exampleLabel(ex.id, lang)}
+        info={info}
+        githubUrl={githubUrl}
       >
-        <div
-          className={cn(
-            // 레이아웃
-            "flex items-start justify-between gap-4",
-          )}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => void copySvg()}
         >
-          <div className={cn("min-w-0")}>
-            <Link
-              to={`/docs/${lang}/examples`}
-              className={cn(
-                // 타이포그래피
-                "text-sm font-medium",
-                // 색상
-                "text-[hsl(152,69%,35%)]",
-                // 호버
-                "hover:text-[hsl(152,69%,25%)]",
-                "hover:underline",
-                "underline-offset-4",
-              )}
-            >
-              {t.back}
-            </Link>
-            <h1
-              className={cn(
-                // 타이포그래피
-                "text-2xl font-semibold tracking-tight",
-                // 색상
-                "text-[hsl(220,9%,18%)]",
-                // 간격
-                "mt-2",
-              )}
-            >
-              {info.title}
-            </h1>
-            <p
-              className={cn(
-                // 타이포그래피
-                "text-[15px] leading-7",
-                // 색상
-                "text-[hsl(220,9%,35%)]",
-                // 간격
-                "mt-2",
-              )}
-            >
-              {info.description}
-            </p>
-          </div>
-
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              // 타이포그래피
-              "text-sm font-medium",
-              // 색상
-              "text-[hsl(152,69%,35%)]",
-              // 호버
-              "hover:text-[hsl(152,69%,25%)]",
-              "hover:underline",
-              "underline-offset-4",
-              // 줄바꿈 방지
-              "shrink-0",
-            )}
-          >
-            {t.github}
-          </a>
-        </div>
-      </header>
-
-      {/* Viewer - Full width */}
-      <section
-        className={cn(
-          // 카드
-          "rounded-lg",
-          "border border-[hsl(220,13%,91%)]",
-          "bg-white",
-          "overflow-hidden",
-          // 최소 너비
-          "min-w-0",
-        )}
-      >
-        {/* Toolbar */}
-        <div
-          className={cn(
-            // 레이아웃
-            "flex flex-wrap items-center justify-between gap-3",
-            // 패딩
-            "px-4 py-3",
-            // 보더
-            "border-b border-[hsl(220,13%,91%)]",
-            // 배경
-            "bg-[hsl(240,4.8%,95.9%)]",
-          )}
+          {copyStatus === "copied" ? t.copiedSvg : t.copySvg}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={downloadSvg}
         >
-          <div
-            className={cn(
-              // 타이포그래피
-              "text-xs",
-              // 색상
-              "text-[hsl(220,9%,46%)]",
-            )}
-          >
-            {t.hint}
-          </div>
+          {t.exportSvg}
+        </button>
+      </ExampleHeader>
 
-          <div className={cn("flex flex-wrap items-center justify-end gap-2")}>
+      <section className="example-stage" aria-label={info.title}>
+        <div className="example-toolbar">
+          <div className="example-toolbar-group">
             <button
               type="button"
+              className="tool-btn"
               onClick={() => {
                 orbitInput.reset(baseOrbit);
                 setProjection(initialProjection);
@@ -520,64 +417,28 @@ function InteractiveExample({
                 dragRef.current = null;
                 setDragging(false);
               }}
-              className={cn(
-                // 버튼
-                "h-9 px-3",
-                "rounded-md",
-                "border border-[hsl(220,13%,91%)]",
-                "bg-white",
-                // 타이포그래피
-                "text-sm font-medium",
-                // 호버
-                "hover:bg-[hsl(220,14%,96%)]",
-                // 트랜지션
-                "transition-colors",
-              )}
             >
+              <RotateCcw aria-hidden="true" size={14} strokeWidth={1.8} />
               {t.reset}
             </button>
-
             <button
               type="button"
+              className="tool-btn"
+              aria-pressed={playing}
               onClick={() => setPlaying((p) => !p)}
-              className={cn(
-                // 버튼
-                "h-9 px-3",
-                "rounded-md",
-                "border border-[hsl(220,13%,91%)]",
-                "bg-white",
-                // 타이포그래피
-                "text-sm font-medium",
-                // 호버
-                "hover:bg-[hsl(220,14%,96%)]",
-                // 트랜지션
-                "transition-colors",
-              )}
             >
+              {playing ? (
+                <Pause aria-hidden="true" size={14} strokeWidth={1.8} />
+              ) : (
+                <Play aria-hidden="true" size={14} strokeWidth={1.8} />
+              )}
               {playing ? t.stop : t.play}
             </button>
-
-            <div className={cn("flex items-center gap-1")}>
+            <div className="seg seg-sm" role="group" aria-label={t.projection}>
               <button
                 type="button"
                 aria-pressed={projection === "perspective"}
                 onClick={() => setProjection("perspective")}
-                className={cn(
-                  // 버튼
-                  "h-9 px-3",
-                  "rounded-md",
-                  "border border-[hsl(220,13%,91%)]",
-                  // 상태
-                  projection === "perspective"
-                    ? "bg-[hsl(152,69%,97%)] text-[hsl(152,69%,35%)]"
-                    : "bg-white text-[hsl(220,9%,18%)]",
-                  // 타이포그래피
-                  "text-sm font-medium",
-                  // 호버
-                  "hover:bg-[hsl(220,14%,96%)]",
-                  // 트랜지션
-                  "transition-colors",
-                )}
               >
                 {t.perspective}
               </button>
@@ -593,98 +454,47 @@ function InteractiveExample({
                     polar: ISO_POLAR,
                   }));
                 }}
-                className={cn(
-                  // 버튼
-                  "h-9 px-3",
-                  "rounded-md",
-                  "border border-[hsl(220,13%,91%)]",
-                  // 상태
-                  projection === "isometric"
-                    ? "bg-[hsl(152,69%,97%)] text-[hsl(152,69%,35%)]"
-                    : "bg-white text-[hsl(220,9%,18%)]",
-                  // 타이포그래피
-                  "text-sm font-medium",
-                  // 호버
-                  "hover:bg-[hsl(220,14%,96%)]",
-                  // 트랜지션
-                  "transition-colors",
-                )}
               >
                 {t.isometric}
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => void copySvg()}
-              className={cn(
-                "h-9 rounded-md border border-[hsl(220,13%,91%)] bg-white px-3",
-                "text-sm font-medium hover:bg-[hsl(220,14%,96%)] transition-colors",
-              )}
-            >
-              {copyStatus === "copied" ? t.copiedSvg : t.copySvg}
-            </button>
-            <button
-              type="button"
-              onClick={downloadSvg}
-              className={cn(
-                "h-9 rounded-md border border-[hsl(220,13%,91%)] bg-white px-3",
-                "text-sm font-medium hover:bg-[hsl(220,14%,96%)] transition-colors",
-              )}
-            >
-              {t.exportSvg}
-            </button>
-
-            {/* example-specific */}
-            {ex.id === "random-primitives" ? (
-              <div className={cn("flex items-center gap-2")}>
-                <label className={cn("text-xs text-[hsl(220,9%,46%)]")}>
-                  {t.seed}
+          </div>
+          <div className="example-toolbar-group">
+            <span className="seg-label">{t.hiddenLines}</span>
+            <div className="seg seg-sm" role="group" aria-label={t.hiddenLines}>
+              {(Object.keys(t.modes) as HiddenLineMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={hiddenLines === mode}
+                  onClick={() => setHiddenLines(mode)}
+                >
+                  {t.modes[mode]}
+                </button>
+              ))}
+            </div>
+            {ex.id === "random-primitives" && (
+              <span className="tool-field">
+                <label>
+                  <span>{t.seed}</span>
+                  <input
+                    value={seed}
+                    onChange={(e) => setSeed(Number(e.target.value) || 0)}
+                    inputMode="numeric"
+                  />
                 </label>
-                <input
-                  value={seed}
-                  onChange={(e) => setSeed(Number(e.target.value) || 0)}
-                  className={cn(
-                    // 입력
-                    "h-9 w-24",
-                    "rounded-md",
-                    "border border-[hsl(220,13%,91%)]",
-                    "bg-white",
-                    "px-2",
-                    // 타이포그래피
-                    "text-sm",
-                    // 포커스
-                    "focus:outline-none focus:ring-2 focus:ring-[hsl(152,69%,41%)]",
-                  )}
-                  inputMode="numeric"
-                />
                 <button
                   type="button"
+                  className="tool-btn"
                   onClick={() => setSeed((s) => s + 1)}
-                  className={cn(
-                    // 버튼
-                    "h-9 px-3",
-                    "rounded-md",
-                    "border border-[hsl(220,13%,91%)]",
-                    "bg-white",
-                    // 타이포그래피
-                    "text-sm font-medium",
-                    // 호버
-                    "hover:bg-[hsl(220,14%,96%)]",
-                    // 트랜지션
-                    "transition-colors",
-                  )}
                 >
                   {t.regen}
                 </button>
-              </div>
-            ) : null}
-
-            {ex.id === "conic-section" ? (
-              <div className={cn("flex items-center gap-2")}>
-                <label className={cn("text-xs text-[hsl(220,9%,46%)]")}>
-                  {t.planeTilt}
-                </label>
+              </span>
+            )}
+            {ex.id === "conic-section" && (
+              <label className="tool-field">
+                <span>{t.planeTilt}</span>
                 <input
                   type="range"
                   min={-0.35}
@@ -692,145 +502,13 @@ function InteractiveExample({
                   step={0.01}
                   value={planeTilt}
                   onChange={(e) => setPlaneTilt(Number(e.target.value))}
-                  className={cn(
-                    // 슬라이더
-                    "w-40",
-                  )}
                 />
-              </div>
-            ) : null}
-
-            {/* 선택된 객체 표시 */}
-            {selectedId && (
-              <div
-                className={cn(
-                  // 레이아웃
-                  "flex items-center gap-2",
-                  // 패딩
-                  "px-3 py-1.5",
-                  // 보더
-                  "rounded-md",
-                  "border border-[hsl(152,69%,41%)]",
-                  // 배경
-                  "bg-[hsl(152,69%,97%)]",
-                )}
-              >
-                <span
-                  className={cn(
-                    // 타이포그래피
-                    "text-sm font-medium",
-                    // 색상
-                    "text-[hsl(152,69%,35%)]",
-                  )}
-                >
-                  {t.selected}: {selectedId}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(null)}
-                  className={cn(
-                    // 버튼
-                    "px-1.5 py-0.5",
-                    "rounded",
-                    // 타이포그래피
-                    "text-xs",
-                    // 색상
-                    "text-[hsl(152,69%,35%)]",
-                    // 호버
-                    "hover:bg-[hsl(152,69%,90%)]",
-                    // 트랜지션
-                    "transition-colors",
-                  )}
-                  title={t.deselect}
-                >
-                  ✕
-                </button>
-              </div>
+              </label>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-[hsl(220,13%,91%)] px-4 py-3 text-sm">
-          <label className="flex cursor-pointer items-center gap-2 font-medium">
-            <input
-              type="checkbox"
-              checked={lighting}
-              onChange={(e) => setLighting(e.target.checked)}
-              className="accent-[hsl(152,69%,35%)]"
-            />
-            {t.lighting}
-          </label>
-          <label className="flex flex-wrap items-center gap-2">
-            <span>{t.lightAzimuth}</span>
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={lightAzimuth}
-              onChange={(e) => setLightAzimuth(Number(e.target.value))}
-              disabled={!lighting}
-              className="w-28 accent-[hsl(152,69%,35%)] disabled:opacity-40"
-            />
-            <output className="w-10 text-right tabular-nums">
-              {lightAzimuth}°
-            </output>
-          </label>
-          <label className="flex flex-wrap items-center gap-2">
-            <span>{t.lightElevation}</span>
-            <input
-              type="range"
-              min={-85}
-              max={85}
-              step={1}
-              value={lightElevation}
-              onChange={(e) => setLightElevation(Number(e.target.value))}
-              disabled={!lighting}
-              className="w-28 accent-[hsl(152,69%,35%)] disabled:opacity-40"
-            />
-            <output className="w-10 text-right tabular-nums">
-              {lightElevation}°
-            </output>
-          </label>
-          <label className="flex flex-wrap items-center gap-2">
-            <span>{t.ambient}</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.02}
-              value={ambient}
-              onChange={(e) => setAmbient(Number(e.target.value))}
-              disabled={!lighting}
-              className="w-24 accent-[hsl(152,69%,35%)] disabled:opacity-40"
-            />
-            <output className="w-9 text-right tabular-nums">
-              {Math.round(ambient * 100)}%
-            </output>
-          </label>
-          <span role="status" className="text-xs text-[hsl(220,9%,46%)]">
-            {copyStatus === "failed" ? t.copyFailed : ""}
-          </span>
-        </div>
-
-        {/* Interactive SVG area */}
-        <div
-          ref={wrapRef}
-          className={cn(
-            // 레이아웃
-            "w-full",
-            // 높이 (전체 화면 높이에서 헤더/툴바 제외)
-            "h-[calc(100vh-280px)]",
-            // 최소 높이
-            "min-h-[560px]",
-            // 터치
-            "touch-none select-none",
-            // 커서
-            "cursor-grab active:cursor-grabbing",
-            // 오버플로우
-            "overflow-hidden",
-          )}
-        >
+        <div ref={wrapRef} className="example-canvas">
           <SurfaceDiagram
             ref={diagramRef}
             primitives={runtimeDemo.primitives}
@@ -846,327 +524,196 @@ function InteractiveExample({
             }
             selectedId={selectedId}
             onSelect={setSelectedId}
-            ariaLabel={t.hint}
+            ariaLabel={`${info.title}. ${t.hint}`}
             interactive={dragging || playing}
-            className="h-full w-full"
+            className="example-surface"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
             onWheel={handleWheel}
           />
+          <p className="example-hint" aria-hidden="true">
+            {t.hint}
+          </p>
+          {selectedId && (
+            <div className="example-selected">
+              <span>
+                {t.selected} · <code>{selectedId}</code>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                aria-label={t.deselect}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="example-light">
+          <label className="tool-check">
+            <input
+              type="checkbox"
+              checked={lighting}
+              onChange={(e) => setLighting(e.target.checked)}
+            />
+            {t.lighting}
+          </label>
+          <label className="tool-range">
+            <span>{t.lightAzimuth}</span>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              value={lightAzimuth}
+              onChange={(e) => setLightAzimuth(Number(e.target.value))}
+              disabled={!lighting}
+            />
+            <output>{lightAzimuth}°</output>
+          </label>
+          <label className="tool-range">
+            <span>{t.lightElevation}</span>
+            <input
+              type="range"
+              min={-85}
+              max={85}
+              step={1}
+              value={lightElevation}
+              onChange={(e) => setLightElevation(Number(e.target.value))}
+              disabled={!lighting}
+            />
+            <output>{lightElevation}°</output>
+          </label>
+          <label className="tool-range">
+            <span>{t.ambient}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.02}
+              value={ambient}
+              onChange={(e) => setAmbient(Number(e.target.value))}
+              disabled={!lighting}
+            />
+            <output>{Math.round(ambient * 100)}%</output>
+          </label>
+          <span role="status" className="example-status">
+            {copyStatus === "failed" ? t.copyFailed : ""}
+          </span>
         </div>
       </section>
+
+      {question && (
+        <section
+          className="example-paper"
+          aria-labelledby="example-paper-title"
+        >
+          <div className="example-section-head">
+            <h2 id="example-paper-title">{t.paper}</h2>
+            <p>{t.paperNote}</p>
+          </div>
+          <div className="example-paper-body">
+            <ExamProvider>
+              <Question spec={question} showFigure={false} />
+            </ExamProvider>
+            <dl className="example-notes">
+              <div>
+                <dt>{t.solution}</dt>
+                <dd>{question.solution}</dd>
+              </div>
+              <div>
+                <dt>{t.drawing}</dt>
+                <dd>{question.drawing}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      )}
+
+      <ExampleCode
+        title={t.code}
+        note={t.codeNote}
+        file={ex.githubPath.split("/").pop() ?? "example.ts"}
+        code={ex.code}
+        lang={lang}
+      />
     </div>
   );
 }
 
-function buildSimplePrimitivesDemo(width: number, height: number): DemoCase {
-  const camera = Camera.from({
-    kind: "perspective",
-    position: new Vec3(4.2, 2.8, 5.4),
-    target: new Vec3(0.2, 0.0, 0.0),
-    up: new Vec3(0, 1, 0),
-    fovYRad: (55 * Math.PI) / 180,
-    aspect: width / height,
-    near: 0.1,
-    far: 100,
-  });
-
-  const sphere = new Sphere("sphere", new Vec3(-1.6, 0.2, 0.0), 1.0);
-  const cylinder = new Cylinder(
-    "cyl",
-    new Vec3(0.4, -1.1, -0.2),
-    new Vec3(0, 1, 0),
-    2.4,
-    0.65,
-    "both",
+export function ExampleHeader({
+  lang,
+  label,
+  info,
+  githubUrl,
+  children,
+}: {
+  lang: Locale;
+  label: string;
+  info: { title: string; description: string; tags: readonly string[] };
+  githubUrl: string;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  const t = EXAMPLE_TEXT[lang];
+  return (
+    <header className="example-head">
+      <nav className="example-crumbs" aria-label={t.gallery}>
+        <Link to={`/docs/${lang}/examples`}>
+          <ArrowLeft aria-hidden="true" size={14} strokeWidth={1.8} />
+          {t.gallery}
+        </Link>
+      </nav>
+      <div className="example-head-row">
+        <div className="example-head-text">
+          <p className="exam-pill">
+            <span className="exam-pill-period">{label}</span>
+            <span>{info.tags.join(" · ")}</span>
+          </p>
+          <h1 className="docs-title">{info.title}</h1>
+          <p className="docs-lede">{info.description}</p>
+        </div>
+        <div className="example-actions">
+          <a
+            className="btn btn-secondary btn-sm"
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t.github}
+            <ArrowUpRight aria-hidden="true" size={13} strokeWidth={1.8} />
+          </a>
+          {children}
+        </div>
+      </div>
+    </header>
   );
-  const cone = new Cone(
-    "cone",
-    new Vec3(2.2, 1.2, 0.0),
-    new Vec3(0, -1, 0),
-    2.2,
-    0.9,
-    "base",
+}
+
+export function ExampleCode({
+  title,
+  note,
+  file,
+  code,
+  lang,
+}: {
+  title: string;
+  note: string;
+  file: string;
+  code: string;
+  lang: Locale;
+}): React.ReactElement {
+  return (
+    <section className="example-code" aria-labelledby="example-code-title">
+      <div className="example-section-head">
+        <h2 id="example-code-title">{title}</h2>
+        <p>{note}</p>
+      </div>
+      <CodeWindow title={file} code={code.trim()} locale={lang} />
+    </section>
   );
-  const box = new BoxAabb(
-    "box",
-    new Vec3(-0.6, -0.9, 1.3),
-    new Vec3(0.8, 0.5, 2.7),
-  );
-
-  return {
-    name: "simple-primitives",
-    width,
-    height,
-    camera,
-    primitives: [sphere, cylinder, cone, box],
-    includeIntersections: false,
-    curves: ({ camera }) => [
-      ...sphereSilhouetteToCubics3({
-        cameraPos: camera.position,
-        viewDirection:
-          camera.kind === "orthographic" ? camera.forward : undefined,
-        center: sphere.center,
-        radius: sphere.radius,
-      }),
-      ...cylinderSilhouetteToCubics3({
-        cameraPos: camera.position,
-        viewDirection:
-          camera.kind === "orthographic" ? camera.forward : undefined,
-        base: cylinder.base,
-        axis: cylinder.axis,
-        height: cylinder.height,
-        radius: cylinder.radius,
-      }),
-      ...coneSilhouetteToCubics3({
-        cameraPos: camera.position,
-        viewDirection:
-          camera.kind === "orthographic" ? camera.forward : undefined,
-        apex: cone.apex,
-        axis: cone.axis,
-        height: cone.height,
-        baseRadius: cone.baseRadius,
-      }),
-      ...boxEdgesAsCubics(box.min, box.max),
-    ],
-  };
-}
-
-function buildRandomPrimitivesDemo(
-  width: number,
-  height: number,
-  seed: number,
-): DemoCase {
-  const rng = mulberry32(seed);
-
-  const camera = Camera.from({
-    kind: "perspective",
-    position: new Vec3(5.0, 3.6, 6.2),
-    target: new Vec3(0, 0, 0),
-    up: new Vec3(0, 1, 0),
-    fovYRad: (50 * Math.PI) / 180,
-    aspect: width / height,
-    near: 0.1,
-    far: 100,
-  });
-
-  const primitives = createRandomPrimitives(rng, 10);
-
-  return {
-    name: `random-primitives (seed: ${seed})`,
-    width,
-    height,
-    camera,
-    primitives,
-    includeIntersections: true,
-    curves: ({ camera, primitives }) => {
-      const out: ReturnType<typeof sphereSilhouetteToCubics3> = [];
-      for (const p of primitives) {
-        if (p instanceof Sphere)
-          out.push(
-            ...sphereSilhouetteToCubics3({
-              cameraPos: camera.position,
-              viewDirection:
-                camera.kind === "orthographic" ? camera.forward : undefined,
-              center: p.center,
-              radius: p.radius,
-            }),
-          );
-        else if (p instanceof Cylinder)
-          out.push(
-            ...cylinderSilhouetteToCubics3({
-              cameraPos: camera.position,
-              viewDirection:
-                camera.kind === "orthographic" ? camera.forward : undefined,
-              base: p.base,
-              axis: p.axis,
-              height: p.height,
-              radius: p.radius,
-            }),
-          );
-        else if (p instanceof Cone)
-          out.push(
-            ...coneSilhouetteToCubics3({
-              cameraPos: camera.position,
-              viewDirection:
-                camera.kind === "orthographic" ? camera.forward : undefined,
-              apex: p.apex,
-              axis: p.axis,
-              height: p.height,
-              baseRadius: p.baseRadius,
-            }),
-          );
-        else if (p instanceof BoxAabb)
-          out.push(...boxEdgesAsCubics(p.min, p.max));
-      }
-      return out;
-    },
-  };
-}
-
-function buildConicSectionDemo(
-  width: number,
-  height: number,
-  tilt: number,
-): DemoCase {
-  const camera = Camera.from({
-    kind: "perspective",
-    position: new Vec3(3.8, 2.4, 5.2),
-    target: new Vec3(0.0, 0.1, 0.0),
-    up: new Vec3(0, 1, 0),
-    fovYRad: (55 * Math.PI) / 180,
-    aspect: width / height,
-    near: 0.1,
-    far: 100,
-  });
-
-  const cone = new Cone(
-    "cone",
-    new Vec3(0.0, -1.2, 0.0),
-    new Vec3(0.1, 1.0, -0.15),
-    2.6,
-    1.0,
-    "base",
-  );
-  const plane = new PlaneRect(
-    "plane",
-    new Vec3(0.15, 0.1, -0.1),
-    new Vec3(0.0, 1.0, tilt),
-    new Vec3(1.0, 0.0, 0.0),
-    2.6,
-    1.9,
-  );
-
-  return {
-    name: "conic-section",
-    width,
-    height,
-    camera,
-    primitives: [cone, plane],
-    includeIntersections: true,
-    curves: ({ camera }) => [
-      ...coneSilhouetteToCubics3({
-        cameraPos: camera.position,
-        viewDirection:
-          camera.kind === "orthographic" ? camera.forward : undefined,
-        apex: cone.apex,
-        axis: cone.axis,
-        height: cone.height,
-        baseRadius: cone.baseRadius,
-      }),
-    ],
-  };
-}
-
-function createRandomPrimitives(rng: () => number, count: number) {
-  const out: Array<Sphere | Cylinder | Cone | BoxAabb> = [];
-
-  for (let i = 0; i < count; i++) {
-    const t = Math.floor(rng() * 4);
-    const pos = new Vec3(
-      randRange(rng, -3.5, 3.5),
-      randRange(rng, -2.0, 2.0),
-      randRange(rng, -2.5, 2.5),
-    );
-    const id = `p_${i}`;
-
-    if (t === 0) out.push(new Sphere(id, pos, randRange(rng, 0.45, 1.15)));
-    else if (t === 1)
-      out.push(
-        new Cylinder(
-          id,
-          pos,
-          randUnitVec3(rng),
-          randRange(rng, 1.0, 2.5),
-          randRange(rng, 0.3, 0.8),
-          "both",
-        ),
-      );
-    else if (t === 2)
-      out.push(
-        new Cone(
-          id,
-          pos,
-          randUnitVec3(rng),
-          randRange(rng, 1.0, 2.5),
-          randRange(rng, 0.5, 1.0),
-          "base",
-        ),
-      );
-    else {
-      const size = randRange(rng, 0.5, 1.2);
-      out.push(
-        new BoxAabb(
-          id,
-          pos,
-          Vec3.add(pos, new Vec3(size, size * randRange(rng, 0.6, 1.6), size)),
-        ),
-      );
-    }
-  }
-
-  return out;
-}
-
-function randRange(rng: () => number, min: number, max: number): number {
-  return min + rng() * (max - min);
-}
-
-function randUnitVec3(rng: () => number): Vec3 {
-  const v = new Vec3(
-    randRange(rng, -1, 1),
-    randRange(rng, -1, 1),
-    randRange(rng, -1, 1),
-  );
-  return Vec3.normalize(v);
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function boxEdgesAsCubics(min: Vec3, max: Vec3) {
-  const x0 = min.x,
-    y0 = min.y,
-    z0 = min.z;
-  const x1 = max.x,
-    y1 = max.y,
-    z1 = max.z;
-
-  const v000 = new Vec3(x0, y0, z0);
-  const v100 = new Vec3(x1, y0, z0);
-  const v010 = new Vec3(x0, y1, z0);
-  const v110 = new Vec3(x1, y1, z0);
-  const v001 = new Vec3(x0, y0, z1);
-  const v101 = new Vec3(x1, y0, z1);
-  const v011 = new Vec3(x0, y1, z1);
-  const v111 = new Vec3(x1, y1, z1);
-
-  const edges: Array<[Vec3, Vec3]> = [
-    [v000, v100],
-    [v010, v110],
-    [v001, v101],
-    [v011, v111],
-    [v000, v010],
-    [v100, v110],
-    [v001, v011],
-    [v101, v111],
-    [v000, v001],
-    [v100, v101],
-    [v010, v011],
-    [v110, v111],
-  ];
-
-  return edges.map(([a, b]) => lineToCubic3(a, b));
 }
 
 export function getAllExampleIds(): ExampleId[] {

@@ -1,4 +1,4 @@
-부크크 명조 / Bookk Myungjo
+부크크 명조 / Bookk Myungjo, 부크크 고딕 / Bookk Gothic
 
 제작사: Sandoll
 배포: (주)부크크
@@ -19,5 +19,7 @@
 원본 WOFF2 (수정하지 않음):
 https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Lt.woff2
 https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Bd.woff2
+https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkGothic-Lt.woff2
+https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkGothic-Bd.woff2
 
 확인일: 2026-10-13

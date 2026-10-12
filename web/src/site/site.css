@@ -1,0 +1,598 @@
+/* 시험지 × Vercel: 흰 종이, 먹색 선, 얇은 격자. 초록은 채점 펜과 상태 표시에만. */
+
+/* 부크크 글꼴은 라이선스상 수정(서브셋 포함) 없이 배포 원본 그대로 쓴다.
+   제목은 부크크 고딕, 문항 본문과 그림 라벨은 부크크 명조. */
+@font-face {
+  font-family: "Bookk Gothic";
+  src: url("/fonts/BookkGothic-Lt.woff2") format("woff2");
+  font-weight: 300 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bookk Gothic";
+  src: url("/fonts/BookkGothic-Bd.woff2") format("woff2");
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bookk Myungjo";
+  src: url("/fonts/BookkMyungjo-Lt.woff2") format("woff2");
+  font-weight: 300 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bookk Myungjo";
+  src: url("/fonts/BookkMyungjo-Bd.woff2") format("woff2");
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+.site {
+  --bg: #ffffff;
+  --wash: #fafafa;
+  --ink: #0a0a0a;
+  --ink-2: #555555;
+  --ink-3: #8a8a8a;
+  --line: #e8e8e8;
+  --line-2: #d6d6d6;
+  --plus: #9a9a9a;
+  --accent: #0d8a4e;
+  --accent-wash: #e6f4ec;
+  --serif: "Bookk Myungjo", "AppleMyungjo", "Nanum Myeongjo", "Batang", serif;
+  --display:
+    "Bookk Gothic", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --sans:
+    Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  --math: "Times New Roman", Times, var(--serif);
+  --mono: Hack, ui-monospace, SFMono-Regular, Menlo, monospace;
+  --frame: 1200px;
+  --gutter: 24px;
+  --header: 64px;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+/* Resets stay at element specificity so component classes always win. */
+:where(.site) *,
+:where(.site) *::before,
+:where(.site) *::after {
+  box-sizing: border-box;
+}
+:where(.site) a {
+  color: inherit;
+  text-decoration: none;
+}
+:where(.site) button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.site :is(a, button, input, select, [tabindex="0"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.site [tabindex="-1"]:focus {
+  outline: none;
+}
+.site ::selection {
+  background: var(--accent-wash);
+}
+.site .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: -64px;
+  z-index: 80;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff !important;
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 12px;
+}
+
+/* ── 로고 ─────────────────────────────────────────────────────────────── */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+}
+.logo-word {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* ── 머리말 ───────────────────────────────────────────────────────────── */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--header);
+  background: rgba(255, 255, 255, 0.86);
+  border-bottom: 1px solid var(--line);
+  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  backdrop-filter: saturate(1.4) blur(10px);
+}
+.site-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 100%;
+  width: min(var(--frame), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+}
+.site-header-inner.is-wide {
+  width: calc(100% - 2 * var(--gutter));
+}
+.site-menu {
+  display: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -14px;
+  border-radius: 8px;
+}
+.site-menu:hover {
+  background: var(--wash);
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  transition: color 0.15s;
+}
+.site-nav a:hover,
+.site-nav a.is-active {
+  color: var(--ink);
+}
+.site-nav a.is-active {
+  font-weight: 600;
+}
+.site-header-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.site-header-end .site-menu {
+  margin: 0 -6px 0 0;
+}
+.site-mobile-nav {
+  display: none;
+}
+
+/* ── 단추 ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.btn-primary {
+  background: var(--ink);
+  color: #fff !important;
+}
+.btn-primary:hover {
+  background: #2e2e2e;
+}
+.btn-secondary {
+  background: var(--bg);
+  border-color: var(--line-2);
+  color: var(--ink);
+}
+.btn-secondary:hover {
+  background: #f3f3f3;
+}
+.btn-lg {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 15.5px;
+}
+.btn-sm {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s;
+}
+.text-link:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* ── 교시 표 ──────────────────────────────────────────────────────────── */
+.exam-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 14px 3px 3px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: var(--bg);
+}
+.exam-pill-period {
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+a.exam-pill:hover .exam-pill-text {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── 격자 틀: 재단선처럼 모서리마다 + 표시 ───────────────────────────── */
+.frame {
+  width: min(var(--frame), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  border-inline: 1px solid var(--line);
+}
+.band {
+  position: relative;
+  border-top: 1px solid var(--line);
+}
+.band::before,
+.band::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  z-index: 2;
+  width: 15px;
+  height: 15px;
+  background:
+    linear-gradient(var(--plus), var(--plus)) center / 1px 100% no-repeat,
+    linear-gradient(var(--plus), var(--plus)) center / 100% 1px no-repeat;
+  pointer-events: none;
+}
+.band::before {
+  left: -8px;
+}
+.band::after {
+  right: -8px;
+}
+.band-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 56px 48px 40px;
+}
+.band-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.band-eyebrow::before {
+  content: "";
+  width: 16px;
+  height: 2px;
+  background: var(--ink);
+}
+.band-title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.22;
+  letter-spacing: -0.045em;
+}
+.band-desc {
+  max-width: 34em;
+  margin: 14px 0 0;
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+/* ── 설치 명령 ────────────────────────────────────────────────────────── */
+.install {
+  position: relative;
+  display: inline-block;
+}
+.install button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+.install button:hover {
+  border-color: var(--ink);
+}
+.install code {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.install-prompt {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+.install svg {
+  color: var(--ink-3);
+}
+.install-status {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+/* ── 코드 창 ──────────────────────────────────────────────────────────── */
+.code-window {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.code-window-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 42px;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--wash);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.code-window-title {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.code-window-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.code-window-copy:hover {
+  background: #ededed;
+  color: var(--ink);
+}
+.code-window-body {
+  margin: 0;
+  padding: 18px 20px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--ink);
+  tab-size: 2;
+}
+.tok-k {
+  font-weight: 700;
+}
+.tok-s {
+  color: #616161;
+}
+.tok-c {
+  color: #9b9b9b;
+  font-style: italic;
+}
+
+/* ── 꼬리말 ───────────────────────────────────────────────────────────── */
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 14px;
+}
+.site-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  width: min(var(--frame), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 48px 0 40px;
+}
+.site-footer-brand p {
+  margin: 14px 0 0;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+.site-footer-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, auto));
+  gap: 24px 56px;
+}
+.site-footer-cols > div {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  color: var(--ink-2);
+}
+.site-footer-cols h2 {
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.site-footer-cols a:hover {
+  color: var(--ink);
+}
+.site-footer-base {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  width: min(var(--frame), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 18px 0 28px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.site-footer-base p {
+  margin: 0;
+}
+.site-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.site-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+@media (max-width: 860px) {
+  .site {
+    --gutter: 16px;
+  }
+  .site-nav {
+    display: none;
+  }
+  .site-menu {
+    display: grid;
+  }
+  .site-mobile-nav {
+    display: grid;
+    padding: 6px var(--gutter) 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    box-shadow: 0 18px 30px -24px rgba(0, 0, 0, 0.35);
+  }
+  .site-mobile-nav a {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 17px;
+  }
+  .site-mobile-nav a:last-child {
+    border-bottom: 0;
+  }
+  .site-mobile-nav a.is-active::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .band-head {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 44px 24px 28px;
+  }
+  .band-title {
+    font-size: 34px;
+  }
+  .site-footer-inner {
+    flex-direction: column;
+    padding-top: 36px;
+  }
+  .site-footer-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .band-head {
+    padding: 36px 16px 24px;
+  }
+  .band-title {
+    font-size: 29px;
+  }
+  .band-desc {
+    font-size: 15.5px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site *,
+  .site *::before,
+  .site *::after {
+    animation-duration: 0.01ms !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

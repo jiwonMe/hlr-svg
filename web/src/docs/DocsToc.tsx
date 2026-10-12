@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { cn } from "../lib/utils";
 import { DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
 
 interface TocItem {
@@ -11,14 +10,8 @@ interface TocItem {
 
 /** 언어별 텍스트 */
 const TOC_TEXT = {
-  "ko-kr": {
-    title: "목차",
-    loading: "로딩 중...",
-  },
-  "en-us": {
-    title: "Table of Contents",
-    loading: "Loading...",
-  },
+  "ko-kr": { title: "이 페이지의 문항" },
+  "en-us": { title: "On this page" },
 } as const;
 
 /**
@@ -49,7 +42,9 @@ export function DocsToc(): React.ReactElement {
     let tries = 0;
 
     const collectHeadings = (): TocItem[] => {
-      const els = document.querySelectorAll<HTMLElement>("article h2[id], article h3[id]");
+      const els = document.querySelectorAll<HTMLElement>(
+        "article h2[id], article h3[id]",
+      );
       return Array.from(els).map((el) => ({
         id: el.id,
         text: el.textContent || "",
@@ -70,11 +65,14 @@ export function DocsToc(): React.ReactElement {
       setHeadings(tocItems);
       if (tocItems.length > 0) setActiveId((prev) => prev || tocItems[0]!.id);
 
-      const headingElements = document.querySelectorAll<HTMLElement>("article h2[id], article h3[id]");
+      const headingElements = document.querySelectorAll<HTMLElement>(
+        "article h2[id], article h3[id]",
+      );
 
       // 실제 스크롤 컨테이너 결정 (main이 스크롤 가능하면 main, 아니면 window)
       const root =
-        scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1
+        scrollContainer &&
+        scrollContainer.scrollHeight > scrollContainer.clientHeight + 1
           ? scrollContainer
           : null;
 
@@ -94,7 +92,7 @@ export function DocsToc(): React.ReactElement {
           root,
           rootMargin: "-80px 0px -66% 0px",
           threshold: [0, 0.25, 0.5, 0.75, 1],
-        }
+        },
       );
 
       headingElements.forEach((el) => observer.observe(el));
@@ -119,14 +117,20 @@ export function DocsToc(): React.ReactElement {
     // 클릭 시 즉시 active 반영
     setActiveId(id);
 
-    const offset = 80; // Topbar 높이 보정
+    const offset = 88; // 고정 머리말 높이 보정
 
     // main 스크롤 컨테이너가 실제로 스크롤을 담당하는 경우: 컨테이너 기준으로 계산해서 한 번에 scrollTo
-    if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1) {
+    if (
+      scrollContainer &&
+      scrollContainer.scrollHeight > scrollContainer.clientHeight + 1
+    ) {
       const containerRect = scrollContainer.getBoundingClientRect();
       const elementRect = element.getBoundingClientRect();
       const top =
-        elementRect.top - containerRect.top + scrollContainer.scrollTop - offset;
+        elementRect.top -
+        containerRect.top +
+        scrollContainer.scrollTop -
+        offset;
 
       scrollContainer.scrollTo({
         top: Math.max(0, top),
@@ -141,94 +145,26 @@ export function DocsToc(): React.ReactElement {
   };
 
   return (
-    <aside
-      className={cn(
-        // 숨김 (모바일)
-        "hidden lg:block",
-        // 너비
-        "w-56 shrink-0",
-        // 패딩
-        "pl-6 pr-4 py-6",
-        // 보더
-        "border-l border-[hsl(220,13%,91%)]",
-        // sticky (상단바 높이만큼)
-        "sticky top-14",
-        // 높이 (상단바 제외)
-        "h-[calc(100vh-3.5rem)]",
-        // TOC 자체 스크롤
-        "overflow-y-auto"
-      )}
-    >
-      <h3
-        className={cn(
-          // 타이포그래피
-          "text-xs font-semibold uppercase tracking-wider",
-          // 색상
-          "text-[hsl(220,9%,46%)]",
-          // 마진
-          "mb-3"
-        )}
-      >
+    <aside className="docs-toc" aria-labelledby="docs-toc-title">
+      <h2 id="docs-toc-title" className="docs-toc-title">
         {texts.title}
-      </h3>
-      <nav>
-        {headings.length === 0 ? (
-          <p
-            className={cn(
-              // 타이포그래피
-              "text-xs",
-              // 색상
-              "text-[hsl(220,9%,46%)]"
-            )}
-          >
-            {texts.loading}
-          </p>
-        ) : (
-          <ul className={cn("space-y-1")}>
-            {headings.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => handleClick(item.id)}
-                  className={cn(
-                    // 디스플레이
-                    "block w-full text-left",
-                    // 패딩
-                    "px-2 py-1.5",
-                    // 라운드
-                    "rounded-md",
-                    // 타이포그래피
-                    "text-xs leading-5",
-                    // 트랜지션
-                    "transition-colors",
-                    // 레벨별 들여쓰기
-                    item.level === 3 && "pl-4",
-                    // 활성 상태
-                    activeId === item.id
-                      ? cn(
-                          // 색상
-                          "text-[hsl(152,69%,35%)]",
-                          // 폰트
-                          "font-semibold",
-                          // 배경
-                          "bg-[hsl(152,69%,97%)]"
-                        )
-                      : cn(
-                          // 색상
-                          "text-[hsl(220,9%,46%)]",
-                          // 호버
-                          "hover:text-[hsl(220,9%,18%)]",
-                          "hover:bg-[hsl(220,14%,96%)]"
-                        )
-                  )}
-                >
-                  {item.text}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </nav>
+      </h2>
+      {headings.length > 0 && (
+        <ul>
+          {headings.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => handleClick(item.id)}
+                aria-current={activeId === item.id ? "location" : undefined}
+                className={item.level === 3 ? "is-sub" : undefined}
+              >
+                {item.text}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }

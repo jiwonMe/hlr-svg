@@ -1,0 +1,536 @@
+/* 문서: 왼쪽 목차, 가운데 시험지 한 면, 오른쪽 문항 목록. */
+
+.docs-shell {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: calc(100vh - var(--header));
+}
+.docs-sidebar {
+  position: sticky;
+  top: var(--header);
+  height: calc(100vh - var(--header));
+  overflow-y: auto;
+  padding: 28px 16px 40px 20px;
+  border-right: 1px solid var(--line);
+}
+.docs-main {
+  min-width: 0;
+}
+
+/* ── 찾기, 언어 ───────────────────────────────────────────────────────── */
+.docs-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--wash);
+  color: var(--ink-3);
+  transition: border-color 0.15s;
+}
+.docs-search:focus-within {
+  border-color: var(--ink);
+  background: var(--bg);
+}
+.docs-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.docs-search input::placeholder {
+  color: var(--ink-3);
+}
+.docs-search.is-drawer {
+  flex: 1;
+  width: auto;
+}
+.seg-sm {
+  padding: 2px;
+}
+.seg-sm button {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+/* ── 왼쪽 목차 ────────────────────────────────────────────────────────── */
+.docs-nav-group + .docs-nav-group {
+  margin-top: 26px;
+}
+.docs-nav-title {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.docs-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.docs-nav-link {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.docs-nav-link:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.docs-nav-link.is-active {
+  background: #f0f0f0;
+  color: var(--ink);
+  font-weight: 600;
+}
+.docs-nav-no {
+  min-width: 1.4em;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.docs-nav-link.is-active .docs-nav-no {
+  color: var(--ink);
+}
+.docs-nav-empty {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+
+/* ── 작은 화면의 서랍 ─────────────────────────────────────────────────── */
+.docs-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+.docs-drawer-backdrop {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.32) !important;
+}
+.docs-drawer-panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(320px, 86vw);
+  overflow-y: auto;
+  padding: 16px 16px 32px;
+  background: var(--bg);
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.16);
+}
+.docs-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.docs-drawer-close {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+.docs-drawer-close:hover {
+  background: var(--wash);
+}
+
+/* ── 문서 한 면 ───────────────────────────────────────────────────────── */
+.docs-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 56px;
+  max-width: 1160px;
+  padding: 44px 48px 72px;
+}
+.docs-article {
+  min-width: 0;
+  max-width: 760px;
+}
+/* 문제지 머리처럼 가는 선 아래 굵은 선 */
+.docs-head {
+  position: relative;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--ink);
+}
+.docs-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  border-bottom: 3px solid var(--ink);
+}
+.docs-pill {
+  margin: 0 0 22px;
+}
+.docs-title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.2;
+  letter-spacing: -0.045em;
+}
+.docs-lede {
+  margin: 14px 0 0;
+  font-size: 17.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+/* ── 본문 ─────────────────────────────────────────────────────────────── */
+.prose {
+  counter-reset: item;
+  padding-top: 8px;
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: #262626;
+  word-break: keep-all;
+}
+.prose > :first-child {
+  margin-top: 28px;
+}
+.prose h2 {
+  counter-increment: item;
+  counter-reset: sub;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+  margin: 56px 0 14px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1.35;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  scroll-margin-top: calc(var(--header) + 24px);
+}
+.prose h2::before {
+  content: counter(item) ".";
+}
+.prose h3 {
+  counter-increment: sub;
+  margin: 36px 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--ink);
+  scroll-margin-top: calc(var(--header) + 24px);
+}
+.prose h3::before {
+  content: "(" counter(sub) ") ";
+  font-family: var(--display);
+}
+.prose h4 {
+  margin: 28px 0 8px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+/* rehype-autolink-headings가 넣는 빈 앵커 */
+.prose :is(h2, h3, h4) > a[aria-hidden="true"] {
+  display: none;
+}
+.prose p {
+  margin: 14px 0;
+}
+.prose a {
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 4px;
+}
+.prose a:hover {
+  text-decoration-color: var(--ink);
+}
+.prose strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+.prose ul,
+.prose ol {
+  margin: 14px 0;
+  padding-left: 1.4em;
+}
+.prose ul {
+  list-style: none;
+}
+.prose ul > li {
+  position: relative;
+}
+.prose ul > li::before {
+  content: "○";
+  position: absolute;
+  left: -1.35em;
+  font-size: 0.8em;
+  line-height: 2.3;
+  color: var(--ink-2);
+}
+.prose li {
+  margin: 6px 0;
+}
+.prose li::marker {
+  font-family: var(--serif);
+  font-weight: 700;
+}
+.prose hr {
+  margin: 40px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.prose blockquote {
+  margin: 20px 0;
+  padding: 12px 18px;
+  border: 1px solid var(--ink);
+  font-family: var(--serif);
+}
+.prose blockquote p {
+  margin: 4px 0;
+}
+.prose :not(pre) > code {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--wash);
+  font-family: var(--mono);
+  font-size: 0.84em;
+  color: var(--ink);
+  word-break: break-word;
+}
+.prose figure {
+  margin: 20px 0;
+}
+.prose pre {
+  position: relative;
+  margin: 0;
+  padding: 20px 22px;
+  overflow-x: auto;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--bg) !important;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.prose pre code {
+  display: grid;
+  font: inherit;
+}
+.prose pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 9px;
+  right: 14px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.prose-table {
+  margin: 20px 0;
+  overflow-x: auto;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.prose th {
+  padding: 10px 12px;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.prose td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.prose tbody tr:last-child td {
+  border-bottom: 1px solid var(--ink);
+}
+.prose td code {
+  white-space: nowrap;
+}
+
+/* ── 넘기기와 쪽 번호 ─────────────────────────────────────────────────── */
+.docs-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 64px;
+}
+.docs-pager-link {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  transition: border-color 0.15s;
+}
+.docs-pager-link:hover {
+  border-color: var(--ink);
+}
+.docs-pager-link span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.docs-pager-link strong {
+  font-family: var(--display);
+  font-size: 18px;
+}
+.docs-pager-link.is-next {
+  grid-column: 2;
+  justify-items: end;
+  text-align: right;
+}
+.docs-foot {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 40px 0 0;
+  padding: 12px 44px 0;
+  border-top: 1px solid var(--ink);
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--ink-2);
+}
+.docs-foot-page {
+  position: absolute;
+  right: 0;
+  top: 9px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--ink);
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  color: var(--ink);
+}
+
+/* ── 오른쪽 문항 목록 ─────────────────────────────────────────────────── */
+.docs-toc {
+  position: sticky;
+  top: calc(var(--header) + 44px);
+  align-self: start;
+  max-height: calc(100vh - var(--header) - 72px);
+  overflow-y: auto;
+  font-size: 13.5px;
+}
+.docs-toc-title {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.docs-toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--line);
+}
+.docs-toc button {
+  display: block;
+  width: 100%;
+  margin-left: -1px;
+  padding: 5px 0 5px 14px;
+  border-left: 1px solid transparent !important;
+  text-align: left;
+  line-height: 1.5;
+  color: var(--ink-2);
+  transition: color 0.15s;
+}
+.docs-toc button.is-sub {
+  padding-left: 26px;
+}
+.docs-toc button:hover {
+  color: var(--ink);
+}
+.docs-toc button[aria-current] {
+  border-left-color: var(--ink) !important;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+  .docs-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .docs-toc {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  .docs-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .docs-sidebar {
+    display: none;
+  }
+  .docs .site-header-end .docs-search {
+    display: none;
+  }
+  .docs-page {
+    padding: 32px 20px 56px;
+  }
+  .docs-title {
+    font-size: 34px;
+  }
+}
+@media (max-width: 520px) {
+  .docs .site-header-end .btn {
+    display: none;
+  }
+  .docs-page {
+    padding: 28px 16px 48px;
+  }
+  .docs-title {
+    font-size: 30px;
+  }
+  .docs-lede {
+    font-size: 16px;
+  }
+  .prose h2 {
+    font-size: 23px;
+  }
+  .prose pre {
+    padding: 16px;
+    font-size: 12.5px;
+  }
+  .docs-pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .docs-pager-link.is-next {
+    grid-column: 1;
+  }
+}

@@ -1,6 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { cn } from "../../lib/utils";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { RotateCcw, Upload } from "lucide-react";
 
 import { Camera } from "@hlr/camera/camera.js";
 import { Scene } from "@hlr/core/scene.js";
@@ -11,24 +16,24 @@ import { Vec3 } from "@hlr/math/vec3.js";
 import type { Bounds3 } from "@hlr/scene/primitives/triangleMesh.js";
 import { TriangleMesh } from "@hlr/scene/primitives/triangleMesh.js";
 
-import {
-  clamp,
-  orbitPosition,
-  type OrbitState,
-} from "../../runtime/orbit";
+import { clamp, orbitPosition, type OrbitState } from "../../runtime/orbit";
 import { useElementSize } from "./useElementSize";
+import { EXAMPLE_TEXT, ExampleCode, ExampleHeader } from "./DocsExamplePage";
 
 type Locale = "ko-kr" | "en-us";
 
 type ExampleInfo = {
   title: string;
   description: string;
+  tags: readonly string[];
 };
 
 type MeshImportExampleProps = {
   lang: Locale;
   info: ExampleInfo;
   githubUrl: string;
+  label: string;
+  code: string;
 };
 
 type Projection = "perspective" | "isometric";
@@ -66,32 +71,30 @@ f 5 1 4 8
 
 const TEXT = {
   "ko-kr": {
-    back: "Examples로",
-    github: "GitHub 코드",
-    hint: "드래그: 회전 · 휠: 줌 · OBJ/STL 파일은 드롭으로도 업로드할 수 있습니다.",
-    reset: "리셋",
+    hint: "끌어서 회전 · 휠로 확대 · OBJ/STL 파일을 끌어다 놓아도 됩니다",
+    reset: "처음 시점",
     upload: "파일 선택",
     replace: "다른 파일",
-    perspective: "Perspective",
-    isometric: "Isometric",
-    crease: "crease",
-    loaded: "로드됨",
-    meshes: "meshes",
-    triangles: "triangles",
-    edges: "feature edges",
-    warnings: "Warnings",
+    perspective: "원근",
+    isometric: "등각",
+    crease: "모서리 각도",
+    loaded: "불러온 파일",
+    meshes: "메시",
+    triangles: "삼각형",
+    edges: "특징선",
+    warnings: "경고",
     error: "오류",
     drop: "여기에 OBJ/STL 파일을 드롭하세요",
-    empty: "OBJ 또는 STL 파일을 올리면 SVG hidden-line 렌더링 결과를 바로 볼 수 있습니다.",
+    empty:
+      "OBJ 또는 STL 파일을 올리면 SVG hidden-line 렌더링 결과를 바로 볼 수 있습니다.",
     sample: "sample-cube.obj",
-    unsupported: "지원하지 않는 파일 형식입니다. .obj 또는 .stl 파일만 업로드할 수 있습니다.",
+    unsupported:
+      "지원하지 않는 파일 형식입니다. .obj 또는 .stl 파일만 업로드할 수 있습니다.",
     noGeometry: "유효한 삼각형을 찾지 못했습니다.",
   },
   "en-us": {
-    back: "Back to Examples",
-    github: "GitHub code",
     hint: "Drag: rotate · Wheel: zoom · Drop an OBJ/STL file anywhere in the viewer.",
-    reset: "Reset",
+    reset: "Reset view",
     upload: "Choose file",
     replace: "Replace file",
     perspective: "Perspective",
@@ -104,7 +107,8 @@ const TEXT = {
     warnings: "Warnings",
     error: "Error",
     drop: "Drop an OBJ/STL file here",
-    empty: "Upload an OBJ or STL file to preview its SVG hidden-line rendering.",
+    empty:
+      "Upload an OBJ or STL file to preview its SVG hidden-line rendering.",
     sample: "sample-cube.obj",
     unsupported: "Unsupported file type. Please upload an .obj or .stl file.",
     noGeometry: "No valid triangles were found in this file.",
@@ -115,8 +119,11 @@ export function MeshImportExample({
   lang,
   info,
   githubUrl,
+  label,
+  code,
 }: MeshImportExampleProps): React.ReactElement {
   const t = TEXT[lang];
+  const shared = EXAMPLE_TEXT[lang];
   const inputRef = useRef<HTMLInputElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const { width, height } = useElementSize(wrapRef);
@@ -136,7 +143,10 @@ export function MeshImportExample({
     id: number;
   }>(null);
 
-  const baseOrbit = useMemo(() => orbitFromBounds(model.bounds), [model.bounds]);
+  const baseOrbit = useMemo(
+    () => orbitFromBounds(model.bounds),
+    [model.bounds],
+  );
   const [orbit, setOrbit] = useState<OrbitState>(baseOrbit);
 
   useEffect(() => {
@@ -189,12 +199,12 @@ export function MeshImportExample({
         creaseAngleDeg,
       },
       style: {
-        strokeWidthVisible: 1.8,
-        strokeWidthHidden: 1.8,
-        dashArrayHidden: "6 6",
-        strokeVisible: "#000000",
-        strokeHidden: "#000000",
-        opacityHidden: 0.35,
+        strokeWidthVisible: 1.35,
+        strokeWidthHidden: 1.05,
+        dashArrayHidden: "3.2 2.6",
+        strokeVisible: "#0a0a0a",
+        strokeHidden: "#0a0a0a",
+        opacityHidden: 0.9,
       },
     });
 
@@ -257,112 +267,48 @@ export function MeshImportExample({
   );
 
   return (
-    <div className={cn("w-full", "px-6", "py-6", "overflow-x-hidden")}>
-      <header className={cn("flex", "flex-col", "gap-3", "mb-5")}>
-        <div className={cn("flex", "items-start", "justify-between", "gap-4")}>
-          <div className={cn("min-w-0")}>
-            <Link
-              to={`/docs/${lang}/examples`}
-              className={cn(
-                "text-sm font-medium",
-                "text-[hsl(152,69%,35%)]",
-                "hover:text-[hsl(152,69%,25%)]",
-                "hover:underline",
-                "underline-offset-4",
-              )}
-            >
-              {t.back}
-            </Link>
-            <h1
-              className={cn(
-                "text-2xl font-semibold tracking-tight",
-                "text-[hsl(220,9%,18%)]",
-                "mt-2",
-              )}
-            >
-              {info.title}
-            </h1>
-            <p
-              className={cn(
-                "text-[15px] leading-7",
-                "text-[hsl(220,9%,35%)]",
-                "mt-2",
-              )}
-            >
-              {info.description}
-            </p>
-          </div>
+    <div className="example">
+      <ExampleHeader
+        lang={lang}
+        label={label}
+        info={info}
+        githubUrl={githubUrl}
+      />
 
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "text-sm font-medium",
-              "text-[hsl(152,69%,35%)]",
-              "hover:text-[hsl(152,69%,25%)]",
-              "hover:underline",
-              "underline-offset-4",
-              "shrink-0",
-            )}
-          >
-            {t.github}
-          </a>
-        </div>
-      </header>
-
-      <style>{`
-        [data-example-svg] svg {
-          width: 100%;
-          height: auto;
-          display: block;
-        }
-      `}</style>
-
-      <section
-        className={cn(
-          "rounded-lg",
-          "border border-[hsl(220,13%,91%)]",
-          "bg-white",
-          "overflow-hidden",
-          "min-w-0",
-        )}
-      >
-        <div
-          className={cn(
-            "flex flex-wrap items-center justify-between gap-3",
-            "px-4 py-3",
-            "border-b border-[hsl(220,13%,91%)]",
-            "bg-[hsl(240,4.8%,95.9%)]",
-          )}
-        >
-          <div className={cn("text-xs text-[hsl(220,9%,46%)]")}>{t.hint}</div>
-
-          <div className={cn("flex flex-wrap items-center gap-2")}>
+      <section className="example-stage" aria-label={info.title}>
+        <div className="example-toolbar">
+          <div className="example-toolbar-group">
             <button
               type="button"
+              className="tool-btn"
               onClick={() => inputRef.current?.click()}
-              className={toolbarButtonClass()}
             >
+              <Upload aria-hidden="true" size={14} strokeWidth={1.8} />
               {model.label === t.sample ? t.upload : t.replace}
             </button>
             <button
               type="button"
+              className="tool-btn"
               onClick={() => setOrbit(baseOrbit)}
-              className={toolbarButtonClass()}
             >
+              <RotateCcw aria-hidden="true" size={14} strokeWidth={1.8} />
               {t.reset}
             </button>
-            <div className={cn("flex items-center gap-1")}>
+            <div
+              className="seg seg-sm"
+              role="group"
+              aria-label={shared.projection}
+            >
               <button
                 type="button"
+                aria-pressed={projection === "perspective"}
                 onClick={() => setProjection("perspective")}
-                className={projectionButtonClass(projection === "perspective")}
               >
                 {t.perspective}
               </button>
               <button
                 type="button"
+                aria-pressed={projection === "isometric"}
                 onClick={() => {
                   setProjection("isometric");
                   setOrbit((current) => ({
@@ -371,34 +317,31 @@ export function MeshImportExample({
                     polar: ISO_POLAR,
                   }));
                 }}
-                className={projectionButtonClass(projection === "isometric")}
               >
                 {t.isometric}
               </button>
             </div>
-            <label className={cn("flex items-center gap-2 px-3", "text-xs text-[hsl(220,9%,46%)]")}>
-              {t.crease}
-              <input
-                type="range"
-                min={0}
-                max={120}
-                step={1}
-                value={creaseAngleDeg}
-                onChange={(e) => setCreaseAngleDeg(Number(e.target.value))}
-                className={cn("w-32")}
-              />
-              <span className={cn("w-10 text-right tabular-nums")}>
-                {creaseAngleDeg}°
-              </span>
-            </label>
           </div>
+          <label className="tool-field">
+            <span>{t.crease}</span>
+            <input
+              type="range"
+              min={0}
+              max={120}
+              step={1}
+              value={creaseAngleDeg}
+              onChange={(e) => setCreaseAngleDeg(Number(e.target.value))}
+            />
+            <output>{creaseAngleDeg}°</output>
+          </label>
         </div>
 
         <input
           ref={inputRef}
           type="file"
           accept=".obj,.stl"
-          className={cn("hidden")}
+          className="sr-only"
+          tabIndex={-1}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
@@ -409,17 +352,10 @@ export function MeshImportExample({
 
         <div
           ref={wrapRef}
-          className={cn(
-            "relative",
-            "w-full",
-            "h-[calc(100vh-320px)]",
-            "min-h-[560px]",
-            "touch-none select-none",
-            "cursor-grab active:cursor-grabbing",
-            "p-3",
-            "overflow-hidden",
-            dragActive ? "bg-[hsl(152,69%,97%)]" : "bg-white",
-          )}
+          className="example-canvas mesh-canvas"
+          role="img"
+          aria-label={`${info.title}. ${t.hint}`}
+          style={{ touchAction: "none", cursor: drag ? "grabbing" : "grab" }}
           onDragEnter={(e) => {
             e.preventDefault();
             setDragActive(true);
@@ -430,7 +366,8 @@ export function MeshImportExample({
           }}
           onDragLeave={(e) => {
             e.preventDefault();
-            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+            if (e.currentTarget.contains(e.relatedTarget as Node | null))
+              return;
             setDragActive(false);
           }}
           onDrop={(e) => {
@@ -459,8 +396,8 @@ export function MeshImportExample({
             const speed = 0.0075;
             setOrbit((current) => ({
               ...current,
-              azimuth: drag.az + dx * speed,
-              polar: clamp(0.05, drag.pol + dy * speed, Math.PI - 0.05),
+              azimuth: drag.az - dx * speed,
+              polar: clamp(0.05, drag.pol - dy * speed, Math.PI - 0.05),
             }));
           }}
           onPointerUp={(e) => {
@@ -472,93 +409,63 @@ export function MeshImportExample({
             const scale = Math.exp(e.deltaY * 0.0012);
             setOrbit((current) => ({
               ...current,
-              radius: clamp(0.25, current.radius * scale, Math.max(60, diag * 8)),
+              radius: clamp(
+                0.25,
+                current.radius * scale,
+                Math.max(60, diag * 8),
+              ),
             }));
           }}
         >
-          <div data-example-svg dangerouslySetInnerHTML={{ __html: svg }} />
-
-          {dragActive ? (
-            <div
-              className={cn(
-                "absolute inset-6",
-                "rounded-lg border-2 border-dashed border-[hsl(152,69%,41%)]",
-                "bg-[hsla(152,69%,60%,0.08)]",
-                "flex items-center justify-center",
-                "pointer-events-none",
-              )}
-            >
-              <div className={cn("text-base font-medium text-[hsl(152,69%,30%)]")}>
-                {t.drop}
-              </div>
-            </div>
-          ) : null}
+          <div className="mesh-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+          <p className="example-hint" aria-hidden="true">
+            {t.hint}
+          </p>
+          {dragActive && <div className="mesh-drop">{t.drop}</div>}
         </div>
 
-        <div
-          className={cn(
-            "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]",
-            "border-t border-[hsl(220,13%,91%)]",
+        <div className="mesh-info">
+          <p className="mesh-stats">
+            <span>
+              {t.loaded} <b>{model.label}</b>
+            </span>
+            <span>
+              {t.meshes} <b>{model.meshes.length}</b>
+            </span>
+            <span>
+              {t.triangles} <b>{totalTriangles}</b>
+            </span>
+            <span>
+              {t.edges} <b>{totalEdges}</b>
+            </span>
+          </p>
+          <p className="mesh-note">{t.empty}</p>
+          {warnings.length > 0 && (
+            <div className="mesh-warnings">
+              <h3>{t.warnings}</h3>
+              <ul>
+                {warnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`}>{warning}</li>
+                ))}
+              </ul>
+            </div>
           )}
-        >
-          <div className={cn("px-4 py-4")}>
-            <div className={cn("flex flex-wrap items-center gap-4 text-sm text-[hsl(220,9%,35%)]")}>
-              <span>
-                {t.loaded}: <strong>{model.label}</strong>
-              </span>
-              <span>
-                {model.meshes.length} {t.meshes}
-              </span>
-              <span>
-                {totalTriangles} {t.triangles}
-              </span>
-              <span>
-                {totalEdges} {t.edges}
-              </span>
+          {error && (
+            <div className="mesh-error" role="alert">
+              <h3>{t.error}</h3>
+              <p>{error}</p>
             </div>
-            <p className={cn("mt-3 text-sm leading-6 text-[hsl(220,9%,46%)]")}>
-              {t.empty}
-            </p>
-          </div>
-
-          <aside
-            className={cn(
-              "border-t lg:border-t-0 lg:border-l border-[hsl(220,13%,91%)]",
-              "bg-[hsl(220,14%,98%)]",
-              "px-4 py-4",
-              "space-y-4",
-            )}
-          >
-            <div>
-              <div className={cn("text-sm font-semibold text-[hsl(220,9%,18%)]")}>
-                {t.warnings}
-              </div>
-              {warnings.length === 0 ? (
-                <div className={cn("mt-2 text-sm text-[hsl(220,9%,46%)]")}>
-                  None
-                </div>
-              ) : (
-                <ul className={cn("mt-2 space-y-2 text-sm text-[hsl(220,9%,35%)]")}>
-                  {warnings.map((warning, index) => (
-                    <li key={`${warning}-${index}`}>{warning}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {error ? (
-              <div>
-                <div className={cn("text-sm font-semibold text-[hsl(0,72%,42%)]")}>
-                  {t.error}
-                </div>
-                <div className={cn("mt-2 text-sm leading-6 text-[hsl(0,72%,35%)]")}>
-                  {error}
-                </div>
-              </div>
-            ) : null}
-          </aside>
+          )}
         </div>
       </section>
+
+      <ExampleCode
+        title={shared.code}
+        note={shared.codeNote}
+        file="mesh-import.ts"
+        code={code}
+        lang={lang}
+      />
     </div>
   );
 }
@@ -587,30 +494,4 @@ function orbitFromBounds(bounds: Bounds3): OrbitState {
     azimuth: ISO_AZ,
     polar: Math.min(Math.PI - 0.1, ISO_POLAR + 0.1),
   };
-}
-
-function toolbarButtonClass(): string {
-  return cn(
-    "h-9 px-3",
-    "rounded-md",
-    "border border-[hsl(220,13%,91%)]",
-    "bg-white",
-    "text-sm font-medium",
-    "hover:bg-[hsl(220,14%,96%)]",
-    "transition-colors",
-  );
-}
-
-function projectionButtonClass(active: boolean): string {
-  return cn(
-    "h-9 px-3",
-    "rounded-md",
-    "border border-[hsl(220,13%,91%)]",
-    active
-      ? "bg-[hsl(152,69%,97%)] text-[hsl(152,69%,35%)]"
-      : "bg-white text-[hsl(220,9%,18%)]",
-    "text-sm font-medium",
-    "hover:bg-[hsl(220,14%,96%)]",
-    "transition-colors",
-  );
 }

@@ -1,346 +1,530 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+import { Camera } from "@hlr/camera/camera.js";
+import { sphereSilhouetteToCubics3 } from "@hlr/curves/builders.js";
+import { Vec3 } from "@hlr/math/vec3.js";
+import { PlaneRect } from "@hlr/scene/primitives/planeRect.js";
+import { Sphere } from "@hlr/scene/primitives/sphere.js";
 import {
-  ArrowDown,
-  ArrowUpRight,
-  Check,
-  Copy,
-  MoveUpRight,
-} from "lucide-react";
-import { EditorialDiagram } from "./components/EditorialDiagram";
+  CIRCLED,
+  ExamProvider,
+  PenMark,
+  Question,
+  QuestionFigure,
+  useExam,
+} from "./exam/exam";
+import {
+  ExamFigure,
+  HiddenLineProvider,
+  type HiddenLineMode,
+} from "./exam/ExamFigure";
+import type { ExamFigureModel } from "./exam/figures";
+import { LEAD_QUESTION, PAPER_QUESTIONS } from "./exam/questions";
+import { CodeWindow, InstallCommand } from "./site/Code";
+import { SiteFooter } from "./site/SiteFooter";
+import { SiteHeader } from "./site/SiteHeader";
+import "./site/site.css";
 import "./landing.css";
 
 const DOCS = "/docs/ko-kr";
+const ALL_QUESTIONS = [...PAPER_QUESTIONS, LEAD_QUESTION];
+const TOTAL_POINTS = ALL_QUESTIONS.reduce((sum, q) => sum + q.points, 0);
+
+const HIDDEN_MODES: readonly { mode: HiddenLineMode; label: string }[] = [
+  { mode: "dashed", label: "점선" },
+  { mode: "removed", label: "지우기" },
+  { mode: "solid", label: "실선" },
+];
+
+const FEATURES = [
+  {
+    title: "숨은선 판정",
+    body: "곡선 위의 점마다 카메라에서 광선을 보내, 가려진 구간을 찾아 점선으로 나눕니다.",
+  },
+  {
+    title: "교선 계산",
+    body: "구·원기둥·원뿔·평면이 서로 만나는 곡선을 구하고, 3차 베지어 곡선으로 맞춥니다.",
+  },
+  {
+    title: "벡터 그대로",
+    body: "결과는 경로만으로 된 SVG입니다. 확대해도 깨지지 않고 디자인 도구에서 바로 고칩니다.",
+  },
+  {
+    title: "메시도 같은 방식",
+    body: "OBJ·STL을 불러오면 삼각형 메시의 모서리도 같은 규칙으로 실선과 점선을 가립니다.",
+  },
+] as const;
+
+const SNIPPET = `import {
+  Camera, PlaneRect, Scene, Sphere, SvgRenderer, Vec3,
+} from "hlr";
+
+const scene = new Scene([
+  new Sphere("S", new Vec3(0, 0, 0), 2),
+  new PlaneRect("α", new Vec3(0, 0.8, 0), new Vec3(0, 1, 0),
+    new Vec3(1, 0, 0), 3.2, 3.2),
+]);
+
+const camera = Camera.from({
+  kind: "orthographic",
+  position: new Vec3(6, 5, 7),
+  target: new Vec3(0, 0, 0),
+  up: new Vec3(0, 1, 0),
+  halfHeight: 3.1,
+  aspect: 4 / 3,
+  near: 0.1,
+  far: 100,
+});
+
+const svg = new SvgRenderer({ width: 480, height: 360 })
+  .render(scene, camera);`;
+
+// The output pane renders the snippet's own scene with the same defaults:
+// sphere outline, plane border and the sphere–plane section.
+function buildSnippetFigure(width: number, height: number): ExamFigureModel {
+  const sphere = new Sphere("S", Vec3.zero(), 2);
+  const plane = new PlaneRect(
+    "α",
+    new Vec3(0, 0.8, 0),
+    new Vec3(0, 1, 0),
+    new Vec3(1, 0, 0),
+    3.2,
+    3.2,
+  );
+  const camera = Camera.from({
+    kind: "orthographic",
+    position: new Vec3(6, 5, 7),
+    target: Vec3.zero(),
+    up: new Vec3(0, 1, 0),
+    halfHeight: 3.1 * Math.max(1, (4 / 3) * (height / width)),
+    aspect: width / height,
+    near: 0.1,
+    far: 100,
+  });
+  return {
+    demo: {
+      name: "Sphere and plane snippet",
+      width,
+      height,
+      camera,
+      primitives: [sphere, plane],
+      includeIntersections: true,
+      curves: ({ camera }) =>
+        sphereSilhouetteToCubics3({
+          cameraPos: camera.position,
+          viewDirection:
+            camera.kind === "orthographic" ? camera.forward : undefined,
+          center: sphere.center,
+          radius: sphere.radius,
+        }),
+    },
+    annotate: () => "",
+  };
+}
 
 export function LandingPage(): React.ReactElement {
-  const examplesRef = useRef<HTMLElement>(null);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
-    "idle",
-  );
-
-  function showExamples() {
-    examplesRef.current?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
-      block: "start",
-    });
-    examplesRef.current?.focus({ preventScroll: true });
-  }
-
-  async function copyInstall() {
-    try {
-      await navigator.clipboard.writeText("pnpm add hlr");
-      setCopyStatus("copied");
-    } catch {
-      setCopyStatus("failed");
-    }
-  }
-
+  const [hidden, setHidden] = useState<HiddenLineMode>("dashed");
+  const schoolYear = useMemo(() => new Date().getFullYear() + 1, []);
   return (
-    <div className="geometry-paper">
-      <a
-        className="paper-skip-link"
-        href="#paper-main"
-        onClick={(event) => {
-          event.preventDefault();
-          document.getElementById("paper-main")?.focus();
-        }}
-      >
-        본문으로 건너뛰기
-      </a>
-      <div className="paper-sheet">
-        <header className="paper-header">
-          <div className="paper-edition">
-            <span>THE GEOMETRY PRESS</span>
-            <span>선을 위한 수학, 수학을 위한 선</span>
-            <span>VOL. 01 &nbsp; / &nbsp; OPEN SOURCE</span>
-          </div>
-          <div className="paper-masthead">
-            <div className="masthead-note">
-              <span className="masthead-cross" aria-hidden="true">
-                ✳
-              </span>
-              <span>
-                공간의 깊이를
-                <br />
-                평면의 언어로.
-              </span>
-            </div>
-            <Link className="paper-wordmark" to="/" aria-label="HLR SVG 홈">
-              HLR<span className="wordmark-divider">/</span>SVG
-            </Link>
-            <div className="masthead-note masthead-note-right">
-              <span>HIDDEN LINE REMOVAL</span>
-              <span>3D GEOMETRY → 2D VECTOR</span>
-            </div>
-          </div>
-          <nav className="paper-nav" aria-label="주 메뉴">
-            <div className="paper-nav-links">
-              <Link to="/" aria-current="page">
-                소개
-              </Link>
-              <button type="button" onClick={showExamples}>
-                예제 도형
-              </button>
-              <Link to={`${DOCS}/quickstart`}>사용 안내</Link>
-              <a
-                href="https://github.com/jiwonMe/hlr-svg"
-                target="_blank"
-                rel="noreferrer"
-              >
-                GitHub <ArrowUpRight aria-hidden="true" size={13} />
-              </a>
-            </div>
-            <Link className="nav-workspace" to="/playground">
-              도형 작업실 <ArrowUpRight aria-hidden="true" size={15} />
-            </Link>
-          </nav>
-        </header>
-        <main id="paper-main" tabIndex={-1}>
-          <section className="paper-lead" aria-labelledby="lead-title">
-            <div className="lead-story">
-              <div className="paper-eyebrow">
-                <span className="edition-dot" /> 공간도형을 그리는 새로운 방법
-              </div>
-              <h1 id="lead-title">
-                공간을 읽고,
-                <br />
-                선을 남기다.
-              </h1>
-              <p className="lead-deck">
-                복잡한 입체도, 한 장의 명료한 그림으로.
-              </p>
-              <p className="lead-description">
-                보이는 선은 실선으로, 가려진 선은 점선으로.
-                <br className="desktop-break" />
-                HLR SVG는 입체의 깊이와 관계를 읽어
-                <br className="desktop-break" />
-                수학 교재 속 도형처럼 정교한 SVG를 만듭니다.
-              </p>
-              <div className="lead-actions">
-                <Link className="paper-button" to="/playground">
-                  직접 그려보기 <ArrowUpRight aria-hidden="true" size={17} />
-                </Link>
-                <Link className="paper-text-link" to={`${DOCS}/quickstart`}>
-                  시작하는 방법 <span aria-hidden="true">→</span>
-                </Link>
-              </div>
-              <div className="lead-footnote">
-                <span className="footnote-mark">*</span>
-                <p>
-                  공간도형과 공간벡터, 교재와 시험지,
-                  <br />
-                  그리고 선으로 설명하는 모든 장면을 위해.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="lead-scroll"
-                onClick={showExamples}
-              >
-                아래에서 도형 살펴보기{" "}
-                <ArrowDown aria-hidden="true" size={14} />
-              </button>
-            </div>
-            <div className="lead-examination">
-              <div className="exam-heading">
-                <span>제 1 교시</span>
-                <h2>기하 영역</h2>
-                <span className="exam-subject">공간도형과 공간벡터</span>
-              </div>
-              <div className="exam-question">
-                <p>
-                  <strong className="question-number">01.</strong> 반지름이 2인
-                  구와 45°의 각을 이루는 두 평면 α, β가 있다. 두 단면 위의 점과
-                  선분이 이루는 공간을 살펴보자.
-                </p>
-                <span className="question-score">[ 예시 도형 ]</span>
-              </div>
-              <EditorialDiagram kind="sphere-sections" interactive />
-              <div className="exam-caption">
-                <span>그림 1. 구와 두 평면의 단면</span>
-                <Link to={`${DOCS}/examples/sphere-plane-sections`}>
-                  예제 자세히 보기 <ArrowUpRight aria-hidden="true" size={13} />
-                </Link>
-              </div>
-            </div>
-          </section>
-          <div className="paper-principles" aria-label="렌더링 특징">
-            <div>
-              <span className="line-sample" aria-hidden="true" />
-              <span>보이는 선은 또렷하게</span>
-            </div>
-            <div>
-              <span
-                className="line-sample line-sample-dashed"
-                aria-hidden="true"
-              />
-              <span>가려진 선은 섬세하게</span>
-            </div>
-            <div>
-              <span className="vector-sample" aria-hidden="true">
-                ↗
-              </span>
-              <span>확대해도 선명한 벡터로</span>
-            </div>
-          </div>
-          <section
-            className="paper-examples"
-            ref={examplesRef}
-            tabIndex={-1}
-            aria-labelledby="examples-title"
+    <ExamProvider>
+      <HiddenLineProvider value={hidden}>
+        <div className="site landing">
+          <a
+            className="skip-link"
+            href="#main"
+            onClick={(event) => {
+              event.preventDefault();
+              document.getElementById("main")?.focus();
+            }}
           >
-            <div className="section-heading">
-              <div>
-                <p className="paper-eyebrow">
-                  도형 연구 &nbsp; / &nbsp; SELECTED EXAMPLES
-                </p>
-                <h2 id="examples-title">한 선 한 선, 공간의 해석.</h2>
-              </div>
-              <Link className="paper-text-link" to={`${DOCS}/examples`}>
-                모든 예제 보기 <ArrowUpRight aria-hidden="true" size={15} />
-              </Link>
-            </div>
-            <div className="example-spread">
-              <article className="example-problem">
-                <div className="example-title-row">
-                  <span className="example-number">02</span>
-                  <div>
-                    <span className="example-category">
-                      공간도형 · 구의 위치 관계
-                    </span>
-                    <h3>서로 접하는 구, 이어지는 관계.</h3>
-                  </div>
-                  <span className="example-points">[ 구와 평면 ]</span>
-                </div>
-                <p className="example-description">
-                  하나의 큰 구에 접하는 세 개의 작은 구. 평면 위에 놓인 구들의
-                  접점과 교선을 따라, 입체의 앞뒤 관계를 읽습니다.
-                </p>
-                <Link
-                  className="example-figure-link"
-                  to={`${DOCS}/examples/tangent-spheres`}
-                  aria-label="구에 접하는 세 구 예제 열기"
-                >
-                  <EditorialDiagram kind="tangent-spheres" />
-                  <span className="figure-open">
-                    <MoveUpRight size={17} aria-hidden="true" />
-                  </span>
-                </Link>
-                <div className="example-endnote">
-                  <span>그림 2. 구에 접하는 세 구</span>
-                  <Link to={`${DOCS}/examples/tangent-spheres`}>
-                    도형 탐구하기 <span aria-hidden="true">↗</span>
-                  </Link>
-                </div>
-              </article>
-              <article className="example-problem">
-                <div className="example-title-row">
-                  <span className="example-number">03</span>
-                  <div>
-                    <span className="example-category">
-                      이차곡선 · 평면과 입체의 교선
-                    </span>
-                    <h3>평면으로 자르면, 곡선이 된다.</h3>
-                  </div>
-                  <span className="example-points">[ 원뿔의 단면 ]</span>
-                </div>
-                <p className="example-description">
-                  원뿔을 비스듬히 지나는 하나의 평면. 두 도형이 만나는 경계를
-                  계산하고, 곡선의 보이는 부분과 숨은 부분을 구분합니다.
-                </p>
-                <Link
-                  className="example-figure-link"
-                  to={`${DOCS}/examples/conic-section`}
-                  aria-label="원뿔과 평면의 단면 예제 열기"
-                >
-                  <EditorialDiagram kind="conic-section" />
-                  <span className="figure-open">
-                    <MoveUpRight size={17} aria-hidden="true" />
-                  </span>
-                </Link>
-                <div className="example-endnote">
-                  <span>그림 3. 원뿔과 평면의 교선</span>
-                  <Link to={`${DOCS}/examples/conic-section`}>
-                    도형 탐구하기 <span aria-hidden="true">↗</span>
-                  </Link>
-                </div>
-              </article>
-            </div>
-            <p className="examples-editor-note">
-              ※ 이 페이지의 그림은 HLR SVG로 렌더링한 예제입니다. 실제
-              수능·모의고사 기출 문항이 아닙니다.
-            </p>
-          </section>
-          <section className="paper-colophon" aria-labelledby="start-title">
-            <div className="colophon-heading">
-              <p className="paper-eyebrow">
-                다음 페이지 &nbsp; / &nbsp; GET STARTED
-              </p>
-              <h2 id="start-title">이제, 당신의 도형을 그릴 차례.</h2>
-            </div>
-            <div className="colophon-body">
-              <p>
-                브라우저에서 바로 도형을 다루거나,
-                <br />
-                TypeScript 프로젝트에 HLR을 더해 보세요.
-              </p>
-              <div className="install-area">
-                <button
-                  className="install-command"
-                  type="button"
-                  onClick={copyInstall}
-                  aria-label="설치 명령어 pnpm add hlr 복사"
-                >
-                  <span aria-hidden="true">$</span>
-                  <code>pnpm add hlr</code>
-                  {copyStatus === "copied" ? (
-                    <Check size={16} aria-hidden="true" />
-                  ) : (
-                    <Copy size={15} aria-hidden="true" />
-                  )}
-                </button>
-                <span className="install-status" role="status">
-                  {copyStatus === "copied"
-                    ? "설치 명령어를 복사했습니다."
-                    : copyStatus === "failed"
-                      ? "복사하지 못했습니다. pnpm add hlr을 직접 입력해 주세요."
-                      : ""}
-                </span>
-              </div>
-            </div>
-            <Link className="colophon-link" to={`${DOCS}/quickstart`}>
-              문서에서 시작하기 <ArrowUpRight aria-hidden="true" size={23} />
-            </Link>
-          </section>
-        </main>
-        <footer className="paper-footer">
-          <Link to="/" className="footer-wordmark">
-            HLR / SVG
-          </Link>
-          <span>수학의 깊이, 선의 명료함.</span>
-          <div>
-            <a
-              href="https://github.com/jiwonMe/hlr-svg/blob/main/LICENSE"
-              target="_blank"
-              rel="noreferrer"
-            >
-              MIT LICENSE
-            </a>
-            <a
-              href="https://www.npmjs.com/package/hlr"
-              target="_blank"
-              rel="noreferrer"
-            >
-              NPM ↗
-            </a>
-          </div>
-        </footer>
-        <div className="paper-page-number" aria-hidden="true">
-          <span>1</span>
+            본문 바로가기
+          </a>
+          <SiteHeader />
+          <main id="main" tabIndex={-1} className="frame">
+            <Hero schoolYear={schoolYear} />
+            <Showcase hidden={hidden} onHidden={setHidden} />
+            <Features />
+            <Paper
+              schoolYear={schoolYear}
+              hidden={hidden}
+              onHidden={setHidden}
+            />
+            <CodeBand />
+            <Closing />
+          </main>
+          <SiteFooter />
         </div>
+      </HiddenLineProvider>
+    </ExamProvider>
+  );
+}
+
+function Hero({ schoolYear }: { schoolYear: number }) {
+  return (
+    <section className="band hero" aria-labelledby="hero-title">
+      <p className="hero-top">{schoolYear}학년도 HLR SVG 모의평가 문제지</p>
+      <Link className="exam-pill" to={`${DOCS}/examples`}>
+        <span className="exam-pill-period">제 2 교시</span>
+        <span className="exam-pill-text">공간도형 그림 다섯 문항</span>
+        <ArrowRight aria-hidden="true" size={14} strokeWidth={1.8} />
+      </Link>
+      <h1 id="hero-title" className="hero-title">
+        보이는 선은 실선으로,
+        <br />
+        가려진 선은 점선으로.
+      </h1>
+      <p className="hero-sub">
+        HLR SVG는 3차원 도형의 윤곽선과 교선을 계산하고, 가려진 구간을 찾아
+        점선으로 나누는 TypeScript 라이브러리입니다. 수학 시험지 속 그림을
+        코드로 그리세요.
+      </p>
+      <div className="hero-cta">
+        <Link className="btn btn-primary btn-lg" to={`${DOCS}/quickstart`}>
+          시작하기
+          <ArrowRight aria-hidden="true" size={17} strokeWidth={1.8} />
+        </Link>
+        <Link className="btn btn-secondary btn-lg" to={`${DOCS}/examples`}>
+          예제 갤러리
+        </Link>
+      </div>
+      <InstallCommand className="hero-install" />
+    </section>
+  );
+}
+
+function HiddenLineSwitch({
+  value,
+  onChange,
+}: {
+  value: HiddenLineMode;
+  onChange: (mode: HiddenLineMode) => void;
+}) {
+  return (
+    <div className="hidden-switch" role="group" aria-label="가려진 선 표시">
+      <span className="seg-label">가려진 선</span>
+      <div className="seg">
+        {HIDDEN_MODES.map(({ mode, label }) => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={value === mode}
+            onClick={() => onChange(mode)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
     </div>
+  );
+}
+
+function Showcase({
+  hidden,
+  onHidden,
+}: {
+  hidden: HiddenLineMode;
+  onHidden: (mode: HiddenLineMode) => void;
+}) {
+  return (
+    <section className="band showcase" aria-label="28번 문항">
+      <div className="showcase-head">
+        <span className="sheet-period">제 2 교시</span>
+        <p className="showcase-subject">
+          수학 영역<small>(기하)</small>
+        </p>
+        <span className="sheet-type">홀수형</span>
+      </div>
+      <div className="showcase-body">
+        <div className="showcase-question">
+          <Question spec={LEAD_QUESTION} eager showFigure={false} />
+        </div>
+        <div className="showcase-figure">
+          <QuestionFigure spec={LEAD_QUESTION} eager />
+          <div className="showcase-tools">
+            <p className="showcase-hint">끌거나 방향키로 돌려 보세요.</p>
+            <HiddenLineSwitch value={hidden} onChange={onHidden} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Features() {
+  return (
+    <section className="band features" aria-labelledby="features-title">
+      <h2 id="features-title" className="sr-only">
+        HLR SVG가 하는 일
+      </h2>
+      <ul className="feature-grid">
+        {FEATURES.map((feature, index) => (
+          <li key={feature.title}>
+            <span className="feature-no" aria-hidden="true">
+              {CIRCLED[index]}
+            </span>
+            <h3>{feature.title}</h3>
+            <p>{feature.body}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Paper({
+  schoolYear,
+  hidden,
+  onHidden,
+}: {
+  schoolYear: number;
+  hidden: HiddenLineMode;
+  onHidden: (mode: HiddenLineMode) => void;
+}) {
+  const [left, right] = [PAPER_QUESTIONS.slice(0, 2), PAPER_QUESTIONS.slice(2)];
+  return (
+    <section className="band paper" aria-labelledby="paper-title">
+      <div className="band-head">
+        <div>
+          <p className="band-eyebrow">5지선다형</p>
+          <h2 id="paper-title" className="band-title">
+            시험지 속 그림, 그대로.
+          </h2>
+          <p className="band-desc">
+            좌표공간, 정육면체, 원기둥, 서로 접하는 구. 공간도형 문항에 나오는
+            그림을 HLR SVG로 렌더링했습니다. 답을 고르면 바로 채점합니다.
+          </p>
+        </div>
+        <Link className="btn btn-secondary" to={`${DOCS}/examples`}>
+          예제 갤러리
+          <ArrowRight aria-hidden="true" size={15} strokeWidth={1.8} />
+        </Link>
+      </div>
+      <div className="sheet">
+        <p className="sheet-top">{schoolYear}학년도 HLR SVG 모의평가 문제지</p>
+        <div className="sheet-title">
+          <span className="sheet-period">제 2 교시</span>
+          <h3 className="sheet-subject">
+            수학 영역<small>(기하)</small>
+          </h3>
+          <span className="sheet-type">홀수형</span>
+        </div>
+        <div className="sheet-id" aria-hidden="true">
+          <span className="sheet-field">
+            성명
+            <span className="sheet-name" />
+          </span>
+          <span className="sheet-field">
+            수험 번호
+            <span className="sheet-digits">
+              {Array.from({ length: 6 }, (_, i) => (
+                <span key={i} />
+              ))}
+            </span>
+            <span>–</span>
+            <span className="sheet-digits">
+              {Array.from({ length: 7 }, (_, i) => (
+                <span key={i} />
+              ))}
+            </span>
+          </span>
+        </div>
+        <div className="sheet-notes">
+          <ul>
+            <li>그림을 끌면 시점이 바뀝니다.</li>
+            <li>답을 고르면 바로 채점합니다.</li>
+          </ul>
+          <HiddenLineSwitch value={hidden} onChange={onHidden} />
+        </div>
+        <div className="sheet-cols">
+          <div className="sheet-col">
+            <p className="sheet-kind">5지선다형</p>
+            {left.map((spec) => (
+              <Question key={spec.no} spec={spec} linkLabel="크게 보기" />
+            ))}
+          </div>
+          <div className="sheet-col">
+            {right.map((spec) => (
+              <Question key={spec.no} spec={spec} linkLabel="크게 보기" />
+            ))}
+            <div className="sheet-check">
+              <p>※ 확인 사항</p>
+              <p>
+                ○ 그림 아래의 ‘SVG’를 누르면 지금 보이는 시점의 그림을 파일로
+                저장할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        </div>
+        <AnswerKey />
+        <div className="sheet-foot">
+          <span>
+            이 문제지의 그림은 모두 HLR SVG로 렌더링했습니다. 실제 시험 문항이
+            아닙니다.
+          </span>
+          <span className="sheet-page" aria-hidden="true">
+            1
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AnswerKey() {
+  const { picks } = useExam();
+  const answered = ALL_QUESTIONS.filter((q) => picks[q.no] !== undefined);
+  const score = answered
+    .filter((q) => picks[q.no] === q.answer)
+    .reduce((sum, q) => sum + q.points, 0);
+  return (
+    <details className="answer-key">
+      <summary>
+        <span>정답 확인</span>
+        <span className="answer-score" role="status">
+          {answered.length > 0 && (
+            <>
+              <strong>{score}</strong> / {TOTAL_POINTS}점
+            </>
+          )}
+        </span>
+      </summary>
+      <table>
+        <thead>
+          <tr>
+            <th scope="row">문항</th>
+            {ALL_QUESTIONS.map((q) => (
+              <th key={q.no} scope="col">
+                {q.no}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">정답</th>
+            {ALL_QUESTIONS.map((q) => (
+              <td key={q.no}>{CIRCLED[q.answer - 1]}</td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">배점</th>
+            {ALL_QUESTIONS.map((q) => (
+              <td key={q.no}>{q.points}</td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">내 답</th>
+            {ALL_QUESTIONS.map((q) => {
+              const mine = picks[q.no];
+              if (mine === undefined)
+                return (
+                  <td key={q.no} className="answer-none">
+                    –
+                  </td>
+                );
+              const correct = mine === q.answer;
+              return (
+                <td key={q.no}>
+                  <span className="answer-mine">
+                    {CIRCLED[mine - 1]}
+                    <PenMark
+                      key={`${mine}-${correct}`}
+                      kind={correct ? "loop" : "slash"}
+                      className="pen-grade"
+                    />
+                    <span className="sr-only">
+                      {correct ? " 정답" : " 오답"}
+                    </span>
+                  </span>
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+function CodeBand() {
+  return (
+    <section className="band code-band" aria-labelledby="code-title">
+      <div className="code-copy">
+        <p className="band-eyebrow">단답형</p>
+        <h2 id="code-title" className="band-title">
+          코드 몇 줄이면
+          <br />
+          그림이 나옵니다.
+        </h2>
+        <p className="band-desc">
+          도형을 놓고 시점을 정한 뒤 렌더링하면 SVG 문자열이 나옵니다. 윤곽선과
+          교선을 구하고 실선과 점선을 가르는 일은 렌더러가 맡습니다.
+        </p>
+        <ol className="steps">
+          <li>
+            <span className="steps-mark">(가)</span>
+            <span>
+              도형을 놓는다 <code>Scene</code> <code>Sphere</code>{" "}
+              <code>PlaneRect</code>
+            </span>
+          </li>
+          <li>
+            <span className="steps-mark">(나)</span>
+            <span>
+              시점을 정한다 <code>Camera.from</code>
+            </span>
+          </li>
+          <li>
+            <span className="steps-mark">(다)</span>
+            <span>
+              그린다 <code>SvgRenderer.render</code>
+            </span>
+          </li>
+        </ol>
+        <Link className="text-link" to={`${DOCS}/quickstart`}>
+          빠른 시작 문서
+          <ArrowRight aria-hidden="true" size={15} strokeWidth={1.8} />
+        </Link>
+      </div>
+      <div className="code-demo">
+        <CodeWindow title="sphere-and-plane.ts" code={SNIPPET} />
+        <figure className="code-output">
+          <figcaption>
+            <span>출력</span>
+            <span>구의 윤곽선 · 평면의 테두리 · 구와 평면의 교선</span>
+          </figcaption>
+          <ExamFigure
+            id="sphere-and-plane"
+            build={buildSnippetFigure}
+            label="반지름이 2인 구와 구를 자르는 평면을 그린 SVG. 평면 아래로 가려진 구의 윤곽선과 교선의 뒤쪽 절반이 점선이다."
+            ratio={0.75}
+          />
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function Closing() {
+  return (
+    <section className="band closing" aria-labelledby="closing-title">
+      <h2 id="closing-title" className="closing-title">
+        이제 직접 그려 볼 차례입니다.
+      </h2>
+      <p className="closing-sub">
+        브라우저의 도형 작업실에서 바로 그려 보거나, 프로젝트에 설치해
+        시작하세요.
+      </p>
+      <div className="hero-cta">
+        <Link className="btn btn-primary btn-lg" to="/playground">
+          도형 작업실 열기
+          <ArrowRight aria-hidden="true" size={17} strokeWidth={1.8} />
+        </Link>
+        <Link className="btn btn-secondary btn-lg" to={`${DOCS}/quickstart`}>
+          문서 읽기
+        </Link>
+      </div>
+    </section>
   );
 }

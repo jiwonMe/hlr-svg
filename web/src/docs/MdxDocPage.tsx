@@ -1,87 +1,105 @@
 import React from "react";
-import { useParams, Navigate } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { MDXProvider } from "@mdx-js/react";
-import { getDocBySlug, DEFAULT_LOCALE, type Locale } from "./mdxRegistry";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import {
+  DEFAULT_LOCALE,
+  getAllDocs,
+  getDocBySlug,
+  getNavGroups,
+  type Locale,
+} from "./mdxRegistry";
 import { mdxComponents } from "./mdxComponents";
 import { DocsToc } from "./DocsToc";
-import { cn } from "../lib/utils";
 
-/**
- * MDX 문서 페이지 컴포넌트
- * flex 디자인 시스템 스타일 적용
- */
+const TEXT = {
+  "ko-kr": {
+    period: (n: number) => `제 ${n} 교시`,
+    groups: {
+      "Getting Started": "시작하기",
+      Examples: "예제",
+      Reference: "레퍼런스",
+    } as Record<string, string>,
+    prev: "이전 문항",
+    next: "다음 문항",
+    foot: "이 문서의 그림과 예제는 HLR SVG로 렌더링했습니다.",
+  },
+  "en-us": {
+    period: (n: number) => `Part ${n}`,
+    groups: {} as Record<string, string>,
+    prev: "Previous",
+    next: "Next",
+    foot: "Figures and examples in these docs are rendered with HLR SVG.",
+  },
+} as const;
+
+/** An MDX page laid out like one page of an exam booklet. */
 export function MdxDocPage(): React.ReactElement {
-  const { locale, slug } = useParams<{
-    locale: string;
-    slug: string;
-  }>();
-
-  // locale이 유효한지 확인하고 기본값 설정
-  const validLocale: Locale =
+  const { locale, slug } = useParams<{ locale: string; slug: string }>();
+  const lang: Locale =
     locale === "ko-kr" || locale === "en-us" ? locale : DEFAULT_LOCALE;
+  const doc = slug ? getDocBySlug(lang, slug) : undefined;
+  if (!doc) return <Navigate to={`/docs/${lang}/quickstart`} replace />;
 
-  const doc = slug ? getDocBySlug(validLocale, slug) : undefined;
-
-  if (!doc) {
-    return (
-      <Navigate to={`/docs/${validLocale}/quickstart`} replace />
-    );
-  }
-
+  const t = TEXT[lang];
   const { Component, frontmatter } = doc;
+  const groups = getNavGroups(lang);
+  const period = groups.findIndex((g) => g.name === frontmatter.group) + 1;
+  const docs = getAllDocs(lang);
+  const index = docs.findIndex((d) => d.slug === doc.slug);
+  const prev = docs[index - 1];
+  const next = docs[index + 1];
 
   return (
-    <div className={cn("flex w-full")}>
-      {/* 문서 콘텐츠 */}
-      <article
-        className={cn(
-          // 최대 너비
-          "max-w-3xl",
-          // 가운데 정렬
-          "mx-auto",
-          // 패딩
-          "px-8 py-10",
-          // 플렉스
-          "flex-1"
-        )}
-      >
-        {/* 문서 헤더 */}
-        <header className={cn("mb-8")}>
-          <h1
-            className={cn(
-              // 타이포그래피
-              "text-2xl font-semibold tracking-tight",
-              // 색상
-              "text-[hsl(220,9%,18%)]",
-              // 마진
-              "mb-2"
-            )}
-          >
-            {frontmatter.title}
-          </h1>
+    <div className="docs-page">
+      <article className="docs-article">
+        <header className="docs-head">
+          <p className="exam-pill docs-pill">
+            <span className="exam-pill-period">{t.period(period)}</span>
+            <span>{t.groups[frontmatter.group] ?? frontmatter.group}</span>
+          </p>
+          <h1 className="docs-title">{frontmatter.title}</h1>
           {frontmatter.description && (
-            <p
-              className={cn(
-                // 타이포그래피
-                "text-base",
-                // 색상
-                "text-[hsl(220,9%,46%)]"
-              )}
-            >
-              {frontmatter.description}
-            </p>
+            <p className="docs-lede">{frontmatter.description}</p>
           )}
         </header>
-
-        {/* MDX 콘텐츠 */}
-        <MDXProvider components={mdxComponents}>
-          <div>
+        <div className="prose">
+          <MDXProvider components={mdxComponents}>
             <Component />
-          </div>
-        </MDXProvider>
+          </MDXProvider>
+        </div>
+        <nav className="docs-pager" aria-label={`${t.prev} / ${t.next}`}>
+          {prev ? (
+            <Link to={`/docs/${lang}/${prev.slug}`} className="docs-pager-link">
+              <span>
+                <ArrowLeft aria-hidden="true" size={14} strokeWidth={1.8} />
+                {t.prev}
+              </span>
+              <strong>{prev.frontmatter.title}</strong>
+            </Link>
+          ) : (
+            <span />
+          )}
+          {next && (
+            <Link
+              to={`/docs/${lang}/${next.slug}`}
+              className="docs-pager-link is-next"
+            >
+              <span>
+                {t.next}
+                <ArrowRight aria-hidden="true" size={14} strokeWidth={1.8} />
+              </span>
+              <strong>{next.frontmatter.title}</strong>
+            </Link>
+          )}
+        </nav>
+        <p className="docs-foot">
+          <span>{t.foot}</span>
+          <span className="docs-foot-page" aria-hidden="true">
+            {index + 1}
+          </span>
+        </p>
       </article>
-
-      {/* TOC (우측) */}
       <DocsToc />
     </div>
   );

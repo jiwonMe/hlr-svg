@@ -12,6 +12,40 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const EXAM_CODE_THEME = {
+  name: "exam-paper",
+  type: "light",
+  colors: {
+    "editor.background": "#ffffff",
+    "editor.foreground": "#0a0a0a",
+  },
+  tokenColors: [
+    {
+      scope: ["comment", "punctuation.definition.comment"],
+      settings: { foreground: "#9b9b9b", fontStyle: "italic" },
+    },
+    {
+      scope: ["string", "string.template", "punctuation.definition.string"],
+      settings: { foreground: "#616161" },
+    },
+    {
+      scope: [
+        "keyword",
+        "storage",
+        "storage.type",
+        "keyword.control",
+        "keyword.operator.new",
+        "constant.language",
+      ],
+      settings: { foreground: "#0a0a0a", fontStyle: "bold" },
+    },
+    {
+      scope: ["constant.numeric"],
+      settings: { foreground: "#0a0a0a" },
+    },
+  ],
+};
+
 export default defineConfig(({ command }) => {
   /**
    * 배포 환경(Vercel/GitHub Pages)은 사이트가 루트(`/`)가 아닐 수 있어요.
@@ -48,9 +82,9 @@ export default defineConfig(({ command }) => {
           [
             rehypePrettyCode,
             {
-              theme: "github-dark",
-              // 테마 배경색을 유지 (GitHub Dark 배경)
-              keepBackground: true,
+              // 시험지처럼 흑백: 키워드는 굵게, 문자열과 주석만 회색으로.
+              theme: EXAM_CODE_THEME,
+              keepBackground: false,
             },
           ],
           // 헤딩에 id 추가
