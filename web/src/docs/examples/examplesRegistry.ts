@@ -2,6 +2,7 @@ import simpleCode from "../samples/simple-primitives.ts?raw";
 import randomCode from "../samples/random-primitives.ts?raw";
 import conicCode from "../samples/conic-section.ts?raw";
 import sphereSectionsCode from "../samples/sphere-plane-sections.ts?raw";
+import tangentSpheresCode from "../samples/tangent-spheres.ts?raw";
 import meshImportCode from "../samples/mesh-import.ts?raw";
 
 export type ExampleId =
@@ -9,6 +10,7 @@ export type ExampleId =
   | "random-primitives"
   | "conic-section"
   | "sphere-plane-sections"
+  | "tangent-spheres"
   | "mesh-import";
 
 type Locale = "ko-kr" | "en-us";
@@ -96,6 +98,23 @@ export const EXAMPLES: readonly ExampleSpec[] = [
         title: "Sphere and two plane sections",
         description:
           "A sphere of radius 2 cut by two planes meeting at 45°, with OP ∥ AQ and ∠QAR = 90°.",
+      },
+    },
+  },
+  {
+    id: "tangent-spheres",
+    githubPath: "web/src/docs/samples/tangent-spheres.ts",
+    code: tangentSpheresCode,
+    text: {
+      "ko-kr": {
+        title: "구에 접하는 세 구",
+        description:
+          "반지름 3인 구 S와 평면 α 위의 반지름 1인 세 구 S₁·S₂·S₃를 배치합니다. 세 구는 모두 S에 접하고 S₁–S₂, S₂–S₃가 서로 접합니다.",
+      },
+      "en-us": {
+        title: "Three spheres tangent to a sphere",
+        description:
+          "A sphere S of radius 3 and three spheres S₁, S₂, S₃ of radius 1 resting on plane α. All three touch S; S₁ touches S₂ and S₂ touches S₃.",
       },
     },
   },

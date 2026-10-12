@@ -21,6 +21,11 @@ import {
   renderSpherePlaneSectionsAnnotations,
   SPHERE_PLANE_SECTIONS_STYLE,
 } from "@hlr/demo/spherePlaneSections.js";
+import {
+  buildTangentSpheresDemo,
+  renderTangentSpheresAnnotations,
+  TANGENT_SPHERES_STYLE,
+} from "@hlr/demo/tangentSpheres.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
 import { Cone } from "@hlr/scene/primitives/cone.js";
@@ -70,6 +75,10 @@ const RENDER_OPTIONS = {
 const SPHERE_SECTIONS_RENDER_OPTIONS = {
   background: false,
   svgStyle: SPHERE_PLANE_SECTIONS_STYLE,
+};
+const TANGENT_SPHERES_RENDER_OPTIONS = {
+  background: false,
+  svgStyle: TANGENT_SPHERES_STYLE,
 };
 type DragState = { x: number; y: number; az: number; pol: number; id: number };
 
@@ -178,6 +187,7 @@ function InteractiveExample({
       return buildRandomPrimitivesDemo(w, h, seed);
     if (ex.id === "sphere-plane-sections")
       return buildSpherePlaneSectionsDemo(w, h);
+    if (ex.id === "tangent-spheres") return buildTangentSpheresDemo(w, h);
     return buildConicSectionDemo(w, h, planeTilt);
   }, [ex.id, width, height, seed, planeTilt]);
 
@@ -255,11 +265,19 @@ function InteractiveExample({
     runtimeDemo,
     ex.id === "sphere-plane-sections"
       ? SPHERE_SECTIONS_RENDER_OPTIONS
-      : RENDER_OPTIONS,
+      : ex.id === "tangent-spheres"
+        ? TANGENT_SPHERES_RENDER_OPTIONS
+        : RENDER_OPTIONS,
   );
   const lineSvg = useMemo(() => {
-    if (ex.id !== "sphere-plane-sections") return renderedLines;
-    const annotations = renderSpherePlaneSectionsAnnotations(
+    const renderAnnotations =
+      ex.id === "sphere-plane-sections"
+        ? renderSpherePlaneSectionsAnnotations
+        : ex.id === "tangent-spheres"
+          ? renderTangentSpheresAnnotations
+          : null;
+    if (!renderAnnotations) return renderedLines;
+    const annotations = renderAnnotations(
       camera,
       runtimeDemo.width,
       runtimeDemo.height,
