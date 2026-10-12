@@ -15,7 +15,7 @@ type Loose<T, K extends PropertyKey> = T extends unknown
   : never;
 type Draft = Loose<
   EditorObject,
-  "hidden" | "name" | "opaque" | "line" | "arrow" | "mark" | "showValue"
+  "hidden" | "name" | "opaque" | "line" | "arrow" | "mark" | "showValue" | "arc"
 >;
 
 function doc(

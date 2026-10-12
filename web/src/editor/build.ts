@@ -313,47 +313,6 @@ function objectBounds(
   }
 }
 
-/** Where two plane rectangles meet: a segment clipped to both, if any. */
-export function rectRectSegment(a: PlaneRect, b: PlaneRect): CubicBezier3 | null {
-  const d = Vec3.cross(a.normal, b.normal);
-  const d2 = Vec3.lenSq(d);
-  if (d2 < 1e-10) return null;
-  const ha = Vec3.dot(a.normal, a.center);
-  const hb = Vec3.dot(b.normal, b.center);
-  // The point of both planes nearest the origin.
-  const p0 = Vec3.mulScalar(
-    Vec3.add(
-      Vec3.mulScalar(Vec3.cross(b.normal, d), ha),
-      Vec3.mulScalar(Vec3.cross(d, a.normal), hb),
-    ),
-    1 / d2,
-  );
-  const dir = Vec3.mulScalar(d, 1 / Math.sqrt(d2));
-  let t0 = -Infinity;
-  let t1 = Infinity;
-  for (const r of [a, b])
-    for (const [axis, half] of [
-      [r.u, r.halfWidth],
-      [r.v, r.halfHeight],
-    ] as const) {
-      const s0 = Vec3.dot(Vec3.sub(p0, r.center), axis);
-      const ds = Vec3.dot(dir, axis);
-      if (Math.abs(ds) < 1e-12) {
-        if (Math.abs(s0) > half + 1e-9) return null;
-        continue;
-      }
-      const lo = (-half - s0) / ds;
-      const hi = (half - s0) / ds;
-      t0 = Math.max(t0, Math.min(lo, hi));
-      t1 = Math.min(t1, Math.max(lo, hi));
-    }
-  if (!(t1 - t0 > 1e-6)) return null;
-  return lineToCubic3(
-    Vec3.add(p0, Vec3.mulScalar(dir, t0)),
-    Vec3.add(p0, Vec3.mulScalar(dir, t1)),
-  );
-}
-
 const isSurface = (p: Primitive): p is PlaneRect | Disk =>
   p instanceof PlaneRect || p instanceof Disk;
 
@@ -463,8 +422,8 @@ export function buildScene(doc: {
   for (const item of clear)
     pickables.push({ objectId: item.objectId, primitive: item.primitive, layer: 1 });
 
-  // Lines the renderer does not find on its own: where clear surfaces cut
-  // anything, and where two planes meet.
+  // Clear surfaces are not in the scene, so the renderer cannot find where
+  // they cut things or meet other surfaces; opaque pairs it finds itself.
   const sections: BuiltScene["sections"] = [];
   const pair = (a: Primitive, b: Primitive) => {
     for (const x of intersectionCurvesToOwnedCubics([a, b], {
@@ -477,14 +436,9 @@ export function buildScene(doc: {
     .map((item) => item.primitive)
     .filter(isSurface);
   for (let i = 0; i < surfaces.length; i++)
-    for (let j = i + 1; j < surfaces.length; j++) {
-      const a = surfaces[i]!;
-      const b = surfaces[j]!;
-      if (a instanceof PlaneRect && b instanceof PlaneRect) {
-        const line = rectRectSegment(a, b);
-        if (line) sections.push({ bez: line, ignorePrimitiveIds: [a.id, b.id] });
-      } else if (clearIds.has(a.id) || clearIds.has(b.id)) pair(a, b);
-    }
+    for (let j = i + 1; j < surfaces.length; j++)
+      if (clearIds.has(surfaces[i]!.id) || clearIds.has(surfaces[j]!.id))
+        pair(surfaces[i]!, surfaces[j]!);
   const solids = built
     .map((item) => item.primitive)
     .filter((p) => !isSurface(p) && !(p instanceof TriangleMesh));
@@ -673,6 +627,55 @@ export function angleMarkPath(
   }).join(" ");
 }
 
+/** Where the figure sits on screen; marks and labels lean away from it. */
+function figureCenter(
+  scene: BuiltScene,
+  camera: Camera,
+  width: number,
+  height: number,
+): Point2 {
+  return scene.sceneBounds
+    ? camera.projectToSvg(vec(boundsCenter(scene.sceneBounds)), width, height)
+    : { x: width / 2, y: height / 2 };
+}
+
+/**
+ * A length mark as exam figures draw it: a dashed arc from end to end that
+ * bulges away from the figure, with the value just past its middle.
+ */
+export function measureMark(
+  object: Extract<EditorObject, { kind: "measure" }>,
+  scene: BuiltScene,
+  camera: Camera,
+  width: number,
+  height: number,
+) {
+  const a = scene.points.get(object.from);
+  const b = scene.points.get(object.to);
+  if (!a || !b) return null;
+  const pa = camera.projectToSvg(vec(a), width, height);
+  const pb = camera.projectToSvg(vec(b), width, height);
+  const center = figureCenter(scene, camera, width, height);
+  const mid = { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 };
+  const d = unit({ x: pb.x - pa.x, y: pb.y - pa.y }, { x: 1, y: 0 });
+  let normal = { x: -d.y, y: d.x };
+  if (normal.x * (mid.x - center.x) + normal.y * (mid.y - center.y) < 0)
+    normal = { x: -normal.x, y: -normal.y };
+  const chord = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+  // Scenes saved before arcs existed have no flag; they get the arc too.
+  const bulge = object.arc !== false ? Math.min(36, Math.max(8, chord * 0.2)) : 0;
+  // A quadratic curve reaches half way to its control point at the middle.
+  const control = {
+    x: mid.x + normal.x * bulge * 2,
+    y: mid.y + normal.y * bulge * 2,
+  };
+  return {
+    normal,
+    apex: { x: mid.x + normal.x * bulge, y: mid.y + normal.y * bulge },
+    d: `M ${fmt(pa.x)} ${fmt(pa.y)} Q ${fmt(control.x)} ${fmt(control.y)} ${fmt(pb.x)} ${fmt(pb.y)}`,
+  };
+}
+
 function angleText(object: Extract<EditorObject, { kind: "angle" }>, degrees: number, right: boolean) {
   if (object.label) return object.label;
   if (right || !object.showValue) return "";
@@ -691,9 +694,7 @@ export function layoutLabels(
   if (!settings.labels) return [];
   const project = (p: Tuple3) => camera.projectToSvg(vec(p), width, height);
   const size = annotationFontSize(width, height);
-  const center = scene.sceneBounds
-    ? project(boundsCenter(scene.sceneBounds))
-    : { x: width / 2, y: height / 2 };
+  const center = figureCenter(scene, camera, width, height);
   const right = Vec3.normalize(Vec3.cross(camera.forward, camera.up));
 
   // Labels at arrow tips sit past the tip, along the arrow.
@@ -768,7 +769,21 @@ export function layoutLabels(
         at = { x: arc.x + away.x * gap, y: arc.y + away.y * gap };
         break;
       }
-      case "measure":
+      case "measure": {
+        const mark = measureMark(object, scene, camera, width, height);
+        if (!mark || !text) continue;
+        const box = labelBoxEm(text);
+        const gap =
+          size *
+          (0.4 +
+            Math.abs(mark.normal.y) * box.height * 0.5 +
+            Math.abs(mark.normal.x) * box.width * 0.5);
+        at = {
+          x: mark.apex.x + mark.normal.x * gap,
+          y: mark.apex.y + mark.normal.y * gap,
+        };
+        break;
+      }
       case "segment": {
         const a = scene.points.get(object.from);
         const b = scene.points.get(object.to);
@@ -840,6 +855,16 @@ export function annotationSvg(
     parts.push(
       `<path d="${angleMarkPath(data, object.radius, project)}" fill="none" stroke="#0a0a0a" stroke-width="1" stroke-linejoin="round"/>`,
     );
+  }
+
+  for (const object of objects) {
+    if (object.kind !== "measure" || object.hidden || object.arc === false)
+      continue;
+    const mark = measureMark(object, scene, camera, width, height);
+    if (mark)
+      parts.push(
+        `<path d="${mark.d}" fill="none" stroke="#0a0a0a" stroke-width="0.9" stroke-dasharray="2.2 2.2"/>`,
+      );
   }
 
   if (settings.pointDots)

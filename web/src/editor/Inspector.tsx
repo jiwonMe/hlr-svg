@@ -537,6 +537,12 @@ function ObjectPanel({
             b={scene.points.get(object.to)}
             onUse={(text) => update({ label: text })}
           />
+          <Toggle
+            label="점선 호"
+            description="두 끝을 잇는 점선 호 바깥에 길이를 씁니다"
+            checked={object.arc !== false}
+            onChange={(arc) => update({ arc })}
+          />
           <p className="ed-hint">
             라벨에 <code>√6/2</code>처럼 쓰면 분수와 근호로 그립니다.
           </p>

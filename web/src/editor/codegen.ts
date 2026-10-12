@@ -1,5 +1,4 @@
 import type { Camera } from "@hlr/camera/camera.js";
-import type { CubicBezier3 } from "@hlr/curves/cubicBezier3.js";
 import type { Vec3 } from "@hlr/math/vec3.js";
 import type { Primitive } from "@hlr/scene/primitive.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
@@ -11,7 +10,7 @@ import { OrientedBox } from "@hlr/scene/primitives/orientedBox.js";
 import { PlaneRect } from "@hlr/scene/primitives/planeRect.js";
 import { Sphere } from "@hlr/scene/primitives/sphere.js";
 import { TriangleMesh } from "@hlr/scene/primitives/triangleMesh.js";
-import { rectRectSegment, type BuiltScene } from "./build";
+import type { BuiltScene } from "./build";
 import { formatNumber, type Tuple3 } from "./math";
 import type { EditorDoc } from "./model";
 
@@ -209,7 +208,8 @@ export function generateCode(
     }
   }
 
-  // Where clear surfaces cut things, and where any two planes meet.
+  // Where clear surfaces cut solids or meet other surfaces; the renderer
+  // already finds these lines between shapes that are in the scene.
   const ownedLines: string[] = [];
   const surfaces = [...scene.built.map((i) => i.primitive), ...clear].filter(
     (p): p is PlaneRect | Disk => p instanceof PlaneRect || p instanceof Disk,
@@ -222,17 +222,9 @@ export function generateCode(
     );
   };
   for (let i = 0; i < surfaces.length; i++)
-    for (let j = i + 1; j < surfaces.length; j++) {
-      const a = surfaces[i]!;
-      const b = surfaces[j]!;
-      if (a instanceof PlaneRect && b instanceof PlaneRect) {
-        const meet: CubicBezier3 | null = rectRectSegment(a, b);
-        if (meet)
-          ownedLines.push(
-            `{ bez: ${line(meet.p0, meet.p3)}, ignorePrimitiveIds: [${str(a.id)}, ${str(b.id)}] },`,
-          );
-      } else if (clearSet.has(a) || clearSet.has(b)) owned(a, b);
-    }
+    for (let j = i + 1; j < surfaces.length; j++)
+      if (clearSet.has(surfaces[i]!) || clearSet.has(surfaces[j]!))
+        owned(surfaces[i]!, surfaces[j]!);
   const solids = scene.built
     .map((item) => item.primitive)
     .filter(

@@ -29,6 +29,7 @@ import {
   forcedLinesSvg,
   layoutLabels,
   lineStyle,
+  measureMark,
   type BuiltScene,
   type LaidLabel,
 } from "./build";
@@ -1086,22 +1087,26 @@ function Overlay({
       if (selected.has(object.id))
         marks.push(<path key={`sel-${object.id}`} className="ed-selected-line" d={d} />);
       hits.push(<path key={`hit-${object.id}`} className="ed-hit-line" data-pick={object.id} d={d} />);
-    } else if (object.kind === "measure" && selected.has(object.id)) {
-      const a = scene.points.get(object.from);
-      const b = scene.points.get(object.to);
-      if (!a || !b) continue;
-      const pa = project(a);
-      const pb = project(b);
-      marks.push(
-        <line
-          key={`sel-${object.id}`}
-          className="ed-selected-measure"
-          x1={f(pa.x)}
-          y1={f(pa.y)}
-          x2={f(pb.x)}
-          y2={f(pb.y)}
-        />,
-      );
+    } else if (object.kind === "measure") {
+      const mark = measureMark(object, scene, camera, width, height);
+      if (!mark) continue;
+      if (selected.has(object.id))
+        marks.push(
+          <path
+            key={`sel-${object.id}`}
+            className="ed-selected-measure"
+            d={mark.d}
+          />,
+        );
+      if (object.arc !== false)
+        hits.push(
+          <path
+            key={`hit-${object.id}`}
+            className="ed-hit-line"
+            data-pick={object.id}
+            d={mark.d}
+          />,
+        );
     } else if (object.kind === "face" && selected.has(object.id)) {
       const corners = object.points
         .map((id) => scene.points.get(id))

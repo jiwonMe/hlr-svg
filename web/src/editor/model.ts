@@ -109,8 +109,14 @@ export type AngleObject = Base & {
   showValue: boolean;
   radius: number;
 };
-/** A length label beside the segment between two points. */
-export type MeasureObject = Base & { kind: "measure"; from: string; to: string };
+/** A length between two points: a dashed arc from end to end and its value. */
+export type MeasureObject = Base & {
+  kind: "measure";
+  from: string;
+  to: string;
+  /** Draw the dashed arc; without it the label sits beside the segment. */
+  arc: boolean;
+};
 
 export type EditorObject =
   | SphereObject
@@ -468,7 +474,7 @@ export function createMeasure(
   to: string,
   label: string,
 ): MeasureObject {
-  return { ...baseFor(objects, "measure"), label, kind: "measure", from, to };
+  return { ...baseFor(objects, "measure"), label, kind: "measure", from, to, arc: true };
 }
 
 const isTuple = (t: unknown): t is Tuple3 =>
@@ -490,6 +496,8 @@ export function withDefaults(object: EditorObject): EditorObject {
         showValue: object.showValue ?? true,
         radius: object.radius ?? 0.4,
       };
+    case "measure":
+      return { ...object, arc: object.arc ?? true };
     default:
       return object;
   }

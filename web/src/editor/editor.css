@@ -244,6 +244,7 @@
   stroke-dasharray: 2 2;
 }
 .ed-selected-measure {
+  fill: none;
   stroke: var(--accent);
   stroke-width: 2;
   stroke-dasharray: 5 4;
