@@ -222,28 +222,6 @@
   align-items: center;
   gap: 8px;
 }
-.tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2) !important;
-  border-radius: 999px;
-  background: var(--bg) !important;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: border-color 0.15s;
-}
-.tool-btn:hover {
-  border-color: var(--ink) !important;
-}
-.tool-btn[aria-pressed="true"] {
-  border-color: var(--ink) !important;
-  background: var(--ink) !important;
-  color: #fff;
-}
 .tool-field {
   display: inline-flex;
   align-items: center;
@@ -283,9 +261,7 @@
 }
 .example-canvas
   svg
-  [stroke]:not([stroke="none"]):not([stroke="white"]):not(
-    [stroke="#ffffff"]
-  ) {
+  [stroke]:not([stroke="none"]):not([stroke="white"]):not([stroke="#ffffff"]) {
   stroke: var(--ink);
 }
 .example-canvas svg text {

@@ -52,14 +52,6 @@
   flex: 1;
   width: auto;
 }
-.seg-sm {
-  padding: 2px;
-}
-.seg-sm button {
-  height: 26px;
-  padding: 0 9px;
-  font-size: 12px;
-}
 
 /* ── 왼쪽 목차 ────────────────────────────────────────────────────────── */
 .docs-nav-group + .docs-nav-group {

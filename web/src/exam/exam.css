@@ -252,9 +252,7 @@
 /* 데모마다 다른 회색 선을 시험지처럼 먹 한 가지로 맞춘다. */
 .fig-canvas
   svg
-  [stroke]:not([stroke="none"]):not([stroke="white"]):not(
-    [stroke="#ffffff"]
-  ) {
+  [stroke]:not([stroke="none"]):not([stroke="white"]):not([stroke="#ffffff"]) {
   stroke: var(--ink);
 }
 .fig-canvas svg text {
@@ -303,41 +301,6 @@
   .fig-tools {
     opacity: 1;
   }
-}
-
-/* ── 숨은선 표시 방식 ─────────────────────────────────────────────────── */
-.seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  background: var(--bg);
-}
-.seg button {
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
-  white-space: nowrap;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
-.seg button:hover {
-  color: var(--ink);
-}
-.seg button[aria-pressed="true"] {
-  background: var(--ink);
-  color: #fff;
-}
-.seg-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
 }
 
 /* ── 문제지 머리와 단 ─────────────────────────────────────────────────── */

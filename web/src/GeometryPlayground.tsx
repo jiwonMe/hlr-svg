@@ -1,691 +1,654 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Download, RotateCcw, Sun } from "lucide-react";
-import { Camera } from "@hlr/camera/camera.js";
-import { Scene } from "@hlr/core/scene.js";
-import { SvgRenderer } from "@hlr/core/svgRenderer.js";
-import { lineToCubic3 } from "@hlr/curves/builders.js";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import { Link } from "react-router-dom";
+import {
+  Code2,
+  Download,
+  FileDown,
+  FolderOpen,
+  LayoutTemplate,
+  Maximize2,
+  Redo2,
+  Undo2,
+  X,
+} from "lucide-react";
 import { Vec3 } from "@hlr/math/vec3.js";
-import {
-  SurfaceDiagram,
-  type SurfaceDiagramHandle,
-} from "./components/SurfaceDiagram";
-import { useElementSize } from "./docs/examples/useElementSize";
-import { clamp, orbitPosition, type OrbitState } from "./runtime/orbit";
+import { clamp, type OrbitState } from "./runtime/orbit";
 import { useFrameState } from "./runtime/useFrameState";
+import { LogoMark } from "./site/Logo";
+import { CodeWindow } from "./site/Code";
 import {
-  DEFAULT_PLAYGROUND_PRESET,
-  PLAYGROUND_PRESETS,
-  type PlaygroundPreset,
-} from "./runtime/playgroundScenes";
-import { SiteFooter } from "./site/SiteFooter";
-import { SiteHeader } from "./site/SiteHeader";
+  boundsCenter,
+  boundsRadius,
+  buildScene,
+  type Bounds,
+} from "./editor/build";
+import { generateCode } from "./editor/codegen";
+import { Segmented } from "./editor/fields";
+import { Inspector } from "./editor/Inspector";
+import { formatNumber, snapValue, vec, type Tuple3 } from "./editor/math";
+import {
+  createFace,
+  createObject,
+  createSegment,
+  isPositioned,
+  KIND_NAMES,
+  parseDoc,
+  type EditorDoc,
+  type EditorObject,
+  type ObjectKind,
+} from "./editor/model";
+import { AddPalette, Outliner } from "./editor/Outliner";
+import { editorReducer, type EditorState } from "./editor/state";
+import { DEFAULT_TEMPLATE, TEMPLATES } from "./editor/templates";
+import {
+  Viewport,
+  type GizmoMode,
+  type ViewportHandle,
+} from "./editor/Viewport";
+import { VIEW_SCALE, type Projection } from "./editor/viewCamera";
 import "./site/site.css";
-import "./playground.css";
+import "./exam/exam.css";
+import "./editor/editor.css";
 
-const BASE_RADIUS = 8.5;
-const INITIAL_ORBIT: OrbitState = {
-  target: Vec3.zero(),
-  radius: BASE_RADIUS,
-  azimuth: Math.PI / 4,
-  polar: Math.acos(1 / Math.sqrt(3)),
-};
+const STORAGE_KEY = "hlr-studio:doc";
 
-type DragState = {
-  id: number;
-  x: number;
-  y: number;
-  azimuth: number;
-  polar: number;
-};
+const VIEWS = {
+  // A three-quarter view like exam figures; exact isometric stacks cube corners.
+  start: { azimuth: 0.6, polar: 1.1 },
+  iso: { azimuth: Math.PI / 4, polar: Math.acos(1 / Math.sqrt(3)) },
+  front: { azimuth: 0, polar: Math.PI / 2 },
+  side: { azimuth: Math.PI / 2, polar: Math.PI / 2 },
+  top: { azimuth: 0, polar: 0.02 },
+} as const;
+type ViewName = keyof typeof VIEWS;
 
-function ShapeIcon({ id }: { id: string }): React.ReactElement {
+const SNAP_OPTIONS = [0, 0.1, 0.25, 0.5, 1] as const;
+
+function loadInitial(): EditorState {
+  let doc: EditorDoc | null = null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) doc = parseDoc(JSON.parse(raw));
+  } catch {
+    doc = null;
+  }
+  return {
+    doc: doc ?? DEFAULT_TEMPLATE.create(),
+    selection: null,
+    past: [],
+    future: [],
+  };
+}
+
+/** Orbit that fits `bounds` in a viewport of the given aspect. */
+function fitView(
+  bounds: Bounds | null,
+  aspect: number,
+  from: OrbitState,
+): OrbitState {
+  if (!bounds) return { ...from, target: Vec3.zero(), radius: 12 };
+  const halfHeight = boundsRadius(bounds) * Math.max(1, 1 / aspect) * 1.18;
+  return {
+    ...from,
+    target: vec(boundsCenter(bounds)),
+    radius: clamp(0.8, halfHeight / VIEW_SCALE, 400),
+  };
+}
+
+function download(name: string, content: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function fileName(title: string) {
+  return title.trim().replace(/[\\/:*?"<>|]+/g, "-") || "scene";
+}
+
+function isTyping(target: EventTarget | null) {
+  const el = target as HTMLElement | null;
   return (
-    <svg
-      viewBox="0 0 40 40"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      aria-hidden="true"
-    >
-      {id === "cube" ? (
-        <>
-          <path d="m20 6 13 7v14l-13 7-13-7V13zM7 13l13 8 13-8M20 21v13" />
-          <path d="m20 6 0 14" strokeDasharray="2 3" opacity=".4" />
-        </>
-      ) : id === "octahedron" ? (
-        <>
-          <path d="m20 5 14 16-14 14L6 21zM20 5v30M6 21l14 5 14-5" />
-          <path d="m6 21 14-5 14 5" strokeDasharray="2 3" opacity=".4" />
-        </>
-      ) : id === "cylinder" ? (
-        <>
-          <ellipse cx="20" cy="10" rx="11" ry="4" />
-          <path d="M9 10v20c0 5 22 5 22 0V10" />
-          <path d="M9 30c0-5 22-5 22 0" strokeDasharray="2 3" opacity=".4" />
-        </>
-      ) : id === "cone" || id === "cone-sphere" ? (
-        <>
-          <path d="m8 30 12-25 12 25" />
-          <ellipse cx="20" cy="30" rx="12" ry="4" />
-          {id === "cone-sphere" && (
-            <circle cx="12" cy="22" r="8" fill="var(--pg-paper)" />
-          )}
-        </>
-      ) : id === "sphere-cylinder" ? (
-        <>
-          <circle cx="23" cy="20" r="12" />
-          <ellipse cx="14" cy="7" rx="7" ry="3" />
-          <path d="M7 7v26c0 4 14 4 14 0V7" />
-        </>
-      ) : id === "sphere-sphere" ? (
-        <>
-          <circle cx="14" cy="20" r="11" />
-          <circle cx="26" cy="20" r="11" />
-        </>
-      ) : (
-        <>
-          <circle cx="20" cy="20" r="14" />
-          <ellipse cx="20" cy="20" rx="6" ry="14" opacity=".45" />
-          <path d="M6 20c5 6 23 6 28 0" opacity=".45" />
-        </>
-      )}
-    </svg>
+    !!el &&
+    (el.tagName === "INPUT" ||
+      el.tagName === "TEXTAREA" ||
+      el.tagName === "SELECT" ||
+      el.isContentEditable)
   );
 }
 
-function RangeControl({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  unit = "°",
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
-  onChange: (value: number) => void;
-}): React.ReactElement {
-  return (
-    <label className="pg-range">
-      <span className="pg-control-label">
-        <span>{label}</span>
-        <output>
-          {value}
-          {unit}
-        </output>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-    </label>
-  );
-}
-
-function ToggleControl({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}): React.ReactElement {
-  return (
-    <label className="pg-toggle-row">
-      <span>
-        <strong>{label}</strong>
-        <small>{description}</small>
-      </span>
-      <input
-        className="pg-switch"
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-    </label>
-  );
-}
-
+/** Lays shapes, points and planes out in 3D and draws them as exam figures. */
 export function GeometryPlayground(): React.ReactElement {
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const diagramRef = useRef<SurfaceDiagramHandle | null>(null);
-  const dragRef = useRef<DragState | null>(null);
-  const [presetId, setPresetId] = useState(DEFAULT_PLAYGROUND_PRESET.id);
-  const [orbit, orbitInput] = useFrameState(INITIAL_ORBIT);
-  const [projection, setProjection] = useState<"orthographic" | "perspective">(
-    "orthographic",
-  );
-  const [dragging, setDragging] = useState(false);
-  const [fillEnabled, setFillEnabled] = useState(true);
-  const [showHidden, setShowHidden] = useState(true);
-  const [showIntersections, setShowIntersections] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
-  const [strokeWidth, setStrokeWidth] = useState(1.5);
-  const [azimuth, setAzimuth] = useState(135);
-  const [elevation, setElevation] = useState(45);
-  const [ambient, setAmbient] = useState(30);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [notice, setNotice] = useState(
-    "도형을 선택하거나 드래그해 다른 방향에서 살펴보세요.",
-  );
-  const size = useElementSize(canvasRef);
-  const width = size.width || 960;
-  const height = size.height || 620;
-  const preset =
-    PLAYGROUND_PRESETS.find((item) => item.id === presetId) ??
-    DEFAULT_PLAYGROUND_PRESET;
-  const scene = useMemo(
-    () => new Scene(preset.primitives),
-    [preset.primitives],
-  );
-  const auxiliaryCurves = useMemo(
-    () =>
-      (preset.auxiliarySegments ?? []).flatMap(([start, end]) => {
-        const a = preset.annotations?.find((point) => point.text === start);
-        const b = preset.annotations?.find((point) => point.text === end);
-        return a && b ? [lineToCubic3(a.point, b.point)] : [];
-      }),
-    [preset.auxiliarySegments, preset.annotations],
-  );
-
-  const camera = useMemo(() => {
-    const common = {
-      position: orbitPosition(orbit),
-      target: orbit.target,
-      up: new Vec3(0, 1, 0),
-      aspect: width / height,
-      near: 0.05,
-      far: 100,
-    };
-    return projection === "orthographic"
-      ? Camera.from({
-          ...common,
-          kind: "orthographic",
-          halfHeight: (preset.halfHeight * orbit.radius) / BASE_RADIUS,
-        })
-      : Camera.from({
-          ...common,
-          kind: "perspective",
-          fovYRad: 2 * Math.atan(preset.halfHeight / BASE_RADIUS),
-        });
-  }, [height, orbit, preset.halfHeight, projection, width]);
-
-  const renderer = useMemo(
-    () =>
-      new SvgRenderer({
-        width,
-        height,
-        background: false,
-        hlr: { samples: 112, coarseSamples: 0, refineIters: 18 },
-        intersections: { angularSamples: 112 },
-      }),
-    [height, width],
-  );
-  const lineSvg = useMemo(
-    () =>
-      renderer.render(scene, camera, {
-        curves: auxiliaryCurves,
-        include: { intersections: showIntersections },
-        style: {
-          strokeVisible: "#0a0a0a",
-          strokeHidden: "#0a0a0a",
-          strokeWidthVisible: strokeWidth,
-          strokeWidthHidden: Math.max(0.75, strokeWidth * 0.78),
-          dashArrayHidden: "3.2 2.6",
-          opacityHidden: showHidden ? 0.9 : 0,
-        },
-      }),
-    [
-      auxiliaryCurves,
-      camera,
-      height,
-      scene,
-      renderer,
-      showHidden,
-      showIntersections,
-      strokeWidth,
-      width,
-    ],
-  );
-  const annotatedLineSvg = useMemo(() => {
-    if (!showLabels || !preset.annotations?.length) return lineSvg;
-    const labels: string[] = [];
-    for (const label of preset.annotations) {
-      const point = camera.projectToSvg(label.point, width, height);
-      if (
-        !Number.isFinite(point.x) ||
-        !Number.isFinite(point.y) ||
-        point.z < -1 ||
-        point.z > 1
-      )
-        continue;
-      const escapedText = label.text
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-      labels.push(
-        `<circle cx="${point.x}" cy="${point.y}" r="2" fill="#0a0a0a"/>` +
-          `<text class="pg-point-label" x="${point.x + label.dx}" y="${point.y + label.dy}" text-anchor="${label.dx < 0 ? "end" : "start"}" fill="#0a0a0a" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" font-size="16">${escapedText}</text>`,
-      );
-    }
-    return lineSvg.replace(
-      /<\/svg>\s*$/,
-      `<g data-annotations="true" pointer-events="none">${labels.join("")}</g></svg>`,
-    );
-  }, [camera, height, lineSvg, preset.annotations, showLabels, width]);
-
-  const lighting = useMemo(
-    () => ({
-      enabled: fillEnabled,
-      azimuth,
-      elevation,
-      ambient: ambient / 100,
+  const [state, dispatch] = useReducer(editorReducer, undefined, loadInitial);
+  const { doc, selection, past, future } = state;
+  // Settings changes keep the same objects array, so the scene is reused.
+  const scene = useMemo(() => buildScene(doc), [doc.objects]);
+  const [initialView] = useState(() =>
+    fitView(scene.sceneBounds, 1.6, {
+      ...VIEWS.start,
+      target: Vec3.zero(),
+      radius: 12,
     }),
-    [ambient, azimuth, elevation, fillEnabled],
   );
-  const selectedObject = preset.objects.find(
-    (object) => object.id === selectedId,
+  const [view, viewInput] = useFrameState<OrbitState>(initialView);
+  const [projection, setProjection] = useState<Projection>("orthographic");
+  const [gizmo, setGizmo] = useState<GizmoMode>("move");
+  const [snap, setSnap] = useState<number>(0.5);
+  const [renderMs, setRenderMs] = useState(0);
+  const [dialog, setDialog] = useState<null | "code" | "templates">(null);
+  const [message, setMessage] = useState("");
+  const viewportRef = useRef<ViewportHandle | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const selected =
+    doc.objects.find((object) => object.id === selection) ?? null;
+
+  // Autosave is a per-browser convenience; failures are silent.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+      } catch {
+        /* storage may be unavailable */
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [doc]);
+
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  const frame = useCallback(
+    (bounds: Bounds | null) => {
+      const size = viewportRef.current?.size() ?? { width: 960, height: 640 };
+      viewInput.reset((current) =>
+        fitView(bounds, size.width / size.height, current),
+      );
+    },
+    [viewInput],
   );
 
-  const selectPreset = (next: PlaygroundPreset): void => {
-    setPresetId(next.id);
-    setSelectedId(null);
-    orbitInput.reset(INITIAL_ORBIT);
-    dragRef.current = null;
-    setDragging(false);
-    setNotice(`${next.name} 장면입니다. ${next.description}`);
+  const setView = (name: ViewName) =>
+    viewInput.reset((current) => ({ ...current, ...VIEWS[name] }));
+
+  // New shapes land on the floor under the view centre, snapped.
+  const dropPoint = (): Tuple3 => {
+    const target = viewInput.current().target;
+    const step = snap || 0.5;
+    return [snapValue(target.x, step), 0, snapValue(target.z, step)];
   };
 
-  const selectObject = useCallback(
-    (id: string | null) => {
-      setSelectedId(id);
-      const object = preset.objects.find((item) => item.id === id);
-      setNotice(
-        object
-          ? `${object.name} 선택됨. 다른 도형을 누르면 선택을 바꿀 수 있습니다.`
-          : "전체 도형을 살펴보고 있습니다.",
-      );
-    },
-    [preset.objects],
-  );
+  const addObject = (kind: ObjectKind) => {
+    const objects = doc.objects;
+    const points = objects.filter((object) => object.kind === "point");
+    const at = dropPoint();
+    const newPoints = (count: number): EditorObject[] => {
+      const made: EditorObject[] = [];
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + Math.PI / 6;
+        made.push(
+          createObject([...objects, ...made], "point", [
+            at[0] + 1.5 * Math.cos(angle),
+            at[1],
+            at[2] + 1.5 * Math.sin(angle),
+          ]),
+        );
+      }
+      return made;
+    };
+    if (kind === "segment") {
+      const tail =
+        selected?.kind === "point" ? selected : points[points.length - 1];
+      const head = points.filter((p) => p.id !== tail?.id).at(-1);
+      if (tail && head)
+        dispatch({ type: "addSegment", from: head.id, to: tail.id });
+      else {
+        const made = newPoints(2);
+        dispatch({
+          type: "addMany",
+          objects: [
+            ...made,
+            createSegment([...objects, ...made], made[0]!.id, made[1]!.id),
+          ],
+        });
+      }
+      return;
+    }
+    if (kind === "face") {
+      const recent = points.slice(-3);
+      if (recent.length === 3)
+        dispatch({ type: "addFace", points: recent.map((p) => p.id) });
+      else {
+        const made = newPoints(3);
+        dispatch({
+          type: "addMany",
+          objects: [
+            ...made,
+            createFace(
+              [...objects, ...made],
+              made.map((p) => p.id),
+            ),
+          ],
+        });
+      }
+      return;
+    }
+    dispatch({ type: "add", object: createObject(objects, kind, at) });
+  };
 
-  const handlePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return;
-      const current = orbitInput.current();
-      dragRef.current = {
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        azimuth: current.azimuth,
-        polar: current.polar,
-      };
-      setDragging(true);
-    },
-    [orbitInput],
-  );
-
-  const handlePointerMove = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.id !== event.pointerId) return;
-      const dx = event.clientX - drag.x;
-      const dy = event.clientY - drag.y;
-      const azimuth = drag.azimuth + dx * 0.006;
-      const polar = clamp(0.12, drag.polar + dy * 0.006, Math.PI - 0.12);
-      const latest = orbitInput.current();
-      if (latest.azimuth === azimuth && latest.polar === polar) return;
-      orbitInput.schedule((current) => ({
-        ...current,
-        azimuth,
-        polar,
-      }));
-    },
-    [orbitInput],
-  );
-
-  const handlePointerUp = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.id !== event.pointerId) return;
-      if (event.type === "pointerup") handlePointerMove(event);
-      orbitInput.flush();
-      dragRef.current = null;
-      setDragging(false);
-    },
-    [handlePointerMove, orbitInput],
-  );
-
-  const handleWheel = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>) => {
-      const delta = event.deltaY;
-      if (delta === 0) return;
-      orbitInput.schedule((current) => {
-        const radius = clamp(4, current.radius * Math.exp(delta * 0.001), 18);
-        return radius === current.radius ? current : { ...current, radius };
-      });
-    },
-    [orbitInput],
-  );
-
-  const saveSvg = useCallback(() => {
-    const svg = diagramRef.current?.toSvg();
+  const exportSvg = () => {
+    const svg = viewportRef.current?.exportSvg();
     if (!svg) return;
-    const url = URL.createObjectURL(
-      new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
+    download(`${fileName(doc.title)}.svg`, svg, "image/svg+xml;charset=utf-8");
+    setMessage("SVG로 저장했습니다");
+  };
+
+  const saveJson = () => {
+    download(
+      `${fileName(doc.title)}.json`,
+      JSON.stringify(doc, null, 2),
+      "application/json",
     );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `hlr-${presetId}.svg`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setNotice("현재 도형을 SVG 파일로 저장했습니다.");
-  }, [presetId]);
+    setMessage("장면을 JSON으로 저장했습니다");
+  };
+
+  const openJson = async (file: File) => {
+    try {
+      const parsed = parseDoc(JSON.parse(await file.text()));
+      if (!parsed) throw new Error("invalid");
+      dispatch({ type: "load", doc: parsed });
+      frame(buildScene(parsed).sceneBounds);
+      setMessage(`‘${parsed.title}’을 불러왔습니다`);
+    } catch {
+      setMessage("HLR SVG 장면 파일이 아닙니다");
+    }
+  };
+
+  // Keyboard shortcuts read the latest state through a ref.
+  const latest = useRef({ selected, snap, scene });
+  latest.current = { selected, snap, scene };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isTyping(event.target)) return;
+      const { selected: sel, snap: step, scene: built } = latest.current;
+      const mod = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
+      if (mod && key === "z") {
+        event.preventDefault();
+        dispatch({ type: event.shiftKey ? "redo" : "undo" });
+      } else if (mod && key === "y") {
+        event.preventDefault();
+        dispatch({ type: "redo" });
+      } else if (mod && key === "d") {
+        event.preventDefault();
+        if (sel) dispatch({ type: "duplicate", id: sel.id });
+      } else if (mod) {
+        return;
+      } else if ((key === "delete" || key === "backspace") && sel) {
+        event.preventDefault();
+        dispatch({ type: "remove", id: sel.id });
+      } else if (key === "escape") {
+        if (dialog) setDialog(null);
+        else dispatch({ type: "select", id: null });
+      } else if (key === "w") setGizmo("move");
+      else if (key === "e") setGizmo("rotate");
+      else if (key === "f")
+        frame(sel ? (built.bounds.get(sel.id) ?? null) : built.sceneBounds);
+      else if (key === "0") setView("iso");
+      else if (key === "1") setView("front");
+      else if (key === "3") setView("side");
+      else if (key === "7") setView("top");
+      else if (key.startsWith("arrow") && sel && isPositioned(sel)) {
+        event.preventDefault();
+        const d = step || 0.1;
+        const [x, y, z] = sel.position;
+        const position: Tuple3 =
+          key === "arrowleft"
+            ? [x - d, y, z]
+            : key === "arrowright"
+              ? [x + d, y, z]
+              : event.shiftKey
+                ? [x, y + (key === "arrowup" ? d : -d), z]
+                : [x, y, z + (key === "arrowup" ? -d : d)];
+        dispatch({ type: "update", id: sel.id, patch: { position } });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialog, frame]);
+
+  const selectionText = selected
+    ? `${KIND_NAMES[selected.kind]} · ${selected.name}${
+        isPositioned(selected)
+          ? ` · (${selected.position.map((v) => formatNumber(v, 2)).join(", ")})`
+          : ""
+      }`
+    : "선택 없음 · 도형을 누르거나 목록에서 고르세요";
 
   return (
-    <div className="site pg-page">
-      <SiteHeader wide>
-        <button
-          className="btn btn-secondary btn-sm pg-download"
-          type="button"
-          onClick={saveSvg}
-        >
-          <Download aria-hidden="true" size={14} strokeWidth={1.8} />
-          SVG 저장
-        </button>
-      </SiteHeader>
-
-      <main className="pg-main">
-        <div className="pg-intro">
-          <div>
-            <p className="exam-pill">
-              <span className="exam-pill-period">제 3 교시</span>
-              <span>도형 작업실</span>
-            </p>
-            <h1>빛으로 읽는 입체.</h1>
-          </div>
-          <p>
-            도형을 돌리고, 빛을 옮기고, 가려진 선을 확인하세요. 지금 보이는 시점
-            그대로 SVG로 저장할 수 있습니다.
-          </p>
+    <div className="site ed">
+      <header className="ed-topbar">
+        <Link to="/" className="ed-brand" aria-label="HLR SVG 처음 화면">
+          <LogoMark size={20} />
+          <span>HLR SVG</span>
+        </Link>
+        <span className="ed-brand-sep" aria-hidden="true">
+          /
+        </span>
+        <span className="ed-app-name">도형 작업실</span>
+        <input
+          className="ed-title"
+          aria-label="장면 이름"
+          value={doc.title}
+          onChange={(event) =>
+            dispatch({ type: "title", title: event.target.value })
+          }
+        />
+        <div className="ed-top-actions">
+          <button
+            type="button"
+            className="ed-icon-btn"
+            onClick={() => dispatch({ type: "undo" })}
+            disabled={!past.length}
+            title="실행 취소 (⌘Z)"
+            aria-label="실행 취소"
+          >
+            <Undo2 size={16} />
+          </button>
+          <button
+            type="button"
+            className="ed-icon-btn"
+            onClick={() => dispatch({ type: "redo" })}
+            disabled={!future.length}
+            title="다시 실행 (⌘⇧Z)"
+            aria-label="다시 실행"
+          >
+            <Redo2 size={16} />
+          </button>
+          <span className="ed-top-sep" aria-hidden="true" />
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={() => setDialog("templates")}
+          >
+            <LayoutTemplate size={14} />
+            템플릿
+          </button>
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={() => fileRef.current?.click()}
+          >
+            <FolderOpen size={14} />
+            열기
+          </button>
+          <button type="button" className="tool-btn" onClick={saveJson}>
+            <FileDown size={14} />
+            JSON
+          </button>
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={() => setDialog("code")}
+          >
+            <Code2 size={14} />
+            코드
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={exportSvg}
+          >
+            <Download size={14} />
+            SVG 저장
+          </button>
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void openJson(file);
+            event.currentTarget.value = "";
+          }}
+        />
+      </header>
 
-        <div className="pg-workspace">
-          <aside className="pg-presets pg-panel" aria-label="도형 선택">
-            <div className="pg-panel-heading">
-              <h2>도형 선택</h2>
-              <span>{String(PLAYGROUND_PRESETS.length).padStart(2, "0")}</span>
-            </div>
-            {(["기본 도형", "겹침 도형"] as const).map((category) => (
-              <section className="pg-preset-group" key={category}>
-                <h3>{category}</h3>
-                {PLAYGROUND_PRESETS.filter(
-                  (item) => item.category === category,
-                ).map((item) => (
-                  <button
-                    className={`pg-preset${presetId === item.id ? " is-active" : ""}`}
-                    type="button"
-                    key={item.id}
-                    onClick={() => selectPreset(item)}
-                    aria-pressed={presetId === item.id}
-                  >
-                    <span className="pg-shape-icon">
-                      <ShapeIcon id={item.id} />
-                    </span>
-                    <span>{item.name}</span>
-                    <span className="pg-preset-no" aria-hidden="true">
-                      {PLAYGROUND_PRESETS.indexOf(item) + 1}.
-                    </span>
-                  </button>
+      <div className="ed-body">
+        <aside className="ed-left" aria-label="도형 추가와 장면 목록">
+          <AddPalette onAdd={addObject} />
+          <Outliner
+            objects={doc.objects}
+            selection={selection}
+            dispatch={dispatch}
+          />
+        </aside>
+
+        <main className="ed-center">
+          <div className="ed-toolbar" role="toolbar" aria-label="보기 도구">
+            <Segmented
+              label="변형 도구"
+              value={gizmo}
+              options={[
+                { value: "move", label: "이동", title: "이동 (W)" },
+                { value: "rotate", label: "회전", title: "회전 (E)" },
+              ]}
+              onChange={setGizmo}
+            />
+            <label className="ed-snap">
+              <span>스냅</span>
+              <select
+                value={snap}
+                onChange={(event) => setSnap(Number(event.target.value))}
+              >
+                {SNAP_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value === 0 ? "끄기" : value}
+                  </option>
                 ))}
-              </section>
-            ))}
-            <div className="pg-practice-note">
-              <span>살펴보기</span>
-              <p>
-                겹침 도형의 교선은 두 곡면이 만나는 자리입니다. 회전하며 앞뒤
-                관계를 찾아보세요.
-              </p>
-            </div>
-          </aside>
-
-          <section className="pg-stage pg-panel" aria-label="도형 캔버스">
-            <div className="pg-stage-toolbar">
-              <div>
-                <strong>{preset.name}</strong>
-                <span className="pg-stage-badge">
-                  {preset.primitives.length > 1 ? "교선 탐구" : "입체 탐구"}
-                </span>
-              </div>
-              <div className="pg-view-controls">
-                <div className="pg-segmented" aria-label="투영 방식">
-                  <button
-                    type="button"
-                    aria-pressed={projection === "orthographic"}
-                    onClick={() => setProjection("orthographic")}
-                  >
-                    직교
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={projection === "perspective"}
-                    onClick={() => setProjection("perspective")}
-                  >
-                    원근
-                  </button>
-                </div>
+              </select>
+            </label>
+            <span className="ed-toolbar-sep" aria-hidden="true" />
+            <div className="ed-views" role="group" aria-label="시점">
+              {(
+                [
+                  ["iso", "등각", "0"],
+                  ["front", "정면", "1"],
+                  ["side", "옆면", "3"],
+                  ["top", "윗면", "7"],
+                ] as const
+              ).map(([name, label, key]) => (
                 <button
-                  className="pg-icon-button"
+                  key={name}
                   type="button"
-                  onClick={() => {
-                    orbitInput.reset(INITIAL_ORBIT);
-                    dragRef.current = null;
-                    setDragging(false);
-                    setNotice("처음 시점으로 돌아왔습니다.");
-                  }}
-                  aria-label="시점 초기화"
-                  title="시점 초기화"
+                  className="tool-btn"
+                  onClick={() => setView(name)}
+                  title={`${label} (${key})`}
                 >
-                  <RotateCcw size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="pg-canvas" ref={canvasRef}>
-              <SurfaceDiagram
-                ref={diagramRef}
-                primitives={preset.primitives}
-                camera={camera}
-                width={width}
-                height={height}
-                lineSvg={annotatedLineSvg}
-                lighting={lighting}
-                selectedId={selectedId}
-                onSelect={selectObject}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-                onWheel={handleWheel}
-                interactive={dragging}
-                className="pg-diagram"
-              />
-              <span className="pg-canvas-corner">
-                {projection === "orthographic" ? "직교 투영" : "원근 투영"}
-              </span>
-            </div>
-            <div className="pg-stage-footer">
-              <span>
-                드래그 회전 <i>·</i> 휠 확대/축소 <i>·</i> 클릭 선택
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  orbitInput.reset(INITIAL_ORBIT);
-                  dragRef.current = null;
-                  setDragging(false);
-                  setProjection("orthographic");
-                }}
-              >
-                등각으로 보기 <span>↗</span>
-              </button>
-            </div>
-            <p className="pg-caption" role="status">
-              {notice}
-            </p>
-          </section>
-
-          <aside className="pg-settings" aria-label="도형 표시 설정">
-            <section className="pg-panel pg-light-panel">
-              <div className="pg-panel-heading">
-                <h2>
-                  <Sun size={16} />
-                  조명
-                </h2>
-                <span>실시간</span>
-              </div>
-              <div
-                className="pg-light-preview"
-                style={
-                  {
-                    "--light-x": `${50 + Math.sin((azimuth * Math.PI) / 180) * 30}%`,
-                    "--light-y": `${60 - elevation * 0.45}%`,
-                  } as React.CSSProperties
-                }
-              >
-                <span className="pg-light-orbit" />
-                <span className="pg-light-sphere" />
-                <span className="pg-light-point" />
-              </div>
-              <RangeControl
-                label="빛의 방향"
-                value={azimuth}
-                min={0}
-                max={360}
-                onChange={setAzimuth}
-              />
-              <RangeControl
-                label="빛의 높이"
-                value={elevation}
-                min={5}
-                max={85}
-                onChange={setElevation}
-              />
-              <RangeControl
-                label="주변 밝기"
-                value={ambient}
-                min={10}
-                max={75}
-                unit="%"
-                onChange={setAmbient}
-              />
-              <button
-                className="pg-subtle-button"
-                type="button"
-                onClick={() => {
-                  setAzimuth(135);
-                  setElevation(45);
-                  setAmbient(30);
-                }}
-              >
-                조명 초기화
-              </button>
-            </section>
-
-            <section className="pg-panel pg-line-panel">
-              <div className="pg-panel-heading">
-                <h2>면과 선</h2>
-              </div>
-              <ToggleControl
-                label="면 채색"
-                description="빛에 따른 면의 밝기"
-                checked={fillEnabled}
-                onChange={setFillEnabled}
-              />
-              <ToggleControl
-                label="숨은선"
-                description="가려진 모서리를 점선으로"
-                checked={showHidden}
-                onChange={setShowHidden}
-              />
-              <ToggleControl
-                label="교선"
-                description="도형이 만나는 경계"
-                checked={showIntersections}
-                onChange={setShowIntersections}
-              />
-              <ToggleControl
-                label="점 이름"
-                description="꼭짓점과 중심의 이름"
-                checked={showLabels}
-                onChange={setShowLabels}
-              />
-              <RangeControl
-                label="선 굵기"
-                value={strokeWidth}
-                min={0.75}
-                max={3}
-                step={0.25}
-                unit=""
-                onChange={setStrokeWidth}
-              />
-            </section>
-
-            <section className="pg-panel pg-object-panel">
-              <div className="pg-panel-heading">
-                <h2>장면의 도형</h2>
-                <span>{String(preset.objects.length).padStart(2, "0")}</span>
-              </div>
-              {preset.objects.map((object, index) => (
-                <button
-                  type="button"
-                  className={`pg-object${selectedId === object.id ? " is-selected" : ""}`}
-                  key={object.id}
-                  onClick={() =>
-                    selectObject(selectedId === object.id ? null : object.id)
-                  }
-                  aria-pressed={selectedId === object.id}
-                >
-                  <span className="pg-object-number">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span>
-                    <strong>{object.name}</strong>
-                    <small>{object.kind}</small>
-                  </span>
-                  <span className="pg-object-dot" />
+                  {label}
                 </button>
               ))}
-              <p className="pg-object-hint">
-                {selectedObject
-                  ? `${selectedObject.name} 선택됨`
-                  : "도형이나 목록을 눌러 선택하세요."}
-              </p>
-              {selectedId && (
-                <button
-                  type="button"
-                  className="pg-subtle-button"
-                  onClick={() => selectObject(null)}
-                >
-                  선택 해제
-                </button>
-              )}
-            </section>
-          </aside>
+            </div>
+            <Segmented
+              label="투영"
+              value={projection}
+              options={[
+                { value: "orthographic", label: "직교" },
+                { value: "perspective", label: "원근" },
+              ]}
+              onChange={setProjection}
+            />
+            <button
+              type="button"
+              className="tool-btn"
+              onClick={() =>
+                frame(
+                  selected
+                    ? (scene.bounds.get(selected.id) ?? null)
+                    : scene.sceneBounds,
+                )
+              }
+              title="선택한 도형에 맞춤 (F)"
+            >
+              <Maximize2 size={14} />
+              맞춤
+            </button>
+          </div>
+
+          <Viewport
+            ref={viewportRef}
+            doc={doc}
+            scene={scene}
+            selection={selection}
+            dispatch={dispatch}
+            view={view}
+            viewInput={viewInput}
+            projection={projection}
+            gizmo={gizmo}
+            snap={snap}
+            onRendered={setRenderMs}
+          />
+
+          <footer className="ed-statusbar">
+            <span className="ed-status-selection">{selectionText}</span>
+            <span className="ed-status-hint">
+              끌기 회전 · Shift/오른쪽 끌기 이동 · 휠 확대 · W 이동 · E 회전 · F
+              맞춤 · ⌘Z 되돌리기
+            </span>
+            <span className="ed-status-meta" role="status">
+              {message || `렌더 ${renderMs.toFixed(0)}ms · 자동 저장`}
+            </span>
+          </footer>
+        </main>
+
+        <aside className="ed-right" aria-label="속성">
+          <Inspector
+            doc={doc}
+            scene={scene}
+            selection={selection}
+            dispatch={dispatch}
+            renderMs={renderMs}
+          />
+        </aside>
+      </div>
+
+      {dialog && (
+        <div
+          className="ed-dialog-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setDialog(null);
+          }}
+        >
+          <div
+            className="ed-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ed-dialog-title"
+          >
+            <div className="ed-dialog-head">
+              <h2 id="ed-dialog-title">
+                {dialog === "code" ? "코드로 내보내기" : "템플릿에서 시작"}
+              </h2>
+              <button
+                type="button"
+                className="ed-icon-btn"
+                onClick={() => setDialog(null)}
+                aria-label="닫기"
+                autoFocus
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {dialog === "code" ? (
+              <CodeDialogBody
+                doc={doc}
+                viewport={viewportRef.current}
+                scene={scene}
+              />
+            ) : (
+              <div className="ed-templates">
+                <p className="ed-dialog-note">
+                  지금 장면은 실행 취소(⌘Z)로 되돌릴 수 있습니다.
+                </p>
+                <ul>
+                  {TEMPLATES.map((template) => (
+                    <li key={template.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = template.create();
+                          dispatch({ type: "load", doc: next });
+                          viewInput.reset((current) => ({
+                            ...current,
+                            ...VIEWS.start,
+                          }));
+                          frame(buildScene(next).sceneBounds);
+                          setDialog(null);
+                        }}
+                      >
+                        <strong>{template.name}</strong>
+                        <span>{template.description}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
-      </main>
-      <SiteFooter />
+      )}
+    </div>
+  );
+}
+
+function CodeDialogBody({
+  doc,
+  viewport,
+  scene,
+}: {
+  doc: EditorDoc;
+  viewport: ViewportHandle | null;
+  scene: ReturnType<typeof buildScene>;
+}) {
+  const code = useMemo(() => {
+    if (!viewport) return "";
+    const { width, height } = viewport.size();
+    return generateCode(doc, scene, viewport.camera(), width, height);
+  }, [doc, scene, viewport]);
+  return (
+    <div className="ed-code">
+      <p className="ed-dialog-note">
+        지금 장면과 시점을 그대로 그리는 TypeScript입니다.{" "}
+        <code>pnpm add hlr</code> 후 실행하면 같은 선이 나옵니다.
+      </p>
+      <CodeWindow title={`${fileName(doc.title)}.ts`} code={code} />
+      <button
+        type="button"
+        className="tool-btn"
+        onClick={() =>
+          download(`${fileName(doc.title)}.ts`, code, "text/typescript")
+        }
+      >
+        <Download size={14} />
+        .ts 파일로 받기
+      </button>
     </div>
   );
 }
