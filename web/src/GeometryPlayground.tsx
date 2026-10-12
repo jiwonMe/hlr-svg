@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Download, RotateCcw, Sun } from "lucide-react";
+import { Download, RotateCcw, Sun } from "lucide-react";
 import { Camera } from "@hlr/camera/camera.js";
 import { Scene } from "@hlr/core/scene.js";
 import { SvgRenderer } from "@hlr/core/svgRenderer.js";
@@ -18,6 +17,9 @@ import {
   PLAYGROUND_PRESETS,
   type PlaygroundPreset,
 } from "./runtime/playgroundScenes";
+import { SiteFooter } from "./site/SiteFooter";
+import { SiteHeader } from "./site/SiteHeader";
+import "./site/site.css";
 import "./playground.css";
 
 const BASE_RADIUS = 8.5;
@@ -237,12 +239,12 @@ export function GeometryPlayground(): React.ReactElement {
         curves: auxiliaryCurves,
         include: { intersections: showIntersections },
         style: {
-          strokeVisible: "#293632",
-          strokeHidden: "#62736c",
+          strokeVisible: "#0a0a0a",
+          strokeHidden: "#0a0a0a",
           strokeWidthVisible: strokeWidth,
-          strokeWidthHidden: strokeWidth,
-          dashArrayHidden: "5 5",
-          opacityHidden: showHidden ? 0.5 : 0,
+          strokeWidthHidden: Math.max(0.75, strokeWidth * 0.78),
+          dashArrayHidden: "3.2 2.6",
+          opacityHidden: showHidden ? 0.9 : 0,
         },
       }),
     [
@@ -274,8 +276,8 @@ export function GeometryPlayground(): React.ReactElement {
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
       labels.push(
-        `<circle cx="${point.x}" cy="${point.y}" r="2" fill="#263b30"/>` +
-          `<text class="pg-point-label" x="${point.x + label.dx}" y="${point.y + label.dy}" text-anchor="${label.dx < 0 ? "end" : "start"}" fill="#263b30" stroke="white" stroke-width="3" paint-order="stroke" font-size="16" font-family="Georgia, serif" font-style="italic">${escapedText}</text>`,
+        `<circle cx="${point.x}" cy="${point.y}" r="2" fill="#0a0a0a"/>` +
+          `<text class="pg-point-label" x="${point.x + label.dx}" y="${point.y + label.dy}" text-anchor="${label.dx < 0 ? "end" : "start"}" fill="#0a0a0a" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" font-size="16">${escapedText}</text>`,
       );
     }
     return lineSvg.replace(
@@ -393,37 +395,30 @@ export function GeometryPlayground(): React.ReactElement {
   }, [presetId]);
 
   return (
-    <div className="pg-page">
-      <header className="pg-header">
-        <Link className="pg-brand" to="/">
-          <span className="pg-brand-mark">H</span>
-          <span>
-            HLR <span className="pg-brand-divider">/</span>{" "}
-            <strong>도형 작업실</strong>
-          </span>
-        </Link>
-        <nav className="pg-header-actions" aria-label="작업실 메뉴">
-          <Link className="pg-text-link" to="/docs/ko-kr/quickstart">
-            <ArrowLeft size={14} />
-            문서
-          </Link>
-          <button className="pg-download" type="button" onClick={saveSvg}>
-            <Download size={15} />
-            SVG 다운로드
-          </button>
-        </nav>
-      </header>
+    <div className="site pg-page">
+      <SiteHeader wide>
+        <button
+          className="btn btn-secondary btn-sm pg-download"
+          type="button"
+          onClick={saveSvg}
+        >
+          <Download aria-hidden="true" size={14} strokeWidth={1.8} />
+          SVG 저장
+        </button>
+      </SiteHeader>
 
       <main className="pg-main">
         <div className="pg-intro">
           <div>
-            <span className="pg-eyebrow">GEOMETRY STUDIO</span>
+            <p className="exam-pill">
+              <span className="exam-pill-period">제 3 교시</span>
+              <span>도형 작업실</span>
+            </p>
             <h1>빛으로 읽는 입체.</h1>
           </div>
           <p>
-            도형을 돌리고, 빛을 옮기고,
-            <br />
-            가려진 선을 확인하세요.
+            도형을 돌리고, 빛을 옮기고, 가려진 선을 확인하세요. 지금 보이는 시점
+            그대로 SVG로 저장할 수 있습니다.
           </p>
         </div>
 
@@ -431,7 +426,7 @@ export function GeometryPlayground(): React.ReactElement {
           <aside className="pg-presets pg-panel" aria-label="도형 선택">
             <div className="pg-panel-heading">
               <h2>도형 선택</h2>
-              <span>08</span>
+              <span>{String(PLAYGROUND_PRESETS.length).padStart(2, "0")}</span>
             </div>
             {(["기본 도형", "겹침 도형"] as const).map((category) => (
               <section className="pg-preset-group" key={category}>
@@ -450,7 +445,9 @@ export function GeometryPlayground(): React.ReactElement {
                       <ShapeIcon id={item.id} />
                     </span>
                     <span>{item.name}</span>
-                    <span className="pg-preset-dot" />
+                    <span className="pg-preset-no" aria-hidden="true">
+                      {PLAYGROUND_PRESETS.indexOf(item) + 1}.
+                    </span>
                   </button>
                 ))}
               </section>
@@ -688,6 +685,7 @@ export function GeometryPlayground(): React.ReactElement {
           </aside>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }
