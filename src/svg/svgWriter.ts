@@ -1,5 +1,10 @@
 import type { Camera } from "../camera/camera.js";
 import type { StyledPiece } from "../hlr/splitByVisibility.js";
+import {
+  evalCubic3,
+  splitCubic3,
+  type CubicBezier3,
+} from "../curves/cubicBezier3.js";
 
 export type SvgStyle = {
   strokeVisible: string;
@@ -30,7 +35,11 @@ const defaultStyle: SvgStyle = {
   lineJoin: "round",
 };
 
-export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRenderOptions): string {
+export function piecesToSvg(
+  pieces: StyledPiece[],
+  camera: Camera,
+  opts: SvgRenderOptions,
+): string {
   const style = { ...defaultStyle, ...(opts.style ?? {}) };
   const { width, height } = opts;
   const background = opts.background ?? true;
@@ -41,7 +50,9 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
     const d = chainToSvgPathD(chain, camera, width, height);
     const visible = chain[0]?.visible ?? true;
     const stroke = visible ? style.strokeVisible : style.strokeHidden;
-    const strokeWidth = visible ? style.strokeWidthVisible : style.strokeWidthHidden;
+    const strokeWidth = visible
+      ? style.strokeWidthVisible
+      : style.strokeWidthHidden;
     const extra = visible
       ? ""
       : ` stroke-dasharray="${style.dashArrayHidden}" opacity="${style.opacityHidden}"`;
@@ -51,7 +62,9 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
     paths.push(path);
   }
 
-  const bg = background ? `<rect width="100%" height="100%" fill="white" />` : "";
+  const bg = background
+    ? `<rect width="100%" height="100%" fill="white" />`
+    : "";
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     bg +
@@ -60,24 +73,67 @@ export function piecesToSvg(pieces: StyledPiece[], camera: Camera, opts: SvgRend
   );
 }
 
-function chainToSvgPathD(chain: StyledPiece[], camera: Camera, width: number, height: number): string {
+function chainToSvgPathD(
+  chain: StyledPiece[],
+  camera: Camera,
+  width: number,
+  height: number,
+): string {
   const first = chain[0]!;
   const p0 = camera.projectToSvg(first.bez.p0, width, height);
   let d = `M ${fmt(p0.x)} ${fmt(p0.y)}`;
   for (const piece of chain) {
-    const p1 = camera.projectToSvg(piece.bez.p1, width, height);
-    const p2 = camera.projectToSvg(piece.bez.p2, width, height);
-    const p3 = camera.projectToSvg(piece.bez.p3, width, height);
-    d += ` C ${fmt(p1.x)} ${fmt(p1.y)} ${fmt(p2.x)} ${fmt(p2.y)} ${fmt(p3.x)} ${fmt(p3.y)}`;
+    d += projectedCubicCommands(piece.bez, camera, width, height);
   }
   return d;
+}
+
+// Perspective projection produces a rational curve. Subdivision keeps the SVG
+// polynomial approximation aligned with the projected surface (in screen pixels).
+function projectedCubicCommands(
+  bez: CubicBezier3,
+  camera: Camera,
+  width: number,
+  height: number,
+  depth = 0,
+): string {
+  const points = [bez.p0, bez.p1, bez.p2, bez.p3].map((p) =>
+    camera.projectToSvg(p, width, height),
+  );
+  if (camera.kind === "perspective" && depth < 12) {
+    let error = 0;
+    for (const t of [0.25, 0.5, 0.75]) {
+      const u = 1 - t;
+      const weights = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+      let x = 0,
+        y = 0;
+      for (let i = 0; i < 4; i++) {
+        x += weights[i]! * points[i]!.x;
+        y += weights[i]! * points[i]!.y;
+      }
+      const exact = camera.projectToSvg(evalCubic3(bez, t), width, height);
+      error = Math.max(error, Math.hypot(x - exact.x, y - exact.y));
+    }
+    if (error > 0.2) {
+      const halves = splitCubic3(bez, 0.5);
+      return (
+        projectedCubicCommands(halves.left, camera, width, height, depth + 1) +
+        projectedCubicCommands(halves.right, camera, width, height, depth + 1)
+      );
+    }
+  }
+  const [, p1, p2, p3] = points;
+  return ` C ${fmt(p1!.x)} ${fmt(p1!.y)} ${fmt(p2!.x)} ${fmt(p2!.y)} ${fmt(p3!.x)} ${fmt(p3!.y)}`;
 }
 
 function fmt(n: number): string {
   return Number.isFinite(n) ? n.toFixed(3) : "0";
 }
 
-function chainPieces(pieces: StyledPiece[], connectEpsSq: number): StyledPiece[][] {
+function chainPieces(
+  pieces: StyledPiece[],
+  connectEpsSq: number,
+): StyledPiece[][] {
   const out: StyledPiece[][] = [];
   let cur: StyledPiece[] = [];
 
@@ -86,7 +142,7 @@ function chainPieces(pieces: StyledPiece[], connectEpsSq: number): StyledPiece[]
     const dx = a.bez.p3.x - b.bez.p0.x;
     const dy = a.bez.p3.y - b.bez.p0.y;
     const dz = a.bez.p3.z - b.bez.p0.z;
-    return (dx * dx + dy * dy + dz * dz) <= connectEpsSq;
+    return dx * dx + dy * dy + dz * dz <= connectEpsSq;
   };
 
   for (const p of pieces) {
@@ -105,5 +161,3 @@ function chainPieces(pieces: StyledPiece[], connectEpsSq: number): StyledPiece[]
   if (cur.length) out.push(cur);
   return out;
 }
-
-

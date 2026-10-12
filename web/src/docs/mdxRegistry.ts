@@ -2,10 +2,11 @@ import type { ComponentType } from "react";
 import type { Frontmatter } from "../mdx";
 
 /** 지원하는 언어 */
-export type Locale = "ko-kr" | "en-us";
+import type { Locale } from "./locale";
+export type { Locale } from "./locale";
 
 /** 기본 언어 */
-export const DEFAULT_LOCALE: Locale = "en-us";
+export { DEFAULT_LOCALE } from "./locale";
 
 /** MDX 모듈 타입 */
 interface MdxModule {

@@ -8,6 +8,7 @@ export type BezierFitParams = {
   minAlpha: number; // minimum handle length
   closeEps: number; // if end is close to start, close it
   maxAlphaFactor: number; // clamp handle length: alpha <= maxAlphaFactor * |p3-p0|
+  parameterization: "centripetal" | "chordLength";
   /**
    * Split polyline at sharp corners before fitting.
    * This reduces "hooks" caused by overfitting around vertices.
@@ -23,6 +24,7 @@ export const defaultBezierFitParams: BezierFitParams = {
   minAlpha: 1e-4,
   closeEps: 1e-3,
   maxAlphaFactor: 1.0,
+  parameterization: "centripetal",
   // Corner splitting is a tradeoff:
   // - too aggressive => many tiny 2-point chunks => looks like straight segments
   // - too weak => hooks may appear near vertices
@@ -30,13 +32,19 @@ export const defaultBezierFitParams: BezierFitParams = {
   cornerCos: 0.5,
 };
 
-export function fitPolylineToCubics(pointsIn: Vec3[], params: Partial<BezierFitParams> = {}): CubicBezier3[] {
+export function fitPolylineToCubics(
+  pointsIn: Vec3[],
+  params: Partial<BezierFitParams> = {},
+): CubicBezier3[] {
   const p = { ...defaultBezierFitParams, ...params };
   const pts = pointsIn.slice();
   if (pts.length < 2) return [];
 
   // close loop if endpoints near
-  if (Vec3.distanceSq(pts[0]!, pts[pts.length - 1]!) <= p.closeEps * p.closeEps) {
+  if (
+    Vec3.distanceSq(pts[0]!, pts[pts.length - 1]!) <=
+    p.closeEps * p.closeEps
+  ) {
     pts[pts.length - 1] = pts[0]!;
   }
 
@@ -61,12 +69,17 @@ export function fitPolylineToCubics(pointsIn: Vec3[], params: Partial<BezierFitP
 
 function medianStep(pts: Vec3[]): number {
   const ds: number[] = [];
-  for (let i = 1; i < pts.length; i++) ds.push(Vec3.distance(pts[i - 1]!, pts[i]!));
+  for (let i = 1; i < pts.length; i++)
+    ds.push(Vec3.distance(pts[i - 1]!, pts[i]!));
   ds.sort((a, b) => a - b);
   return ds[Math.floor(ds.length / 2)] ?? 0;
 }
 
-function splitByCorners(pts: Vec3[], cornerCos: number, minSeg: number): Vec3[][] {
+function splitByCorners(
+  pts: Vec3[],
+  cornerCos: number,
+  minSeg: number,
+): Vec3[][] {
   if (pts.length < 3) return [pts];
   const out: Vec3[][] = [];
   let cur: Vec3[] = [pts[0]!];
@@ -106,16 +119,17 @@ function fitCubicRecursive(
     const p0 = pts[0]!;
     const p3 = pts[1]!;
     const d = Vec3.sub(p3, p0);
-    return [{
-      p0,
-      p1: Vec3.add(p0, Vec3.mulScalar(d, 1 / 3)),
-      p2: Vec3.add(p0, Vec3.mulScalar(d, 2 / 3)),
-      p3,
-    }];
+    return [
+      {
+        p0,
+        p1: Vec3.add(p0, Vec3.mulScalar(d, 1 / 3)),
+        p2: Vec3.add(p0, Vec3.mulScalar(d, 2 / 3)),
+        p3,
+      },
+    ];
   }
 
-  // centripetal parameterization (more stable than chord-length near sharp corners)
-  let u = centripetalParams(pts);
+  let u = polylineParams(pts, p.parameterization);
   let bez = generateBezier(pts, u, tanL, tanR, p);
   let { maxDist, splitIndex } = maxErrorPoint(pts, u, bez);
 
@@ -141,7 +155,14 @@ function fitCubicRecursive(
   const tanM = centerTangent(pts, splitIndex);
   return [
     // Left curve: tanL = forward (inherited), tanR = backward (-tanM)
-    ...fitCubicRecursive(leftPts, tanL, Vec3.mulScalar(tanM, -1), maxError, p, depth + 1),
+    ...fitCubicRecursive(
+      leftPts,
+      tanL,
+      Vec3.mulScalar(tanM, -1),
+      maxError,
+      p,
+      depth + 1,
+    ),
     // Right curve: tanL = forward (tanM), tanR = backward (inherited)
     ...fitCubicRecursive(rightPts, tanM, tanR, maxError, p, depth + 1),
   ];
@@ -152,12 +173,17 @@ function fitCubicRecursive(
  * More stable than chord-length for curves with sharp corners or cusps.
  * Reference: Lee, E.T.Y. "Choosing nodes in parametric curve interpolation" (1989)
  */
-function centripetalParams(pts: Vec3[]): number[] {
+function polylineParams(
+  pts: Vec3[],
+  parameterization: BezierFitParams["parameterization"],
+): number[] {
   const u: number[] = [0];
   let total = 0;
   for (let i = 1; i < pts.length; i++) {
     // centripetal: sqrt(distance) reduces overshoot near sharp corners
-    total += Math.sqrt(Vec3.distance(pts[i]!, pts[i - 1]!));
+    const distance = Vec3.distance(pts[i]!, pts[i - 1]!);
+    total +=
+      parameterization === "chordLength" ? distance : Math.sqrt(distance);
     u.push(total);
   }
   if (total <= 1e-12) return u.map(() => 0);
@@ -170,13 +196,22 @@ function centerTangent(pts: Vec3[], i: number): Vec3 {
   return Vec3.normalize(Vec3.sub(p2, p0));
 }
 
-function generateBezier(pts: Vec3[], u: number[], tanL: Vec3, tanR: Vec3, p: BezierFitParams): CubicBezier3 {
+function generateBezier(
+  pts: Vec3[],
+  u: number[],
+  tanL: Vec3,
+  tanR: Vec3,
+  p: BezierFitParams,
+): CubicBezier3 {
   const p0 = pts[0]!;
   const p3 = pts[pts.length - 1]!;
 
   // Build C and X (2x2) for least squares alphas
-  let c00 = 0, c01 = 0, c11 = 0;
-  let x0 = 0, x1 = 0;
+  let c00 = 0,
+    c01 = 0,
+    c11 = 0;
+  let x0 = 0,
+    x1 = 0;
 
   for (let i = 0; i < pts.length; i++) {
     const t = u[i]!;
@@ -230,7 +265,7 @@ function generateBezier(pts: Vec3[], u: number[], tanL: Vec3, tanR: Vec3, p: Bez
   const chordLen = Vec3.len(chord);
   if (chordLen > 1e-12) {
     const d = Vec3.mulScalar(chord, 1 / chordLen); // p0 -> p3
-    const maxSide = chordLen * 0.30; // allow curvature, just cap pathological sideways bulge
+    const maxSide = chordLen * 0.3; // allow curvature, just cap pathological sideways bulge
 
     // Clamp p1: keep forward progress along chord, and clamp lateral magnitude (don't snap to chord).
     const v1 = Vec3.sub(p1, p0);
@@ -282,7 +317,11 @@ function newtonRaphson(bez: CubicBezier3, p: Vec3, u: number): number {
   return u2 < 0 ? 0 : u2 > 1 ? 1 : u2;
 }
 
-function maxErrorPoint(pts: Vec3[], u: number[], bez: CubicBezier3): { maxDist: number; splitIndex: number } {
+function maxErrorPoint(
+  pts: Vec3[],
+  u: number[],
+  bez: CubicBezier3,
+): { maxDist: number; splitIndex: number } {
   let maxDist = 0;
   let splitIndex = Math.floor(pts.length / 2);
   for (let i = 1; i < pts.length - 1; i++) {
@@ -297,7 +336,10 @@ function maxErrorPoint(pts: Vec3[], u: number[], bez: CubicBezier3): { maxDist: 
 }
 
 function evalBezier(b: CubicBezier3, t: number): Vec3 {
-  const b0 = B0(t), b1 = B1(t), b2 = B2(t), b3 = B3(t);
+  const b0 = B0(t),
+    b1 = B1(t),
+    b2 = B2(t),
+    b3 = B3(t);
   return Vec3.add(
     Vec3.add(Vec3.mulScalar(b.p0, b0), Vec3.mulScalar(b.p1, b1)),
     Vec3.add(Vec3.mulScalar(b.p2, b2), Vec3.mulScalar(b.p3, b3)),
@@ -318,13 +360,27 @@ function evalBezierDer2(b: CubicBezier3, t: number): Vec3 {
   const mt = 1 - t;
   const a = Vec3.add(Vec3.sub(b.p2, Vec3.mulScalar(b.p1, 2)), b.p0);
   const c = Vec3.add(Vec3.sub(b.p3, Vec3.mulScalar(b.p2, 2)), b.p1);
-  return Vec3.mulScalar(Vec3.add(Vec3.mulScalar(a, mt), Vec3.mulScalar(c, t)), 6);
+  return Vec3.mulScalar(
+    Vec3.add(Vec3.mulScalar(a, mt), Vec3.mulScalar(c, t)),
+    6,
+  );
 }
 
-function B0(t: number): number { const mt = 1 - t; return mt * mt * mt; }
-function B1(t: number): number { const mt = 1 - t; return 3 * mt * mt * t; }
-function B2(t: number): number { const mt = 1 - t; return 3 * mt * t * t; }
-function B3(t: number): number { return t * t * t; }
+function B0(t: number): number {
+  const mt = 1 - t;
+  return mt * mt * mt;
+}
+function B1(t: number): number {
+  const mt = 1 - t;
+  return 3 * mt * mt * t;
+}
+function B2(t: number): number {
+  const mt = 1 - t;
+  return 3 * mt * t * t;
+}
+function B3(t: number): number {
+  return t * t * t;
+}
 
 function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
@@ -349,7 +405,7 @@ function endpointTangentRight(pts: Vec3[]): Vec3 {
     acc = Vec3.add(acc, Vec3.sub(pts[pts.length - 1 - i]!, pN));
   }
   const t = Vec3.normalize(acc);
-  return Vec3.lenSq(t) > 1e-18 ? t : Vec3.normalize(Vec3.sub(pts[pts.length - 2]!, pts[pts.length - 1]!));
+  return Vec3.lenSq(t) > 1e-18
+    ? t
+    : Vec3.normalize(Vec3.sub(pts[pts.length - 2]!, pts[pts.length - 1]!));
 }
-
-

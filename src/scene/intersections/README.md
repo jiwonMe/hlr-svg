@@ -8,6 +8,7 @@ Intersection curves are rendered as "solid/dashed lines" in combination with HLR
 Related files:
 - `intersectionCurves.ts`: Intersection curve generation orchestration (scans all primitive pairs)
 - `pairs.ts`: Surface×surface intersections (sphere/cylinder/cone combinations)
+- `sampledCurves.ts`: Critical-angle tracing and surface-checked adaptive fitting
 - `planeSurfaceCurves.ts`: Plane (PlaneRect/Disk) × surface intersections
 - `capDisks.ts`: Derives caps (rims) as Disks and handles Disk×Disk (markers for coplanar cases)
 - `diskPlaneRect.ts`: Disk (rim) × PlaneRect intersections
@@ -43,9 +44,14 @@ Examples: Cylinder×Cylinder, Cylinder×Cone, Cone×Cone, etc.
 One surface is parameterized by angle θ, and the other constraint is solved
 to find the solution (height/length) for a given θ, sampling points this way.
 
-Results are generated as polylines (point sequences):
-- Intersection curves can have two branches, so branches are accumulated separately
-- If there are discontinuities (jumps), runs are split (`splitRunsByJump`)
+Before sampling, solve angular events where roots meet, disappear, or reach a
+finite surface's axial boundary. Trace each valid interval and root separately,
+including its actual boundary endpoints. This preserves narrow intersections
+that fall between regular angular samples and avoids connecting unrelated runs.
+
+Adaptively refine each interval, fit cubics, and check their residual on both
+surfaces. Sections that exceed the tolerance retain their refined line cubics.
+Parallel cylinders and cones sharing an apex require separate generator handling.
 
 ## 3) Plane×surface intersections
 
@@ -54,8 +60,9 @@ For planes like PlaneRect/Disk:
 - Cylinder/Cone: sample θ and determine height using the plane equation
 
 For finite regions like Disk/PlaneRect:
-- After sampling, clip to inside (region inclusion) to create runs
-- Convert to cubics via fitting
+- Solve finite-region boundary events before tracing and fitting
+- Clip degenerate generator lines analytically, including when both original
+  endpoints are outside the finite plane
 
 ## 4) Disk (rim) related
 
@@ -111,9 +118,10 @@ If intersection curves are unstable or visibility is unstable, there are usually
 - **Fitting error issues**: `maxError` is too large, causing leakage inside/outside the surface
 
 Solutions are usually:
-- Increase samples + strengthen jump splitting
-- Reduce `maxError` to better follow the surface
-- Tune HLR eps/snap (prevent nearby hit misinterpretation)
+- Verify root events and finite-region clipping
+- Reduce fitting error and validate it against the participating surfaces
+- Keep HLR's small nearby-hit allowance separate from true self-occlusion;
+  increasing it to hide geometry errors can expose rear curves
 
 
 

@@ -10,9 +10,17 @@ export function lineToCubic3(p0: Vec3, p3: Vec3): CubicBezier3 {
 
 export function sphereSilhouetteToCubics3(opts: {
   cameraPos: Vec3;
+  viewDirection?: Vec3; // parallel viewing rays for orthographic cameras
   center: Vec3;
   radius: number;
 }): CubicBezier3[] {
+  if (opts.viewDirection) {
+    return circleToCubics3({
+      center: opts.center,
+      normal: opts.viewDirection,
+      radius: opts.radius,
+    });
+  }
   // Perspective sphere silhouette = circle of tangency points.
   // Derivation (O camera, C center, |C-O|=d, sphere radius r):
   // plane normal n = (C-O), plane location along n at distance z = d - r^2/d from O
@@ -31,6 +39,7 @@ export function sphereSilhouetteToCubics3(opts: {
 
 export function cylinderSilhouetteToCubics3(opts: {
   cameraPos: Vec3;
+  viewDirection?: Vec3;
   base: Vec3;
   axis: Vec3; // any length, will be normalized
   height: number;
@@ -41,20 +50,32 @@ export function cylinderSilhouetteToCubics3(opts: {
   const a = Vec3.normalize(opts.axis);
 
   // W⊥: camera vector projected to plane perpendicular to axis (independent of height)
-  const w = Vec3.sub(opts.cameraPos, opts.base);
+  const w = opts.viewDirection
+    ? Vec3.mulScalar(opts.viewDirection, -1)
+    : Vec3.sub(opts.cameraPos, opts.base);
   const wPerp = Vec3.sub(w, Vec3.mulScalar(a, Vec3.dot(w, a)));
   const wLen = Vec3.len(wPerp);
-  if (wLen <= opts.radius * (1 + 1e-8)) return [];
+  if (
+    wLen <= 1e-12 ||
+    (!opts.viewDirection && wLen <= opts.radius * (1 + 1e-8))
+  )
+    return [];
 
   const wUnit = Vec3.mulScalar(wPerp, 1 / wLen);
   const perp = Vec3.normalize(Vec3.cross(a, wUnit));
 
   // Solve wUnit · N = r/|wPerp|  (N is unit in plane)
-  const cosPhi = opts.radius / wLen;
+  const cosPhi = opts.viewDirection ? 0 : opts.radius / wLen;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
 
-  const n0 = Vec3.add(Vec3.mulScalar(wUnit, cosPhi), Vec3.mulScalar(perp, sinPhi));
-  const n1 = Vec3.add(Vec3.mulScalar(wUnit, cosPhi), Vec3.mulScalar(perp, -sinPhi));
+  const n0 = Vec3.add(
+    Vec3.mulScalar(wUnit, cosPhi),
+    Vec3.mulScalar(perp, sinPhi),
+  );
+  const n1 = Vec3.add(
+    Vec3.mulScalar(wUnit, cosPhi),
+    Vec3.mulScalar(perp, -sinPhi),
+  );
 
   const topCenter = Vec3.add(opts.base, Vec3.mulScalar(a, opts.height));
   const b0 = Vec3.add(opts.base, Vec3.mulScalar(n0, opts.radius));
@@ -67,6 +88,7 @@ export function cylinderSilhouetteToCubics3(opts: {
 
 export function coneSilhouetteToCubics3(opts: {
   cameraPos: Vec3;
+  viewDirection?: Vec3;
   apex: Vec3;
   axis: Vec3; // any length, will be normalized (apex -> base)
   height: number;
@@ -79,7 +101,9 @@ export function coneSilhouetteToCubics3(opts: {
   const k = opts.baseRadius / opts.height;
 
   const { u, v } = orthonormalBasisFromNormal(a);
-  const q = Vec3.sub(opts.cameraPos, opts.apex);
+  const q = opts.viewDirection
+    ? Vec3.mulScalar(opts.viewDirection, -1)
+    : Vec3.sub(opts.cameraPos, opts.apex);
   const qu = Vec3.dot(q, u);
   const qv = Vec3.dot(q, v);
   const qa = Vec3.dot(q, a);
@@ -96,8 +120,14 @@ export function coneSilhouetteToCubics3(opts: {
   const psi1 = phi - delta;
 
   const baseCenter = Vec3.add(opts.apex, Vec3.mulScalar(a, opts.height));
-  const w0 = Vec3.add(Vec3.mulScalar(u, Math.cos(psi0)), Vec3.mulScalar(v, Math.sin(psi0)));
-  const w1 = Vec3.add(Vec3.mulScalar(u, Math.cos(psi1)), Vec3.mulScalar(v, Math.sin(psi1)));
+  const w0 = Vec3.add(
+    Vec3.mulScalar(u, Math.cos(psi0)),
+    Vec3.mulScalar(v, Math.sin(psi0)),
+  );
+  const w1 = Vec3.add(
+    Vec3.mulScalar(u, Math.cos(psi1)),
+    Vec3.mulScalar(v, Math.sin(psi1)),
+  );
   const p0 = Vec3.add(baseCenter, Vec3.mulScalar(w0, opts.baseRadius));
   const p1 = Vec3.add(baseCenter, Vec3.mulScalar(w1, opts.baseRadius));
 
@@ -174,11 +204,19 @@ export function circleToCubics3(opts: {
   radius: number;
   startAngleRad?: number;
   endAngleRad?: number;
+  /** Smaller arcs reduce the polynomial approximation error of a circle. */
+  maxSegmentAngleRad?: number;
 }): CubicBezier3[] {
   const start = opts.startAngleRad ?? 0;
   const end = opts.endAngleRad ?? Math.PI * 2;
   const sweep = end - start;
-  const segments = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 2)));
+  const maxAngle = opts.maxSegmentAngleRad ?? Math.PI / 2;
+  if (!Number.isFinite(maxAngle) || maxAngle <= 0)
+    throw new Error("Circle segment angle must be positive and finite");
+  const segments = Math.max(
+    1,
+    Math.ceil(Math.abs(sweep) / Math.min(maxAngle, Math.PI / 2)),
+  );
 
   const n = Vec3.normalize(opts.normal);
   const { u, v } = orthonormalBasisFromNormal(n);
@@ -192,12 +230,21 @@ export function circleToCubics3(opts: {
   return out;
 }
 
-function arc90ToCubic3(center: Vec3, u: Vec3, v: Vec3, r: number, a0: number, a1: number): CubicBezier3 {
-  // exact circle as cubic only for 90deg; for smaller angle use general k = 4/3*tan(d/4)
+function arc90ToCubic3(
+  center: Vec3,
+  u: Vec3,
+  v: Vec3,
+  r: number,
+  a0: number,
+  a1: number,
+): CubicBezier3 {
+  // Cubic approximation with exact endpoints and tangent directions.
   const d = a1 - a0;
   const k = (4 / 3) * Math.tan(d / 4);
-  const c0 = Math.cos(a0), s0 = Math.sin(a0);
-  const c1 = Math.cos(a1), s1 = Math.sin(a1);
+  const c0 = Math.cos(a0),
+    s0 = Math.sin(a0);
+  const c1 = Math.cos(a1),
+    s1 = Math.sin(a1);
 
   const p0 = pointOnCircle(center, u, v, r, c0, s0);
   const p3 = pointOnCircle(center, u, v, r, c1, s1);
@@ -211,8 +258,16 @@ function arc90ToCubic3(center: Vec3, u: Vec3, v: Vec3, r: number, a0: number, a1
   return { p0, p1, p2, p3 };
 }
 
-function pointOnCircle(center: Vec3, u: Vec3, v: Vec3, r: number, c: number, s: number): Vec3 {
-  return Vec3.add(center, Vec3.add(Vec3.mulScalar(u, r * c), Vec3.mulScalar(v, r * s)));
+function pointOnCircle(
+  center: Vec3,
+  u: Vec3,
+  v: Vec3,
+  r: number,
+  c: number,
+  s: number,
+): Vec3 {
+  return Vec3.add(
+    center,
+    Vec3.add(Vec3.mulScalar(u, r * c), Vec3.mulScalar(v, r * s)),
+  );
 }
-
-

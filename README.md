@@ -11,6 +11,7 @@ A TypeScript library for rendering 3D curves as SVG with Hidden Line Removal (HL
 - **Silhouette Generation**: Automatically generates silhouette curves for curved surfaces
 - **three.js-style API**: Familiar API design similar to three.js
 - **SVG Output**: All curves are output as SVG cubic Bezier paths
+- **Surface lighting**: Cached nearest-surface normals support curved shading and overlapping opaque objects in the web playground
 
 ## Tooling
 
@@ -164,13 +165,7 @@ renderer.render(scene, camera, {
 You can import geometry-only OBJ/STL data and send it through the same SVG HLR pipeline:
 
 ```typescript
-import {
-  Camera,
-  Scene,
-  SvgRenderer,
-  Vec3,
-  parseObj,
-} from "hlr-svg";
+import { Camera, Scene, SvgRenderer, Vec3, parseObj } from "hlr-svg";
 
 const bytes = await fetch("/models/example.obj").then((res) =>
   res.arrayBuffer(),
@@ -235,6 +230,18 @@ pnpm demo:all
 
 ### Web Demo
 
+The geometry playground is available at `/#/playground`. It includes five basic
+solids, three overlapping scenes, lighting controls, point labels, and SVG export.
+Existing primitive examples also support surface lighting.
+
+Shaded exports embed each object's full PNG shading under vector SVG lines and
+labels, with an SVG `clipPath` restricting it to its nearest-surface visible region.
+Clips follow the cached pixel ownership at the chosen surface-buffer resolution;
+they preserve disconnected regions and holes when objects interpenetrate.
+The line-only `SvgRenderer` API continues to return vector paths. Surface shading
+uses nearest-hit visibility and Lambert lighting; cast shadows and transparency
+are not included.
+
 ```bash
 # Development server (no library prebuild required)
 pnpm dev
@@ -244,6 +251,33 @@ pnpm web:build
 
 # Preview production build
 pnpm web:preview
+```
+
+### Surface lighting API
+
+```typescript
+import {
+  buildSurfaceBuffer,
+  buildSurfaceClipPaths,
+  shadeSurfaceBuffer,
+  lightDirectionFromAngles,
+} from "hlr-svg";
+
+// Recompute when geometry, camera, or output resolution changes.
+const surfaces = buildSurfaceBuffer(scene.primitives, camera, {
+  width: 720,
+  height: 520,
+});
+
+// Geometry-only SVG clip paths, in the final output's coordinate system.
+// Reuse them across lighting changes. Apply each path with userSpaceOnUse.
+const clips = buildSurfaceClipPaths(surfaces, { width: 1000, height: 720 });
+
+// Changing the light reuses visibility and normals, without any new raycasts.
+const rgba = shadeSurfaceBuffer(surfaces, {
+  lightDirection: lightDirectionFromAngles(135, 45), // degrees, world Y elevation
+  ambient: 0.3,
+});
 ```
 
 ### Common Commands

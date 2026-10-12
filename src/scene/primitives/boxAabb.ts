@@ -12,8 +12,10 @@ export class BoxAabb implements Primitive {
 
   intersect(ray: Ray, tMin: number, tMax: number): Hit | null {
     // slab method
-    let t0 = tMin;
-    let t1 = tMax;
+    // Keep the actual boundary distances. Starting at tMin would fabricate an
+    // entry hit when the clipping plane lies inside the box.
+    let t0 = Number.NEGATIVE_INFINITY;
+    let t1 = Number.POSITIVE_INFINITY;
     let enterNormal = new Vec3(0, 0, 0);
     let exitNormal = new Vec3(0, 0, 0);
 
@@ -57,11 +59,11 @@ export class BoxAabb implements Primitive {
 
     let t = t0;
     let normal = enterNormal;
-    if (t <= EPS) {
+    if (t <= EPS || t < tMin) {
       t = t1;
       normal = exitNormal;
     }
-    if (t < tMin || t > tMax) return null;
+    if (!Number.isFinite(t) || t < tMin || t > tMax) return null;
     if (t <= EPS) return null;
     const point = Vec3.add(ray.origin, Vec3.mulScalar(ray.dir, t));
     return { t, point, normal, primitiveId: this.id };

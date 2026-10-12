@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import { Camera } from "../dist/camera/camera.js";
 import { evalCubic3 } from "../dist/curves/cubicBezier3.js";
-import { buildDemoCases } from "../dist/demo/cases.js";
 import { findVisibilityCutsOnCubicWithVisibility } from "../dist/hlr/visibilityCuts.js";
 import { Vec3 } from "../dist/math/vec3.js";
 import { intersectionCurvesToOwnedCubics } from "../dist/scene/intersections/intersectionCurves.js";
@@ -59,9 +58,7 @@ test("visibility cuts preserve a narrow sampled hidden span", () => {
 
   const raw = [];
   for (let i = 0; i <= 12; i++) {
-    raw.push(
-      scene.visibleAtPoint(evalCubic3(cubic, i / 12), { eps: 1e-6 }),
-    );
+    raw.push(scene.visibleAtPoint(evalCubic3(cubic, i / 12), { eps: 1e-6 }));
   }
   assert.deepEqual(raw, [
     true,
@@ -91,71 +88,46 @@ test("visibility cuts preserve a narrow sampled hidden span", () => {
 });
 
 test("owned intersection curves stay visible through nearby hits from participating surfaces", () => {
-  const demo = buildDemoCases().find(
-    (x) => x.name === "Intersection: Cylinder × Cylinder (with HLR)",
-  );
-  assert.ok(demo);
-
-  const scene = new RayScene(demo.primitives, demo.camera);
-  const owned = intersectionCurvesToOwnedCubics(demo.primitives, {
-    angularSamples: 160,
-    useBezierFit: true,
-    fitMode: "stitchThenFit",
+  const camera = Camera.from({
+    kind: "perspective",
+    position: new Vec3(0, 0, 5),
+    target: Vec3.zero(),
+    up: new Vec3(0, 1, 0),
+    fovYRad: Math.PI / 3,
+    aspect: 1,
+    near: 0.1,
+    far: 100,
   });
-
-  let found = false;
-  for (const x of owned) {
-    for (const t of [0.1, 0.25, 0.5, 0.75, 0.9]) {
-      const p = evalCubic3(x.bez, t);
-      const origin = demo.camera.position;
-      const dir = Vec3.normalize(Vec3.sub(p, origin));
-      const targetDist = Vec3.distance(p, origin);
-      const hit = scene.raycastClosest(
-        { origin, dir },
-        { tMin: 0, tMax: Math.max(0, targetDist - 2e-4) },
-      );
-      if (!hit) continue;
-      const gap = Math.max(0, targetDist - hit.t);
-      if (
-        x.ignorePrimitiveIds.includes(hit.primitiveId) &&
-        gap > 5e-4 &&
-        gap < 4.8e-3
-      ) {
-        assert.equal(
-          scene.visibleAtPoint(p, {
-            eps: 2e-4,
-            ignorePrimitiveIds: x.ignorePrimitiveIds,
-          }),
-          true,
-        );
-
-        assert.equal(
-          scene.visibleAtPoint(p, {
-            eps: 2e-4,
-          }),
-          false,
-        );
-
-        const hitWithIgnore = scene.raycastClosest(
-          { origin, dir },
-          {
-            tMin: 0,
-            tMax: Math.max(0, targetDist - 2e-4),
-            ignorePrimitiveIds: x.ignorePrimitiveIds,
-          },
-        );
-        assert.ok(
-          hitWithIgnore === null ||
-            !x.ignorePrimitiveIds.includes(hitWithIgnore.primitiveId),
-        );
-        found = true;
-        break;
-      }
-    }
-    if (found) break;
-  }
-
-  assert.equal(found, true);
+  const primitives = [
+    new Sphere("a", Vec3.zero(), 1),
+    new Sphere("b", new Vec3(0.7, 0, 0), 1),
+  ];
+  const scene = new RayScene(primitives, camera);
+  const exact = new Vec3(0.35, 0, Math.sqrt(1 - 0.35 ** 2));
+  const dir = Vec3.normalize(Vec3.sub(exact, camera.position));
+  // Explicitly simulate a small fitted-curve offset. Accurate intersection
+  // fitting should not be required to introduce an error for this test to run.
+  const point = Vec3.add(exact, Vec3.mulScalar(dir, 0.002));
+  const ignorePrimitiveIds = primitives.map((p) => p.id);
+  assert.equal(scene.visibleAtPoint(point, { ignorePrimitiveIds }), true);
+  assert.equal(scene.visibleAtPoint(point), false);
+  const hit = scene.raycastClosest(
+    { origin: camera.position, dir },
+    {
+      tMax: Vec3.distance(point, camera.position) - 2e-4,
+    },
+  );
+  assert.ok(hit && ignorePrimitiveIds.includes(hit.primitiveId));
+  assert.equal(
+    scene.raycastClosest(
+      { origin: camera.position, dir },
+      {
+        tMax: Vec3.distance(point, camera.position) - 2e-4,
+        ignorePrimitiveIds,
+      },
+    ),
+    null,
+  );
 });
 
 test("owned plane-cone intersections keep front hits visible but hidden spans dashed", () => {
@@ -199,9 +171,15 @@ test("owned plane-cone intersections keep front hits visible but hidden spans da
 
   for (const x of owned) {
     for (const t of [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]) {
-      const p = evalCubic3(x.bez, t);
+      const exact = evalCubic3(x.bez, t);
       const origin = camera.position;
-      const dir = Vec3.normalize(Vec3.sub(p, origin));
+      const dir = Vec3.normalize(Vec3.sub(exact, origin));
+      const p = scene.visibleAtPoint(exact, {
+        eps: 2e-4,
+        ignorePrimitiveIds: x.ignorePrimitiveIds,
+      })
+        ? Vec3.add(exact, Vec3.mulScalar(dir, 0.001))
+        : exact;
       const targetDist = Vec3.distance(p, origin);
       const hit = scene.raycastClosest(
         { origin, dir },
@@ -272,11 +250,7 @@ test("plane-surface intersections honor angularSamples", () => {
 });
 
 test("BoxAabb returns the exit hit for inside-origin rays", () => {
-  const box = new BoxAabb(
-    "box",
-    new Vec3(-1, -1, -1),
-    new Vec3(1, 1, 1),
-  );
+  const box = new BoxAabb("box", new Vec3(-1, -1, -1), new Vec3(1, 1, 1));
   const hit = box.intersect(
     { origin: new Vec3(0, 0, 0), dir: new Vec3(1, 0, 0) },
     0,

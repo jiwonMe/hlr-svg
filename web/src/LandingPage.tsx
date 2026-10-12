@@ -381,6 +381,14 @@ export function LandingPage(): React.ReactElement {
         }}
       />
 
+      <Link
+        to="/playground"
+        onPointerDown={(event) => event.stopPropagation()}
+        className="absolute top-6 right-6 z-30 rounded-xl border border-emerald-200 bg-white/95 px-5 py-3 font-docs text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50"
+      >
+        도형 작업실 <span aria-hidden="true">↗</span>
+      </Link>
+
       {/* Background SVG */}
       <div
         data-svg-container

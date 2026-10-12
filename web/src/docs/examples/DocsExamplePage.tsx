@@ -18,7 +18,6 @@ import {
 import { renderCaseToSvgString } from "@hlr/demo/renderCase.js";
 import type { DemoCase } from "@hlr/demo/types.js";
 import { Vec3 } from "@hlr/math/vec3.js";
-import { Scene } from "@hlr/scene/scene.js";
 import { BoxAabb } from "@hlr/scene/primitives/boxAabb.js";
 import { Cone } from "@hlr/scene/primitives/cone.js";
 import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
@@ -40,6 +39,10 @@ import {
 } from "./examplesRegistry";
 import { MeshImportExample } from "./MeshImportExample";
 import { useElementSize } from "./useElementSize";
+import {
+  SurfaceDiagram,
+  type SurfaceDiagramHandle,
+} from "../../components/SurfaceDiagram";
 
 type Locale = "ko-kr" | "en-us";
 
@@ -63,6 +66,14 @@ const TEXT = {
     planeTilt: "plane tilt",
     selected: "선택",
     deselect: "선택 해제",
+    lighting: "조명 채색",
+    lightAzimuth: "광원 방위각",
+    lightElevation: "광원 높이",
+    ambient: "주변광",
+    copySvg: "SVG 복사",
+    copiedSvg: "SVG 복사됨",
+    copyFailed: "SVG를 복사하지 못했습니다. 파일로 저장해 주세요.",
+    exportSvg: "SVG 저장",
   },
   "en-us": {
     back: "Back to Examples",
@@ -78,6 +89,14 @@ const TEXT = {
     planeTilt: "plane tilt",
     selected: "Selected",
     deselect: "Deselect",
+    lighting: "Lighting",
+    lightAzimuth: "Light azimuth",
+    lightElevation: "Light elevation",
+    ambient: "Ambient light",
+    copySvg: "Copy SVG",
+    copiedSvg: "SVG copied",
+    copyFailed: "Could not copy SVG. Download the file instead.",
+    exportSvg: "Download SVG",
   },
 } as const;
 
@@ -88,8 +107,6 @@ export function DocsExamplePage(): React.ReactElement {
   }>();
   const lang: Locale =
     locale === "ko-kr" || locale === "en-us" ? locale : "en-us";
-  const t = TEXT[lang];
-
   const ex = exampleId ? getExampleById(exampleId) : undefined;
   if (!ex) {
     return <Navigate to={`/docs/${lang}/examples`} replace />;
@@ -98,17 +115,37 @@ export function DocsExamplePage(): React.ReactElement {
   const info = ex.text[lang];
   const githubUrl = getGithubUrl(ex.githubPath);
   if (ex.id === "mesh-import") {
-    return (
-      <MeshImportExample lang={lang} info={info} githubUrl={githubUrl} />
-    );
+    return <MeshImportExample lang={lang} info={info} githubUrl={githubUrl} />;
   }
 
+  return <InteractiveExample key={ex.id} ex={ex} lang={lang} />;
+}
+
+function InteractiveExample({
+  ex,
+  lang,
+}: {
+  ex: NonNullable<ReturnType<typeof getExampleById>>;
+  lang: Locale;
+}): React.ReactElement {
+  const t = TEXT[lang];
+  const info = ex.text[lang];
+  const githubUrl = getGithubUrl(ex.githubPath);
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const diagramRef = useRef<SurfaceDiagramHandle | null>(null);
   const { width, height } = useElementSize(wrapRef);
 
   // per-example interactive params
   const [seed, setSeed] = useState(1337);
   const [planeTilt, setPlaneTilt] = useState(0.25);
+  const [lighting, setLighting] = useState(true);
+  const [lightAzimuth, setLightAzimuth] = useState(-35);
+  const [lightElevation, setLightElevation] = useState(45);
+  const [ambient, setAmbient] = useState(0.28);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
 
   const baseDemo = useMemo<DemoCase>(() => {
     const w = width > 0 ? width : 900;
@@ -164,19 +201,20 @@ export function DocsExamplePage(): React.ReactElement {
       position: pos,
       target: orbit.target,
       up: baseDemo.camera.up,
-      halfHeight: clamp(0.2, baseOrbit.radius * 0.55, 30),
+      halfHeight: clamp(0.2, orbit.radius * 0.55, 30),
       aspect,
       near: baseDemo.camera.near,
       far: baseDemo.camera.far,
     });
-  }, [baseDemo, orbit, projection, baseOrbit.radius]);
+  }, [baseDemo, orbit, projection]);
 
   const runtimeDemo = useMemo<DemoCase>(
     () => ({ ...baseDemo, camera }),
     [baseDemo, camera],
   );
 
-  const svg = useMemo(
+  // Lighting only changes the surface layer; expensive HLR stays memoized.
+  const lineSvg = useMemo(
     () =>
       renderCaseToSvgString(runtimeDemo, {
         background: false,
@@ -192,6 +230,45 @@ export function DocsExamplePage(): React.ReactElement {
     [runtimeDemo],
   );
 
+  const lightSettings = useMemo(
+    () => ({
+      enabled: lighting,
+      azimuth: lightAzimuth,
+      elevation: lightElevation,
+      ambient,
+    }),
+    [lighting, lightAzimuth, lightElevation, ambient],
+  );
+
+  const copySvg = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(
+        diagramRef.current?.toSvg() ?? lineSvg,
+      );
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }, [lineSvg]);
+
+  const downloadSvg = useCallback(() => {
+    const completeSvg = diagramRef.current?.toSvg() ?? lineSvg;
+    const url = URL.createObjectURL(
+      new Blob([completeSvg], { type: "image/svg+xml;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${ex.id}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [ex.id, lineSvg]);
+
+  useEffect(() => {
+    if (copyStatus === "idle") return;
+    const timeout = window.setTimeout(() => setCopyStatus("idle"), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [copyStatus]);
+
   const [drag, setDrag] = useState<null | {
     x: number;
     y: number;
@@ -200,48 +277,10 @@ export function DocsExamplePage(): React.ReactElement {
     id: number;
   }>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [clickStart, setClickStart] = useState<{ x: number; y: number } | null>(
-    null,
-  );
 
-  // Scene for picking
-  const scene = useMemo(
-    () => new Scene(runtimeDemo.primitives, camera),
-    [runtimeDemo.primitives, camera],
-  );
-
-  // 클릭으로 객체 선택 (드래그와 구분)
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!clickStart) return;
-      const dx = e.clientX - clickStart.x;
-      const dy = e.clientY - clickStart.y;
-      // 5px 이상 이동하면 드래그로 간주
-      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return;
-
-      const el = wrapRef.current;
-      if (!el) return;
-
-      const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      const ray = camera.screenToRay(
-        x,
-        y,
-        runtimeDemo.width,
-        runtimeDemo.height,
-      );
-      const hit = scene.raycastClosest(ray);
-
-      if (hit) {
-        setSelectedId(hit.primitiveId);
-      } else {
-        setSelectedId(null);
-      }
-    },
-    [camera, clickStart, runtimeDemo.height, runtimeDemo.width, scene],
-  );
+  useEffect(() => {
+    setSelectedId(null);
+  }, [runtimeDemo.primitives]);
 
   return (
     <div
@@ -332,14 +371,6 @@ export function DocsExamplePage(): React.ReactElement {
         </div>
       </header>
 
-      <style>{`
-        [data-example-svg] svg {
-          width: 100%;
-          height: auto;
-          display: block;
-        }
-      `}</style>
-
       {/* Viewer - Full width */}
       <section
         className={cn(
@@ -376,7 +407,7 @@ export function DocsExamplePage(): React.ReactElement {
             {t.hint}
           </div>
 
-          <div className={cn("flex items-center gap-2")}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-2")}>
             <button
               type="button"
               onClick={() => setOrbit(baseOrbit)}
@@ -470,6 +501,27 @@ export function DocsExamplePage(): React.ReactElement {
                 {t.isometric}
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => void copySvg()}
+              className={cn(
+                "h-9 rounded-md border border-[hsl(220,13%,91%)] bg-white px-3",
+                "text-sm font-medium hover:bg-[hsl(220,14%,96%)] transition-colors",
+              )}
+            >
+              {copyStatus === "copied" ? t.copiedSvg : t.copySvg}
+            </button>
+            <button
+              type="button"
+              onClick={downloadSvg}
+              className={cn(
+                "h-9 rounded-md border border-[hsl(220,13%,91%)] bg-white px-3",
+                "text-sm font-medium hover:bg-[hsl(220,14%,96%)] transition-colors",
+              )}
+            >
+              {t.exportSvg}
+            </button>
 
             {/* example-specific */}
             {ex.id === "random-primitives" ? (
@@ -586,6 +638,69 @@ export function DocsExamplePage(): React.ReactElement {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-[hsl(220,13%,91%)] px-4 py-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-medium">
+            <input
+              type="checkbox"
+              checked={lighting}
+              onChange={(e) => setLighting(e.target.checked)}
+              className="accent-[hsl(152,69%,35%)]"
+            />
+            {t.lighting}
+          </label>
+          <label className="flex flex-wrap items-center gap-2">
+            <span>{t.lightAzimuth}</span>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              value={lightAzimuth}
+              onChange={(e) => setLightAzimuth(Number(e.target.value))}
+              disabled={!lighting}
+              className="w-28 accent-[hsl(152,69%,35%)] disabled:opacity-40"
+            />
+            <output className="w-10 text-right tabular-nums">
+              {lightAzimuth}°
+            </output>
+          </label>
+          <label className="flex flex-wrap items-center gap-2">
+            <span>{t.lightElevation}</span>
+            <input
+              type="range"
+              min={-85}
+              max={85}
+              step={1}
+              value={lightElevation}
+              onChange={(e) => setLightElevation(Number(e.target.value))}
+              disabled={!lighting}
+              className="w-28 accent-[hsl(152,69%,35%)] disabled:opacity-40"
+            />
+            <output className="w-10 text-right tabular-nums">
+              {lightElevation}°
+            </output>
+          </label>
+          <label className="flex flex-wrap items-center gap-2">
+            <span>{t.ambient}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.02}
+              value={ambient}
+              onChange={(e) => setAmbient(Number(e.target.value))}
+              disabled={!lighting}
+              className="w-24 accent-[hsl(152,69%,35%)] disabled:opacity-40"
+            />
+            <output className="w-9 text-right tabular-nums">
+              {Math.round(ambient * 100)}%
+            </output>
+          </label>
+          <span role="status" className="text-xs text-[hsl(220,9%,46%)]">
+            {copyStatus === "failed" ? t.copyFailed : ""}
+          </span>
+        </div>
+
         {/* Interactive SVG area */}
         <div
           ref={wrapRef}
@@ -600,46 +715,52 @@ export function DocsExamplePage(): React.ReactElement {
             "touch-none select-none",
             // 커서
             "cursor-grab active:cursor-grabbing",
-            // 패딩
-            "p-3",
             // 오버플로우
             "overflow-hidden",
           )}
-          onPointerDown={(e) => {
-            const el = wrapRef.current;
-            if (!el) return;
-            el.setPointerCapture(e.pointerId);
-            setClickStart({ x: e.clientX, y: e.clientY });
-            setDrag({
-              x: e.clientX,
-              y: e.clientY,
-              az: orbit.azimuth,
-              pol: orbit.polar,
-              id: e.pointerId,
-            });
-            setPlaying(false);
-          }}
-          onClick={handleClick}
-          onPointerMove={(e) => {
-            if (!drag || drag.id !== e.pointerId) return;
-            const dx = e.clientX - drag.x;
-            const dy = e.clientY - drag.y;
-            const s = 0.0075;
-            const az = drag.az + dx * s;
-            const pol = clamp(0.05, drag.pol + dy * s, Math.PI - 0.05);
-            setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
-          }}
-          onPointerUp={(e) => {
-            if (!drag || drag.id !== e.pointerId) return;
-            setDrag(null);
-          }}
-          onWheel={(e) => {
-            e.preventDefault();
-            const k = Math.exp(e.deltaY * 0.0012);
-            setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
-          }}
         >
-          <div data-example-svg dangerouslySetInnerHTML={{ __html: svg }} />
+          <SurfaceDiagram
+            ref={diagramRef}
+            primitives={runtimeDemo.primitives}
+            camera={camera}
+            width={runtimeDemo.width}
+            height={runtimeDemo.height}
+            lineSvg={lineSvg}
+            lighting={lightSettings}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            ariaLabel={t.hint}
+            interactive={!!drag || playing}
+            className="h-full w-full"
+            onPointerDown={(e) => {
+              setDrag({
+                x: e.clientX,
+                y: e.clientY,
+                az: orbit.azimuth,
+                pol: orbit.polar,
+                id: e.pointerId,
+              });
+              setPlaying(false);
+            }}
+            onPointerMove={(e) => {
+              if (!drag || drag.id !== e.pointerId) return;
+              const dx = e.clientX - drag.x;
+              const dy = e.clientY - drag.y;
+              const s = 0.0075;
+              const az = drag.az + dx * s;
+              const pol = clamp(0.05, drag.pol + dy * s, Math.PI - 0.05);
+              setOrbit((o) => ({ ...o, azimuth: az, polar: pol }));
+            }}
+            onPointerUp={(e) => {
+              if (!drag || drag.id !== e.pointerId) return;
+              setDrag(null);
+            }}
+            onPointerCancel={() => setDrag(null)}
+            onWheel={(e) => {
+              const k = Math.exp(e.deltaY * 0.0012);
+              setOrbit((o) => ({ ...o, radius: clamp(0.2, o.radius * k, 50) }));
+            }}
+          />
         </div>
       </section>
     </div>
@@ -691,11 +812,15 @@ function buildSimplePrimitivesDemo(width: number, height: number): DemoCase {
     curves: ({ camera }) => [
       ...sphereSilhouetteToCubics3({
         cameraPos: camera.position,
+        viewDirection:
+          camera.kind === "orthographic" ? camera.forward : undefined,
         center: sphere.center,
         radius: sphere.radius,
       }),
       ...cylinderSilhouetteToCubics3({
         cameraPos: camera.position,
+        viewDirection:
+          camera.kind === "orthographic" ? camera.forward : undefined,
         base: cylinder.base,
         axis: cylinder.axis,
         height: cylinder.height,
@@ -703,6 +828,8 @@ function buildSimplePrimitivesDemo(width: number, height: number): DemoCase {
       }),
       ...coneSilhouetteToCubics3({
         cameraPos: camera.position,
+        viewDirection:
+          camera.kind === "orthographic" ? camera.forward : undefined,
         apex: cone.apex,
         axis: cone.axis,
         height: cone.height,
@@ -747,6 +874,8 @@ function buildRandomPrimitivesDemo(
           out.push(
             ...sphereSilhouetteToCubics3({
               cameraPos: camera.position,
+              viewDirection:
+                camera.kind === "orthographic" ? camera.forward : undefined,
               center: p.center,
               radius: p.radius,
             }),
@@ -755,6 +884,8 @@ function buildRandomPrimitivesDemo(
           out.push(
             ...cylinderSilhouetteToCubics3({
               cameraPos: camera.position,
+              viewDirection:
+                camera.kind === "orthographic" ? camera.forward : undefined,
               base: p.base,
               axis: p.axis,
               height: p.height,
@@ -765,6 +896,8 @@ function buildRandomPrimitivesDemo(
           out.push(
             ...coneSilhouetteToCubics3({
               cameraPos: camera.position,
+              viewDirection:
+                camera.kind === "orthographic" ? camera.forward : undefined,
               apex: p.apex,
               axis: p.axis,
               height: p.height,
@@ -822,6 +955,8 @@ function buildConicSectionDemo(
     curves: ({ camera }) => [
       ...coneSilhouetteToCubics3({
         cameraPos: camera.position,
+        viewDirection:
+          camera.kind === "orthographic" ? camera.forward : undefined,
         apex: cone.apex,
         axis: cone.axis,
         height: cone.height,

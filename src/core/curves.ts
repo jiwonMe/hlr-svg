@@ -48,7 +48,8 @@ export function curvesFromPrimitives(
   const inc = { ...defaultCurveInclude(), ...include };
   const out: CubicBezier3[] = [];
 
-  if (inc.silhouettes) out.push(...silhouettesForPrimitives(primitives, camera));
+  if (inc.silhouettes)
+    out.push(...silhouettesForPrimitives(primitives, camera));
   if (inc.rims) out.push(...rimsForPrimitives(primitives));
   if (inc.borders) out.push(...bordersForPrimitives(primitives));
   if (inc.boxEdges) out.push(...boxEdgesForPrimitives(primitives));
@@ -57,18 +58,31 @@ export function curvesFromPrimitives(
   return out;
 }
 
-export function silhouettesForPrimitives(primitives: readonly Primitive[], camera: Camera): CubicBezier3[] {
+export function silhouettesForPrimitives(
+  primitives: readonly Primitive[],
+  camera: Camera,
+): CubicBezier3[] {
   const out: CubicBezier3[] = [];
 
   for (const p of primitives) {
     if (p instanceof Sphere) {
-      out.push(...sphereSilhouetteToCubics3({ cameraPos: camera.position, center: p.center, radius: p.radius }));
+      out.push(
+        ...sphereSilhouetteToCubics3({
+          cameraPos: camera.position,
+          viewDirection:
+            camera.kind === "orthographic" ? camera.forward : undefined,
+          center: p.center,
+          radius: p.radius,
+        }),
+      );
       continue;
     }
     if (p instanceof Cylinder) {
       out.push(
         ...cylinderSilhouetteToCubics3({
           cameraPos: camera.position,
+          viewDirection:
+            camera.kind === "orthographic" ? camera.forward : undefined,
           base: p.base,
           axis: p.axis,
           height: p.height,
@@ -81,6 +95,8 @@ export function silhouettesForPrimitives(primitives: readonly Primitive[], camer
       out.push(
         ...coneSilhouetteToCubics3({
           cameraPos: camera.position,
+          viewDirection:
+            camera.kind === "orthographic" ? camera.forward : undefined,
           apex: p.apex,
           axis: p.axis,
           height: p.height,
@@ -94,13 +110,21 @@ export function silhouettesForPrimitives(primitives: readonly Primitive[], camer
   return out;
 }
 
-export function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier3[] {
+export function rimsForPrimitives(
+  primitives: readonly Primitive[],
+): CubicBezier3[] {
   const out: CubicBezier3[] = [];
 
   for (const p of primitives) {
     if (p instanceof Cylinder) {
       // Cylinder rims are always included as a set of base/top
-      out.push(...circleToCubics3({ center: p.base, normal: p.axis, radius: p.radius }));
+      out.push(
+        ...circleToCubics3({
+          center: p.base,
+          normal: p.axis,
+          radius: p.radius,
+        }),
+      );
       out.push(
         ...circleToCubics3({
           center: Vec3.add(p.base, Vec3.mulScalar(p.axis, p.height)),
@@ -114,12 +138,24 @@ export function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier
     if (p instanceof Cone) {
       // Cone rim is always base (one)
       const baseCenter = Vec3.add(p.apex, Vec3.mulScalar(p.axis, p.height));
-      out.push(...circleToCubics3({ center: baseCenter, normal: p.axis, radius: p.baseRadius }));
+      out.push(
+        ...circleToCubics3({
+          center: baseCenter,
+          normal: p.axis,
+          radius: p.baseRadius,
+        }),
+      );
       continue;
     }
 
     if (p instanceof Disk) {
-      out.push(...circleToCubics3({ center: p.center, normal: p.normal, radius: p.radius }));
+      out.push(
+        ...circleToCubics3({
+          center: p.center,
+          normal: p.normal,
+          radius: p.radius,
+        }),
+      );
       continue;
     }
   }
@@ -127,7 +163,9 @@ export function rimsForPrimitives(primitives: readonly Primitive[]): CubicBezier
   return out;
 }
 
-export function bordersForPrimitives(primitives: readonly Primitive[]): CubicBezier3[] {
+export function bordersForPrimitives(
+  primitives: readonly Primitive[],
+): CubicBezier3[] {
   const out: CubicBezier3[] = [];
 
   for (const p of primitives) {
@@ -147,10 +185,17 @@ function planeRectBorderCubics(r: PlaneRect): CubicBezier3[] {
   const p11 = Vec3.add(Vec3.add(c, ux), vy);
   const p01 = Vec3.add(Vec3.sub(c, ux), vy);
 
-  return [lineToCubic3(p00, p10), lineToCubic3(p10, p11), lineToCubic3(p11, p01), lineToCubic3(p01, p00)];
+  return [
+    lineToCubic3(p00, p10),
+    lineToCubic3(p10, p11),
+    lineToCubic3(p11, p01),
+    lineToCubic3(p01, p00),
+  ];
 }
 
-export function boxEdgesForPrimitives(primitives: readonly Primitive[]): CubicBezier3[] {
+export function boxEdgesForPrimitives(
+  primitives: readonly Primitive[],
+): CubicBezier3[] {
   const out: CubicBezier3[] = [];
   for (const p of primitives) {
     if (p instanceof BoxAabb) out.push(...boxEdgesToCubics3(p));

@@ -66,7 +66,7 @@ export class Camera {
             params.near,
             params.far,
           );
-    this.viewProj = Mat4.mul(this.view, this.proj); // NOTE: we use mulVec4 with column-major; order handled in project()
+    this.viewProj = Mat4.mul(this.proj, this.view);
     const inv = Mat4.inverse(this.viewProj);
     this.viewProjInv = inv ?? Mat4.identity();
   }

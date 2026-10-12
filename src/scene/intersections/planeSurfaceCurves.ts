@@ -6,38 +6,44 @@ import { Cylinder } from "../primitives/cylinder.js";
 import { Cone } from "../primitives/cone.js";
 import { Disk } from "../primitives/disk.js";
 import { PlaneRect } from "../primitives/planeRect.js";
-import {
-  basisFromAxis,
-  medianConsecutiveStep,
-  mergeCyclicRuns,
-  polylineRunsToLineCubics,
-  splitRunsByJump,
-  stitchRunsByEndpoints,
-  tryMergeRunsToSinglePolyline,
-} from "./math.js";
-import { fitPolylineToCubics } from "./bezierFit.js";
+import { basisFromAxis, quadraticTrigRoots, solveQuadratic } from "./math.js";
+import { traceQuadraticIntersection } from "./sampledCurves.js";
 
-type PlaneSurface =
-  | { kind: "disk"; id: string; point: Vec3; normal: Vec3; contains: (p: Vec3) => boolean; typicalSize: number }
-  | { kind: "rect"; id: string; point: Vec3; normal: Vec3; contains: (p: Vec3) => boolean; typicalSize: number };
+type PlaneSurface = {
+  kind: "disk" | "rect";
+  id: string;
+  point: Vec3;
+  normal: Vec3;
+  contains: (p: Vec3) => boolean;
+  boundaries: readonly ((p: Vec3) => number)[];
+  typicalSize: number;
+};
 
-export type OwnedCubic3 = { bez: CubicBezier3; ignorePrimitiveIds: readonly string[] };
+export type OwnedCubic3 = {
+  bez: CubicBezier3;
+  ignorePrimitiveIds: readonly string[];
+};
 
 export function planeSurfaceCurvesToCubics(
   planeSurfaces: readonly (Disk | PlaneRect)[],
   curved: readonly (Sphere | Cylinder | Cone)[],
 ): CubicBezier3[] {
-  return planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved).map((x) => x.bez);
+  return planeSurfaceCurvesToOwnedCubics(planeSurfaces, curved).map(
+    (x) => x.bez,
+  );
 }
 
 export function planeSurfaceCurvesToOwnedCubics(
   planeSurfaces: readonly (Disk | PlaneRect)[],
   curved: readonly (Sphere | Cylinder | Cone)[],
-  opts?: { angularSamples?: number; useBezierFit?: boolean; fitMode?: "perRun" | "stitchThenFit" },
+  opts?: {
+    angularSamples?: number;
+    useBezierFit?: boolean;
+    fitMode?: "perRun" | "stitchThenFit";
+  },
 ): OwnedCubic3[] {
   const angularSamples = Math.max(32, Math.floor(opts?.angularSamples ?? 160));
   const useBezierFit = opts?.useBezierFit ?? true;
-  const fitMode = opts?.fitMode ?? "stitchThenFit";
   const planes = planeSurfaces.map(toPlaneSurface);
   const out: OwnedCubic3[] = [];
 
@@ -52,12 +58,29 @@ export function planeSurfaceCurvesToOwnedCubics(
       // so that the parent's side surface doesn't incorrectly occlude the intersection curve.
       const parentId = getCapDiskParentId(pl.id);
       const ignorePrimitiveIds = parentId
-        ? [pl.id, obj.id, parentId] as const
-        : [pl.id, obj.id] as const;
+        ? ([pl.id, obj.id, parentId] as const)
+        : ([pl.id, obj.id] as const);
 
-      if (obj instanceof Sphere) out.push(...planeSphere(pl, obj, angularSamples, useBezierFit, fitMode).map((bez) => ({ bez, ignorePrimitiveIds })));
-      if (obj instanceof Cylinder) out.push(...planeCylinder(pl, obj, angularSamples, useBezierFit, fitMode).map((bez) => ({ bez, ignorePrimitiveIds })));
-      if (obj instanceof Cone) out.push(...planeCone(pl, obj, angularSamples, useBezierFit, fitMode).map((bez) => ({ bez, ignorePrimitiveIds })));
+      if (obj instanceof Sphere)
+        out.push(
+          ...planeSphere(pl, obj, angularSamples, useBezierFit).map((bez) => ({
+            bez,
+            ignorePrimitiveIds,
+          })),
+        );
+      if (obj instanceof Cylinder)
+        out.push(
+          ...planeCylinder(pl, obj, angularSamples, useBezierFit).map(
+            (bez) => ({ bez, ignorePrimitiveIds }),
+          ),
+        );
+      if (obj instanceof Cone)
+        out.push(
+          ...planeCone(pl, obj, angularSamples, useBezierFit).map((bez) => ({
+            bez,
+            ignorePrimitiveIds,
+          })),
+        );
     }
   }
 
@@ -77,207 +100,261 @@ function getCapDiskParentId(diskId: string): string | null {
 }
 
 function toPlaneSurface(p: Disk | PlaneRect): PlaneSurface {
+  const coordinateEps =
+    Math.max(Math.abs(p.center.x), Math.abs(p.center.y), Math.abs(p.center.z)) *
+    Number.EPSILON *
+    32;
   if (p instanceof Disk) {
+    const eps = Math.max(p.radius * 1e-10, coordinateEps);
+    const boundary = (point: Vec3) =>
+      Vec3.distanceSq(point, p.center) - p.radius * p.radius;
     return {
       kind: "disk",
       id: p.id,
       point: p.center,
       normal: p.normal,
       typicalSize: p.radius,
-      contains: (x) => Vec3.distanceSq(x, p.center) <= p.radius * p.radius + 1e-7,
+      contains: (point) => boundary(point) <= 2 * p.radius * eps + eps * eps,
+      boundaries: [boundary],
     };
   }
-  // PlaneRect
+  const du = (point: Vec3) => Vec3.dot(Vec3.sub(point, p.center), p.u);
+  const dv = (point: Vec3) => Vec3.dot(Vec3.sub(point, p.center), p.v);
   return {
     kind: "rect",
     id: p.id,
     point: p.center,
     normal: p.normal,
     typicalSize: Math.max(p.halfWidth, p.halfHeight),
-    contains: (x) => {
-      const d = Vec3.sub(x, p.center);
-      const du = Vec3.dot(d, p.u);
-      const dv = Vec3.dot(d, p.v);
-      return Math.abs(du) <= p.halfWidth + 1e-7 && Math.abs(dv) <= p.halfHeight + 1e-7;
-    },
+    contains: (point) =>
+      Math.abs(du(point)) <=
+        p.halfWidth + Math.max(p.halfWidth * 1e-10, coordinateEps) &&
+      Math.abs(dv(point)) <=
+        p.halfHeight + Math.max(p.halfHeight * 1e-10, coordinateEps),
+    boundaries: [
+      (point) => du(point) - p.halfWidth,
+      (point) => du(point) + p.halfWidth,
+      (point) => dv(point) - p.halfHeight,
+      (point) => dv(point) + p.halfHeight,
+    ],
   };
+}
+
+/** Homogeneous clipping equations avoid poles where a plane is parallel to a generator. */
+function planeBoundaryEquations(
+  pl: PlaneSurface,
+  baseAt: (theta: number) => Vec3,
+  directionAt: (theta: number) => Vec3,
+): ((theta: number) => number)[] {
+  // Each boundary is linear (rectangle) or quadratic (disk). Recover its
+  // homogeneous form from F(base), F(base + direction), and F(base - direction).
+  return pl.boundaries.map((boundary) => (theta) => {
+    const base = baseAt(theta),
+      direction = directionAt(theta);
+    const b = Vec3.dot(pl.normal, direction);
+    const c = Vec3.dot(pl.normal, Vec3.sub(base, pl.point));
+    const f0 = boundary(base),
+      f1 = boundary(Vec3.add(base, direction));
+    const fm = boundary(Vec3.sub(base, direction));
+    const quadratic = (f1 + fm) / 2 - f0;
+    const linear = (f1 - fm) / 2;
+    // Multiplying a linear boundary by b (rather than b²) keeps the
+    // expression's harmonics <= 2, as required by quadraticTrigRoots.
+    if (pl.kind === "rect") return f0 * b - linear * c;
+    return f0 * b * b - linear * c * b + quadratic * c * c;
+  });
 }
 
 function planeSphere(
   pl: PlaneSurface,
   s: Sphere,
-  angularSamples: number,
+  samples: number,
   useBezierFit: boolean,
-  fitMode: "perRun" | "stitchThenFit",
 ): CubicBezier3[] {
-  // plane: n·(x-p0)=0
   const n = Vec3.normalize(pl.normal);
   const dist = Vec3.dot(n, Vec3.sub(s.center, pl.point));
-  const ad = Math.abs(dist);
-  if (ad > s.radius + 1e-7) return [];
-
-  const circleCenter = Vec3.sub(s.center, Vec3.mulScalar(n, dist));
-  const r2 = s.radius * s.radius - dist * dist;
-  const r = Math.sqrt(Math.max(0, r2));
-  if (r <= 1e-8) {
-    // tangent: single point
-    if (!pl.contains(circleCenter)) return [];
-    return markerAt(circleCenter, n, Math.max(0.02, pl.typicalSize * 0.02));
-  }
-
-  return circleSampleToCubics(circleCenter, n, r, pl.contains, angularSamples, useBezierFit, fitMode);
+  if (Math.abs(dist) > s.radius) return [];
+  const center = Vec3.sub(s.center, Vec3.mulScalar(n, dist));
+  const radius = Math.sqrt(Math.max(0, s.radius * s.radius - dist * dist));
+  if (radius <= s.radius * 1e-10)
+    return pl.contains(center)
+      ? markerAt(center, n, Math.max(0.02, pl.typicalSize * 0.02))
+      : [];
+  const { u, v } = basisFromAxis(n);
+  const pointAt = (theta: number) =>
+    Vec3.add(
+      center,
+      Vec3.add(
+        Vec3.mulScalar(u, radius * Math.cos(theta)),
+        Vec3.mulScalar(v, radius * Math.sin(theta)),
+      ),
+    );
+  return traceQuadraticIntersection({
+    samples,
+    maxParameter: 1,
+    equation: () => ({ a: 0, b: 1, c: -1 }),
+    pointAt,
+    inside: pl.contains,
+    boundaryEquations: pl.boundaries.map(
+      (boundary) => (theta) => boundary(pointAt(theta)),
+    ),
+    surfaceError: (point) =>
+      Math.max(
+        Math.abs(Vec3.distance(point, s.center) - s.radius),
+        Math.abs(Vec3.dot(n, Vec3.sub(point, pl.point))),
+      ),
+    tolerance: s.radius * 2e-5,
+    useBezierFit,
+  });
 }
 
 function planeCylinder(
   pl: PlaneSurface,
   c: Cylinder,
-  angularSamples: number,
+  samples: number,
   useBezierFit: boolean,
-  fitMode: "perRun" | "stitchThenFit",
 ): CubicBezier3[] {
-  const n = Vec3.normalize(pl.normal);
-  const dPlane = Vec3.dot(n, pl.point);
-
-  const a = c.axis;
-  const denom = Vec3.dot(n, a);
-  const { u, v } = basisFromAxis(a);
-  const N = Math.max(180, angularSamples * 3);
-
-  if (Math.abs(denom) <= 1e-10) {
-    // plane parallel to axis -> intersection is 0/1/2 generators; sample θ solutions and emit line cubics
-    const nu = Vec3.dot(n, u);
-    const nv = Vec3.dot(n, v);
-    const m = Math.hypot(nu, nv);
-    if (m <= 1e-12) return [];
-    const t = (dPlane - Vec3.dot(n, c.base)) / c.radius;
-    const rhs = t / m;
-    if (Math.abs(rhs) > 1) return [];
-    const phi = Math.atan2(nv, nu);
-    const delta = Math.acos(rhs);
-    const th0 = phi + delta;
-    const th1 = phi - delta;
-    return [
-      ...generatorLineAtTheta(pl, c, u, v, th0),
-      ...generatorLineAtTheta(pl, c, u, v, th1),
-    ];
+  const { u, v } = basisFromAxis(c.axis);
+  const baseAt = (theta: number) =>
+    Vec3.add(
+      c.base,
+      Vec3.add(
+        Vec3.mulScalar(u, c.radius * Math.cos(theta)),
+        Vec3.mulScalar(v, c.radius * Math.sin(theta)),
+      ),
+    );
+  const denom = Vec3.dot(pl.normal, c.axis);
+  if (Math.abs(denom) <= 1e-12) {
+    return quadraticTrigRoots((theta) =>
+      Vec3.dot(pl.normal, Vec3.sub(baseAt(theta), pl.point)),
+    ).flatMap((theta) =>
+      clipGenerator(
+        pl,
+        baseAt(theta),
+        Vec3.add(baseAt(theta), Vec3.mulScalar(c.axis, c.height)),
+      ),
+    );
   }
-
-  const pts: Vec3[] = [];
-  for (let i = 0; i < N; i++) {
-    const th = (i / N) * Math.PI * 2;
-    const w = Vec3.add(Vec3.mulScalar(u, Math.cos(th)), Vec3.mulScalar(v, Math.sin(th)));
-    const baseOnCircle = Vec3.add(c.base, Vec3.mulScalar(w, c.radius));
-    const sVal = (dPlane - Vec3.dot(n, baseOnCircle)) / denom;
-    if (sVal < -1e-6 || sVal > c.height + 1e-6) continue;
-    const p = Vec3.add(baseOnCircle, Vec3.mulScalar(a, sVal));
-    if (!pl.contains(p)) continue;
-    pts.push(p);
-  }
-
-  return polylineToCubics(pts, pl.typicalSize, useBezierFit, fitMode);
-}
-
-function generatorLineAtTheta(pl: PlaneSurface, c: Cylinder, u: Vec3, v: Vec3, th: number): CubicBezier3[] {
-  const w = Vec3.add(Vec3.mulScalar(u, Math.cos(th)), Vec3.mulScalar(v, Math.sin(th)));
-  const p0 = Vec3.add(c.base, Vec3.mulScalar(w, c.radius));
-  const p1 = Vec3.add(p0, Vec3.mulScalar(c.axis, c.height));
-  // clip by plane surface region by sampling ends only (good enough for demo)
-  if (!pl.contains(p0) && !pl.contains(p1)) return [];
-  return [lineToCubic3(p0, p1)];
+  return tracePlaneGenerators(
+    pl,
+    baseAt,
+    () => c.axis,
+    c.height,
+    Math.max(c.radius, c.height),
+    (point) => {
+      const offset = Vec3.sub(point, c.base);
+      return Math.abs(
+        Vec3.len(
+          Vec3.sub(offset, Vec3.mulScalar(c.axis, Vec3.dot(offset, c.axis))),
+        ) - c.radius,
+      );
+    },
+    samples,
+    useBezierFit,
+  );
 }
 
 function planeCone(
   pl: PlaneSurface,
   c: Cone,
-  angularSamples: number,
+  samples: number,
   useBezierFit: boolean,
-  fitMode: "perRun" | "stitchThenFit",
 ): CubicBezier3[] {
-  const n = Vec3.normalize(pl.normal);
-  const dPlane = Vec3.dot(n, pl.point);
-
-  const a = c.axis;
-  const k = c.baseRadius / c.height;
-  const { u, v } = basisFromAxis(a);
-  const N = Math.max(220, angularSamples * 3);
-
-  const pts: Vec3[] = [];
-  for (let i = 0; i < N; i++) {
-    const th = (i / N) * Math.PI * 2;
-    const w = Vec3.add(Vec3.mulScalar(u, Math.cos(th)), Vec3.mulScalar(v, Math.sin(th)));
-    const denom = Vec3.dot(n, Vec3.add(a, Vec3.mulScalar(w, k)));
-    if (Math.abs(denom) <= 1e-8) continue;
-    const y = (dPlane - Vec3.dot(n, c.apex)) / denom;
-    if (y < -1e-6 || y > c.height + 1e-6) continue;
-    const p = Vec3.add(Vec3.add(c.apex, Vec3.mulScalar(a, y)), Vec3.mulScalar(w, k * y));
-    if (!pl.contains(p)) continue;
-    pts.push(p);
+  const { u, v } = basisFromAxis(c.axis),
+    slope = c.baseRadius / c.height;
+  const directionAt = (theta: number) =>
+    Vec3.add(
+      c.axis,
+      Vec3.add(
+        Vec3.mulScalar(u, slope * Math.cos(theta)),
+        Vec3.mulScalar(v, slope * Math.sin(theta)),
+      ),
+    );
+  const offset = Vec3.dot(pl.normal, Vec3.sub(c.apex, pl.point));
+  if (Math.abs(offset) <= Math.max(c.height, c.baseRadius) * 1e-12) {
+    return quadraticTrigRoots((theta) =>
+      Vec3.dot(pl.normal, directionAt(theta)),
+    ).flatMap((theta) =>
+      clipGenerator(
+        pl,
+        c.apex,
+        Vec3.add(c.apex, Vec3.mulScalar(directionAt(theta), c.height)),
+      ),
+    );
   }
-
-  return polylineToCubics(pts, pl.typicalSize, useBezierFit, fitMode);
+  return tracePlaneGenerators(
+    pl,
+    () => c.apex,
+    directionAt,
+    c.height,
+    Math.max(c.baseRadius, c.height),
+    (point) => {
+      const d = Vec3.sub(point, c.apex),
+        h = Vec3.dot(d, c.axis);
+      return Math.abs(
+        Vec3.len(Vec3.sub(d, Vec3.mulScalar(c.axis, h))) - slope * h,
+      );
+    },
+    samples,
+    useBezierFit,
+  );
 }
 
-function polylineToCubics(points: Vec3[], scale: number, useBezierFit: boolean, fitMode: "perRun" | "stitchThenFit"): CubicBezier3[] {
-  if (points.length < 2) return [];
-  const step = (Math.PI * 2 * Math.max(1e-3, scale)) / Math.max(32, points.length);
-  const maxJumpSq = (step * 14) * (step * 14);
-  const closeEpsSq = (step * 3) * (step * 3);
-  const runs = stitchRunsByEndpoints(mergeCyclicRuns(splitRunsByJump(points, maxJumpSq), closeEpsSq), closeEpsSq);
-  if (!useBezierFit) return polylineRunsToLineCubics(runs, closeEpsSq);
-  if (fitMode === "stitchThenFit") {
-    const merged = tryMergeRunsToSinglePolyline(runs, closeEpsSq);
-    if (merged) {
-      const fitStep = medianConsecutiveStep(merged, step);
-      const maxError = fitStep * 0.12;
-      return fitPolylineToCubics(merged, { maxError, closeEps: fitStep * 3 });
-    }
-  }
-  return runs.flatMap((run) => {
-    const fitStep = medianConsecutiveStep(run, step);
-    const maxError = fitStep * 0.12;
-    return fitPolylineToCubics(run, { maxError, closeEps: fitStep * 3 });
+function tracePlaneGenerators(
+  pl: PlaneSurface,
+  baseAt: (theta: number) => Vec3,
+  directionAt: (theta: number) => Vec3,
+  height: number,
+  scale: number,
+  surfaceError: (point: Vec3) => number,
+  samples: number,
+  useBezierFit: boolean,
+): CubicBezier3[] {
+  return traceQuadraticIntersection({
+    samples,
+    maxParameter: height,
+    equation: (theta) => ({
+      a: 0,
+      b: Vec3.dot(pl.normal, directionAt(theta)),
+      c: Vec3.dot(pl.normal, Vec3.sub(baseAt(theta), pl.point)),
+    }),
+    pointAt: (theta, parameter) =>
+      Vec3.add(baseAt(theta), Vec3.mulScalar(directionAt(theta), parameter)),
+    inside: pl.contains,
+    boundaryEquations: planeBoundaryEquations(pl, baseAt, directionAt),
+    surfaceError: (point) =>
+      Math.max(
+        surfaceError(point),
+        Math.abs(Vec3.dot(pl.normal, Vec3.sub(point, pl.point))),
+      ),
+    tolerance: scale * 2e-5,
+    useBezierFit,
   });
 }
 
-function circleSampleToCubics(
-  center: Vec3,
-  n: Vec3,
-  r: number,
-  inside: (p: Vec3) => boolean,
-  angularSamples: number,
-  useBezierFit: boolean,
-  fitMode: "perRun" | "stitchThenFit",
-): CubicBezier3[] {
-  const { u, v } = basisFromAxis(n);
-  const N = Math.max(220, angularSamples * 3);
-  const step = (2 * Math.PI * r) / N;
-  const closeEpsSq = (step * 3) * (step * 3);
-  // run split by inside flag
-  const runs: Vec3[][] = [];
-  let cur: Vec3[] = [];
-  for (let i = 0; i < N; i++) {
-    const th = (i / N) * Math.PI * 2;
-    const p = Vec3.add(center, Vec3.add(Vec3.mulScalar(u, r * Math.cos(th)), Vec3.mulScalar(v, r * Math.sin(th))));
-    const ok = inside(p);
-    if (ok) cur.push(p);
-    else {
-      if (cur.length >= 2) runs.push(cur);
-      cur = [];
-    }
+/** Clip a whole generator, including when both endpoints lie outside the finite plane. */
+function clipGenerator(pl: PlaneSurface, p0: Vec3, p1: Vec3): CubicBezier3[] {
+  const direction = Vec3.sub(p1, p0);
+  const pointAt = (t: number) => Vec3.add(p0, Vec3.mulScalar(direction, t));
+  const cuts = [0, 1];
+  for (const boundary of pl.boundaries) {
+    const f0 = boundary(p0),
+      f1 = boundary(p1),
+      fm = boundary(pointAt(0.5));
+    const a = 2 * f0 + 2 * f1 - 4 * fm;
+    cuts.push(
+      ...solveQuadratic(a, f1 - f0 - a, f0).filter((t) => t > 0 && t < 1),
+    );
   }
-  if (cur.length >= 2) runs.push(cur);
-
-  const mergedRuns = stitchRunsByEndpoints(mergeCyclicRuns(runs, closeEpsSq), closeEpsSq);
-  if (!useBezierFit) return polylineRunsToLineCubics(mergedRuns, closeEpsSq);
-  if (fitMode === "stitchThenFit") {
-    const merged = tryMergeRunsToSinglePolyline(mergedRuns, closeEpsSq);
-    if (merged) {
-      const maxError = step * 0.6;
-      return fitPolylineToCubics(merged, { maxError, closeEps: step * 3 });
-    }
+  cuts.sort((a, b) => a - b);
+  const out: CubicBezier3[] = [];
+  for (let i = 1; i < cuts.length; i++) {
+    const left = cuts[i - 1],
+      right = cuts[i];
+    if (right - left > 1e-12 && pl.contains(pointAt((left + right) / 2)))
+      out.push(lineToCubic3(pointAt(left), pointAt(right)));
   }
-  const maxError = step * 0.6;
-  return mergedRuns.flatMap((run) => fitPolylineToCubics(run, { maxError, closeEps: step * 3 }));
+  return out;
 }
 
 function markerAt(p: Vec3, normal: Vec3, size: number): CubicBezier3[] {
@@ -288,5 +365,3 @@ function markerAt(p: Vec3, normal: Vec3, size: number): CubicBezier3[] {
   const b1 = Vec3.add(p, Vec3.mulScalar(v, size));
   return [lineToCubic3(a0, a1), lineToCubic3(b0, b1)];
 }
-
-// mergeCyclicRuns / stitchRunsByEndpoints are shared in intersections/math.ts
