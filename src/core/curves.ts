@@ -16,6 +16,8 @@ import { Disk } from "../scene/primitives/disk.js";
 import { PlaneRect } from "../scene/primitives/planeRect.js";
 import { Sphere } from "../scene/primitives/sphere.js";
 import { TriangleMesh } from "../scene/primitives/triangleMesh.js";
+import { OrientedBox } from "../scene/primitives/orientedBox.js";
+import { csgCurvesForPrimitives } from "./csgCurves.js";
 
 export type CurveInclude = {
   silhouettes?: boolean; // default: true
@@ -23,6 +25,7 @@ export type CurveInclude = {
   borders?: boolean; // default: true
   boxEdges?: boolean; // default: true
   meshEdges?: boolean; // default: true
+  csg?: boolean; // default: true — outlines, edges and seams of boolean solids
 };
 
 export type MeshCurveOptions = {
@@ -36,6 +39,7 @@ export function defaultCurveInclude(): Required<CurveInclude> {
     borders: true,
     boxEdges: true,
     meshEdges: true,
+    csg: true,
   };
 }
 
@@ -54,6 +58,7 @@ export function curvesFromPrimitives(
   if (inc.borders) out.push(...bordersForPrimitives(primitives));
   if (inc.boxEdges) out.push(...boxEdgesForPrimitives(primitives));
   if (inc.meshEdges) out.push(...meshFeatureCurves(primitives, camera, mesh));
+  if (inc.csg) out.push(...csgCurvesForPrimitives(primitives, camera));
 
   return out;
 }
@@ -199,6 +204,8 @@ export function boxEdgesForPrimitives(
   const out: CubicBezier3[] = [];
   for (const p of primitives) {
     if (p instanceof BoxAabb) out.push(...boxEdgesToCubics3(p));
+    else if (p instanceof OrientedBox)
+      out.push(...p.edges().map(([a, b]) => lineToCubic3(a, b)));
   }
   return out;
 }

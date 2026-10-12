@@ -8,6 +8,9 @@ import { PlaneRect } from "../primitives/planeRect.js";
 import { Disk } from "../primitives/disk.js";
 import { BoxAabb } from "../primitives/boxAabb.js";
 import { TriangleMesh } from "../primitives/triangleMesh.js";
+import { OrientedBox } from "../primitives/orientedBox.js";
+import { Csg, CSG_TOLERANCE } from "../primitives/csg.js";
+import { splitCubicWhere } from "../../curves/split.js";
 import {
   intersectConeCone,
   intersectCylinderCone,
@@ -24,7 +27,7 @@ import {
 } from "./planeSurfaceCurves.js";
 import { intersectDiskPlaneRect } from "./diskPlaneRect.js";
 import { intersectPlaneRectBoxAabb } from "./planeRectBoxAabb.js";
-import { intersectBoxAabbBoxAabb } from "./boxBoxAabb.js";
+import { boxFacesAsPlaneRects, intersectBoxAabbBoxAabb } from "./boxBoxAabb.js";
 import {
   intersectBoxAabbSphereOwned,
   intersectBoxAabbCylinderOwned,
@@ -62,6 +65,8 @@ const CACHEABLE_PRIMITIVES = [
   Disk,
   BoxAabb,
   TriangleMesh,
+  OrientedBox,
+  Csg,
 ].map((type) => ({ type, intersect: type.prototype.intersect }));
 
 /**
@@ -106,68 +111,11 @@ export function cachedIntersectionCurvesToOwnedCubics(
 export function intersectionGeometrySignature(
   primitives: readonly Primitive[],
 ): string | undefined {
-  const vector = (v: Vec3) => [v.x, v.y, v.z];
   const geometry: unknown[] = [];
   for (const p of primitives) {
-    const builtin = CACHEABLE_PRIMITIVES.find(
-      ({ type }) => Object.getPrototypeOf(p) === type.prototype,
-    );
-    // Arbitrary implementations can depend on state unavailable to this module.
-    if (!builtin || p.intersect !== builtin.intersect) return undefined;
-    if (p instanceof Sphere)
-      geometry.push(["sphere", p.id, vector(p.center), p.radius]);
-    else if (p instanceof Cylinder)
-      geometry.push([
-        "cylinder",
-        p.id,
-        vector(p.base),
-        vector(p.axis),
-        p.height,
-        p.radius,
-        p.caps,
-      ]);
-    else if (p instanceof Cone)
-      geometry.push([
-        "cone",
-        p.id,
-        vector(p.apex),
-        vector(p.axis),
-        p.height,
-        p.baseRadius,
-        p.k,
-        p.cap,
-      ]);
-    else if (p instanceof PlaneRect)
-      geometry.push([
-        "rect",
-        p.id,
-        vector(p.center),
-        vector(p.normal),
-        vector(p.u),
-        vector(p.v),
-        p.halfWidth,
-        p.halfHeight,
-      ]);
-    else if (p instanceof Disk)
-      geometry.push([
-        "disk",
-        p.id,
-        vector(p.center),
-        vector(p.normal),
-        p.radius,
-      ]);
-    else if (p instanceof BoxAabb)
-      geometry.push(["box", p.id, vector(p.min), vector(p.max)]);
-    else if (p instanceof TriangleMesh)
-      geometry.push([
-        "mesh",
-        p.id,
-        p.vertices.map(vector),
-        p.triangles,
-        vector(p.bounds.min),
-        vector(p.bounds.max),
-        p.weldEps,
-      ]);
+    const encoded = encodePrimitive(p);
+    if (!encoded) return undefined;
+    geometry.push(encoded);
   }
   let finite = true;
   const signature = JSON.stringify(geometry, (_key, value: unknown) => {
@@ -175,6 +123,75 @@ export function intersectionGeometrySignature(
     return value;
   });
   return finite ? signature : undefined;
+}
+
+function encodePrimitive(p: Primitive): unknown[] | undefined {
+  const vector = (v: Vec3) => [v.x, v.y, v.z];
+  const builtin = CACHEABLE_PRIMITIVES.find(
+    ({ type }) => Object.getPrototypeOf(p) === type.prototype,
+  );
+  // Arbitrary implementations can depend on state unavailable to this module.
+  if (!builtin || p.intersect !== builtin.intersect) return undefined;
+  if (p instanceof Sphere) return ["sphere", p.id, vector(p.center), p.radius];
+  if (p instanceof Cylinder)
+    return [
+      "cylinder",
+      p.id,
+      vector(p.base),
+      vector(p.axis),
+      p.height,
+      p.radius,
+      p.caps,
+    ];
+  if (p instanceof Cone)
+    return [
+      "cone",
+      p.id,
+      vector(p.apex),
+      vector(p.axis),
+      p.height,
+      p.baseRadius,
+      p.k,
+      p.cap,
+    ];
+  if (p instanceof PlaneRect)
+    return [
+      "rect",
+      p.id,
+      vector(p.center),
+      vector(p.normal),
+      vector(p.u),
+      vector(p.v),
+      p.halfWidth,
+      p.halfHeight,
+    ];
+  if (p instanceof Disk)
+    return ["disk", p.id, vector(p.center), vector(p.normal), p.radius];
+  if (p instanceof BoxAabb) return ["box", p.id, vector(p.min), vector(p.max)];
+  if (p instanceof TriangleMesh)
+    return [
+      "mesh",
+      p.id,
+      p.vertices.map(vector),
+      p.triangles,
+      vector(p.bounds.min),
+      vector(p.bounds.max),
+      p.weldEps,
+    ];
+  if (p instanceof OrientedBox)
+    return [
+      "obb",
+      p.id,
+      vector(p.center),
+      vector(p.halfSize),
+      p.axes.map(vector),
+    ];
+  if (p instanceof Csg) {
+    const a = encodePrimitive(p.a);
+    const b = encodePrimitive(p.b);
+    return a && b ? ["csg", p.id, p.operation, a, b] : undefined;
+  }
+  return undefined;
 }
 
 function freezeOwnedIntersections(
@@ -453,6 +470,90 @@ export function intersectionCurvesToOwnedCubics(
       }
     }
   }
+
+  // OrientedBox: its faces are rectangles, so every plane path applies.
+  const orientedBoxes = primitives.filter(
+    (p): p is OrientedBox => p instanceof OrientedBox,
+  );
+  orientedBoxes.forEach((box, index) => {
+    const faces = box.faces();
+    const owned = (bez: CubicBezier3, other: string) => ({
+      bez,
+      ignorePrimitiveIds: buildIgnorePrimitiveIds([box.id, other]),
+    });
+    for (const obj of curved)
+      out.push(
+        ...planeSurfaceCurvesToOwnedCubics(faces, [obj], {
+          angularSamples: opts.angularSamples,
+          useBezierFit,
+          fitMode,
+        }).map((x) => owned(x.bez, obj.id)),
+      );
+    for (const face of faces) {
+      for (const rect of planeRects)
+        out.push(
+          ...intersectPlaneRectPlaneRect(face, rect).map((bez) =>
+            owned(bez, rect.id),
+          ),
+        );
+      for (const disk of allDisks)
+        out.push(
+          ...intersectDiskPlaneRect(disk, face, { useBezierFit, fitMode }).map(
+            (bez) => owned(bez, disk.id),
+          ),
+        );
+    }
+    const otherFaces = [
+      ...boxes.map(
+        (other) => [other.id, boxFacesAsPlaneRects(other, "B")] as const,
+      ),
+      ...orientedBoxes
+        .slice(index + 1)
+        .map((other) => [other.id, other.faces("B")] as const),
+    ];
+    for (const [otherId, others] of otherFaces)
+      for (const face of faces)
+        for (const other of others)
+          out.push(
+            ...intersectPlaneRectPlaneRect(face, other).map((bez) =>
+              owned(bez, otherId),
+            ),
+          );
+  });
+
+  // Boolean solids: intersect each operand, keep what lies on the result.
+  const csgs = primitives.filter((p): p is Csg => p instanceof Csg);
+  const boundary = (solid: Csg) => {
+    const tolerance = solid.size() * CSG_TOLERANCE;
+    return (p: Vec3) => solid.classify(p, tolerance) === 0;
+  };
+  csgs.forEach((solid, index) => {
+    const onSolid = boundary(solid);
+    for (const other of primitives) {
+      if (other === solid || other instanceof Csg) continue;
+      for (const leaf of solid.leaves())
+        for (const x of intersectionCurvesToOwnedCubics([leaf, other], opts))
+          for (const bez of splitCubicWhere(x.bez, onSolid))
+            out.push({
+              bez,
+              ignorePrimitiveIds: buildIgnorePrimitiveIds([
+                solid.id,
+                ...x.ignorePrimitiveIds,
+              ]),
+            });
+    }
+    for (const other of csgs.slice(index + 1)) {
+      const onOther = boundary(other);
+      for (const a of solid.leaves())
+        for (const b of other.leaves())
+          for (const x of intersectionCurvesToOwnedCubics([a, b], opts))
+            for (const bez of splitCubicWhere(
+              x.bez,
+              (p) => onSolid(p) && onOther(p),
+            ))
+              out.push({ bez, ignorePrimitiveIds: [solid.id, other.id] });
+    }
+  });
 
   return out;
 }

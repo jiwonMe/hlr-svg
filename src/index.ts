@@ -13,11 +13,14 @@ export * from "./scene/primitives/boxAabb.js";
 export * from "./scene/primitives/planeRect.js";
 export * from "./scene/primitives/disk.js";
 export * from "./scene/primitives/triangleMesh.js";
+export * from "./scene/primitives/orientedBox.js";
+export * from "./scene/primitives/csg.js";
 export * from "./scene/intersections/intersectionCurves.js";
 export * from "./scene/intersections/bezierFit.js";
 
 export * from "./curves/cubicBezier3.js";
 export * from "./curves/builders.js";
+export * from "./curves/split.js";
 
 export * from "./hlr/visibilityCuts.js";
 export * from "./hlr/splitByVisibility.js";
@@ -27,6 +30,7 @@ export * from "./svg/svgWriter.js";
 // User-facing (three.js style) API
 export * from "./core/scene.js";
 export * from "./core/curves.js";
+export * from "./core/csgCurves.js";
 export * from "./core/svgRenderer.js";
 export * from "./core/surfaceRenderer.js";
 export * from "./core/profiler.js";

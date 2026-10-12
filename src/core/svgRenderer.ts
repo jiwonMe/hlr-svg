@@ -6,6 +6,7 @@ import {
   cachedIntersectionCurvesToOwnedCubics,
   intersectionGeometrySignature,
   intersectionCurvesToOwnedCubics,
+  type OwnedIntersectionCubic3,
 } from "../scene/intersections/intersectionCurves.js";
 import {
   splitCubicByVisibility,
@@ -67,6 +68,11 @@ export type RenderOptions = {
   intersections?: Partial<IntersectionParams>;
   mesh?: Partial<MeshRenderParams>;
   curves?: readonly CubicBezier3[]; // User curves (additional)
+  /**
+   * User curves that lie on surfaces, such as a section of a solid. Hits on the
+   * listed primitives at the curve itself do not hide it.
+   */
+  ownedCurves?: readonly OwnedIntersectionCubic3[];
   profiler?: Profiler;
 };
 
@@ -89,6 +95,21 @@ export const DEFAULT_MESH_PARAMS: MeshRenderParams = {
   creaseAngleDeg: 30,
 };
 
+const cubicKey = (b: CubicBezier3) => [
+  b.p0.x,
+  b.p0.y,
+  b.p0.z,
+  b.p1.x,
+  b.p1.y,
+  b.p1.z,
+  b.p2.x,
+  b.p2.y,
+  b.p2.z,
+  b.p3.x,
+  b.p3.y,
+  b.p3.z,
+];
+
 function defaultInclude(): Required<RenderInclude> {
   return {
     silhouettes: true,
@@ -96,6 +117,7 @@ function defaultInclude(): Required<RenderInclude> {
     borders: true,
     boxEdges: true,
     meshEdges: true,
+    csg: true,
     intersections: true,
   };
 }
@@ -123,7 +145,7 @@ export class SvgRenderer {
     | "profiler"
   >;
 
-  constructor(opts: Omit<RenderOptions, "curves">) {
+  constructor(opts: Omit<RenderOptions, "curves" | "ownedCurves">) {
     this.base = opts;
   }
 
@@ -199,20 +221,8 @@ export class SvgRenderer {
             ix,
             mesh,
             hlr,
-            opts.curves?.map((b) => [
-              b.p0.x,
-              b.p0.y,
-              b.p0.z,
-              b.p1.x,
-              b.p1.y,
-              b.p1.z,
-              b.p2.x,
-              b.p2.y,
-              b.p2.z,
-              b.p3.x,
-              b.p3.y,
-              b.p3.z,
-            ]),
+            opts.curves?.map(cubicKey),
+            opts.ownedCurves?.map((x) => [cubicKey(x.bez), x.ignorePrimitiveIds]),
           ]);
     const cameraMethods =
       Object.getPrototypeOf(camera) === Camera.prototype &&
@@ -295,7 +305,7 @@ export class SvgRenderer {
         (p.visible ? visiblePieces : hiddenPieces).push(p);
       }
     }
-    for (const x of ownedIntersections) {
+    for (const x of [...ownedIntersections, ...(opts.ownedCurves ?? [])]) {
       for (const p of splitCubicByVisibilityWithIgnore(
         x.bez,
         rayScene,
@@ -327,7 +337,10 @@ export function renderToSvg(
   opts: RenderOptions,
 ): string {
   const r = new SvgRenderer(opts);
-  return r.render(scene, camera, { curves: opts.curves });
+  return r.render(scene, camera, {
+    curves: opts.curves,
+    ownedCurves: opts.ownedCurves,
+  });
 }
 
 export function renderPrimitivesToSvg(

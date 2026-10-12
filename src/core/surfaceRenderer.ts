@@ -28,13 +28,21 @@ export type SurfaceBufferOptions = {
   height: number;
 };
 
+/** Grey levels from 0 to 1: unlit guide surfaces, then the darkest and brightest lit shade. */
+export type SurfaceTones = { unlit: number; shadow: number; lit: number };
+
+/** White paper: light grey shading and white guide surfaces. */
+export const PAPER_TONES: SurfaceTones = { unlit: 1, shadow: 0.72, lit: 0.99 };
+
 export type SurfaceShadingOptions = {
   /** World-space direction from the surface toward the light. */
   lightDirection: Vec3;
   ambient?: number;
   selectedId?: string | null;
-  /** Opaque white guide surfaces, unaffected by lighting or selection tint. */
+  /** Opaque guide surfaces (white on paper), unaffected by lighting or selection tint. */
   unlitPrimitiveIds?: readonly string[];
+  /** Grey levels to shade with; defaults to {@link PAPER_TONES}. */
+  tones?: Partial<SurfaceTones>;
 };
 
 export type SurfaceClipPath = {
@@ -593,6 +601,9 @@ export function shadeSurfaceBuffer(
 ): Uint8ClampedArray {
   const light = Vec3.normalize(options.lightDirection);
   const ambient = Math.max(0, Math.min(1, options.ambient ?? 0.35));
+  const tones = { ...PAPER_TONES, ...options.tones };
+  const shadow = tones.shadow;
+  const span = options.tones ? tones.lit - tones.shadow : 0.27;
   const rgba = new Uint8ClampedArray(buffer.width * buffer.height * 4);
   if (options.selectedId == null) {
     // The usual lighting-only update has no owner tint. Hoist that decision so
@@ -606,7 +617,7 @@ export function shadeSurfaceBuffer(
           buffer.normals[offset + 1]! * light.y +
           buffer.normals[offset + 2]! * light.z,
       );
-      const brightness = 0.72 + 0.27 * (ambient + (1 - ambient) * lambert);
+      const brightness = shadow + span * (ambient + (1 - ambient) * lambert);
       const value = brightness * 255;
       const colorOffset = pixel * 4;
       rgba[colorOffset] = value;
@@ -614,7 +625,12 @@ export function shadeSurfaceBuffer(
       rgba[colorOffset + 2] = value;
       rgba[colorOffset + 3] = 255;
     }
-    return applyUnlitSurfaces(buffer, rgba, options.unlitPrimitiveIds);
+    return applyUnlitSurfaces(
+      buffer,
+      rgba,
+      options.unlitPrimitiveIds,
+      tones.unlit,
+    );
   }
   const selectedOwners = Uint8Array.from(buffer.primitiveIds, (id) =>
     options.selectedId != null && id === options.selectedId ? 1 : 0,
@@ -631,7 +647,7 @@ export function shadeSurfaceBuffer(
         buffer.normals[offset + 1]! * light.y +
         buffer.normals[offset + 2]! * light.z,
     );
-    const brightness = 0.72 + 0.27 * (ambient + (1 - ambient) * lambert);
+    const brightness = shadow + span * (ambient + (1 - ambient) * lambert);
     const value = brightness * 255;
     const selected = selectedOwners[index] === 1;
     const colorOffset = pixel * 4;
@@ -641,23 +657,32 @@ export function shadeSurfaceBuffer(
     rgba[colorOffset + 3] = 255;
   }
 
-  return applyUnlitSurfaces(buffer, rgba, options.unlitPrimitiveIds);
+  return applyUnlitSurfaces(
+    buffer,
+    rgba,
+    options.unlitPrimitiveIds,
+    tones.unlit,
+  );
 }
 
 function applyUnlitSurfaces(
   buffer: SurfaceBuffer,
   rgba: Uint8ClampedArray,
-  primitiveIds?: readonly string[],
+  primitiveIds: readonly string[] | undefined,
+  unlit: number,
 ): Uint8ClampedArray {
   if (!primitiveIds?.length) return rgba;
   const ids = new Set(primitiveIds);
   const unlitOwners = Uint8Array.from(buffer.primitiveIds, (id) =>
     ids.has(id) ? 1 : 0,
   );
+  const value = Math.round(Math.max(0, Math.min(1, unlit)) * 255);
   for (let pixel = 0; pixel < buffer.primitiveIndices.length; pixel++) {
     const owner = buffer.primitiveIndices[pixel]!;
-    if (owner >= 0 && unlitOwners[owner])
-      rgba.fill(255, pixel * 4, pixel * 4 + 4);
+    if (owner >= 0 && unlitOwners[owner]) {
+      rgba.fill(value, pixel * 4, pixel * 4 + 3);
+      rgba[pixel * 4 + 3] = 255;
+    }
   }
   return rgba;
 }
