@@ -13,6 +13,7 @@ import { Camera } from "@hlr/camera/camera.js";
 import { clamp, orbitFromCamera, orbitPosition } from "../runtime/orbit";
 import { useDemoSvg } from "../runtime/useDemoSvg";
 import { useFrameState } from "../runtime/useFrameState";
+import { useRafLoop } from "../runtime/useRaf";
 import {
   buildExamFigure,
   type ExamFigureModel,
@@ -27,6 +28,41 @@ export type { HiddenLineMode };
 
 type Offset = { azimuth: number; polar: number };
 const ORIGIN: Offset = { azimuth: 0, polar: 0 };
+/** After the reader turns a spinning figure, it waits this long to resume. */
+const SPIN_RESUME_MS = 3500;
+/** A spinning figure redraws at most this often. */
+const SPIN_FRAME_S = 1 / 30;
+
+function usePrefersReducedMotion(): boolean {
+  const [reduce, setReduce] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!media) return;
+    const update = () => setReduce(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return reduce;
+}
+
+/** True while the element is on screen; off-screen figures stop animating. */
+function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setOnScreen(entry?.isIntersecting ?? true),
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return onScreen;
+}
 
 type Drag = {
   id: number;
@@ -49,6 +85,8 @@ export type ExamFigureProps = {
   eager?: boolean;
   /** Static thumbnails skip rotation and the tool buttons. */
   interactive?: boolean;
+  /** Turn slowly about the vertical axis, in radians per second. */
+  spin?: number;
   className?: string;
 };
 
@@ -101,6 +139,7 @@ export function ExamFigure({
   ratio = 0.75,
   eager = false,
   interactive = true,
+  spin = 0,
   className = "",
 }: ExamFigureProps): React.ReactElement {
   const ref = useRef<HTMLDivElement>(null);
@@ -121,6 +160,7 @@ export function ExamFigure({
           width={width}
           height={height}
           interactive={interactive}
+          spin={spin}
         />
       ) : (
         <div className="fig-pending" role="img" aria-label={label} />
@@ -136,6 +176,7 @@ function FigureCanvas({
   width,
   height,
   interactive,
+  spin,
 }: {
   id: string;
   build?: (width: number, height: number) => ExamFigureModel;
@@ -143,6 +184,7 @@ function FigureCanvas({
   width: number;
   height: number;
   interactive: boolean;
+  spin: number;
 }): React.ReactElement {
   const hintId = useId();
   const hiddenLines = useContext(HiddenLineContext);
@@ -162,6 +204,31 @@ function FigureCanvas({
   const [offset, input] = useFrameState<Offset>(ORIGIN);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<Drag | null>(null);
+
+  // A slow turntable: it pauses while the reader turns the figure, resumes a
+  // moment later, and stops off screen or when reduced motion is preferred.
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const onScreen = useOnScreen(canvasRef);
+  const reduceMotion = usePrefersReducedMotion();
+  const lastTouched = useRef(-Infinity);
+  const pending = useRef(0);
+  const touched = () => {
+    lastTouched.current = performance.now();
+  };
+  useRafLoop(
+    interactive && spin > 0 && onScreen && !reduceMotion && !dragging,
+    (elapsed) => {
+      if (performance.now() - lastTouched.current < SPIN_RESUME_MS) return;
+      pending.current += elapsed;
+      if (pending.current < SPIN_FRAME_S) return;
+      const turn = spin * pending.current;
+      pending.current = 0;
+      input.schedule((current) => ({
+        ...current,
+        azimuth: current.azimuth + turn,
+      }));
+    },
+  );
 
   const camera = useMemo(() => {
     const orbit = {
@@ -247,6 +314,7 @@ function FigureCanvas({
   return (
     <>
       <div
+        ref={canvasRef}
         className="fig-canvas"
         role="img"
         aria-label={label}
@@ -255,6 +323,7 @@ function FigureCanvas({
         data-dragging={dragging || undefined}
         onPointerDown={(event) => {
           if (event.pointerType === "mouse" && event.button !== 0) return;
+          touched();
           dragRef.current = {
             id: event.pointerId,
             touch: event.pointerType === "touch",
@@ -285,14 +354,19 @@ function FigureCanvas({
               : drag.start.polar - dy * 0.008,
           });
         }}
-        onPointerUp={end}
+        onPointerUp={(event) => {
+          touched();
+          end(event);
+        }}
         onPointerCancel={end}
         onLostPointerCapture={() => {
+          touched();
           input.flush();
           dragRef.current = null;
           setDragging(false);
         }}
         onKeyDown={(event) => {
+          touched();
           if (event.key === "Home") {
             event.preventDefault();
             reset();

@@ -191,6 +191,7 @@ function Hero({ schoolYear }: { schoolYear: number }) {
           id={LEAD_QUESTION.figure.id}
           label={LEAD_QUESTION.figure.label}
           ratio={0.74}
+          spin={0.14}
           eager
         />
       </figure>
