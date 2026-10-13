@@ -19,6 +19,7 @@ import {
   freePoint,
   isPositioned,
   isRotated,
+  isSlidingPoint,
   KIND_NAMES,
   OPERATION_NAMES,
   type EditorDoc,
@@ -26,7 +27,7 @@ import {
   type PointConstraint,
   type RenderSettings,
 } from "./model";
-import { CONSTRAINT_NAMES } from "./resolve";
+import { constraintName } from "./resolve";
 import type { EditorAction } from "./state";
 import { ALL_TOOLS, toolAction, type ToolContext } from "./tools";
 
@@ -218,7 +219,7 @@ function ObjectPanel({
     object.kind === "boolean"
       ? `불리언 · ${OPERATION_NAMES[object.op]}`
       : object.kind === "point" && object.constraint
-        ? `점 · ${CONSTRAINT_NAMES[object.constraint.type]}`
+        ? `점 · ${constraintName(object.constraint, byId)}`
         : KIND_NAMES[object.kind];
 
   return (
@@ -631,6 +632,7 @@ function ConstraintSection({
               : c.type === "onPlane"
                 ? of(c.plane)
                 : of(c.of);
+  const sliding = isSlidingPoint(point);
   const field = (
     label: string,
     value: number,
@@ -651,7 +653,7 @@ function ConstraintSection({
   return (
     <Section title="작도">
       <div className="ed-readout">
-        <span>{CONSTRAINT_NAMES[c.type]}</span>
+        <span>{constraintName(c, byId)}</span>
         <strong>{from}</strong>
       </div>
       {c.type === "onSegment" &&
@@ -683,9 +685,9 @@ function ConstraintSection({
         </strong>
       </div>
       <p className="ed-hint">
-        {c.type === "onSegment" || c.type === "onSphere" || c.type === "onPlane"
+        {sliding
           ? "화면에서 끌면 규칙을 지킨 채 움직입니다."
-          : "기준 도형을 옮기면 따라 움직입니다."}
+          : "기준 도형을 옮기면 따라 움직입니다. 직접 옮기려면 자유 점으로 푸세요."}
       </p>
       <div className="ed-row-actions">
         <button
@@ -934,6 +936,11 @@ function ScenePanel({
           <li>
             <kbd>Shift</kbd>+누르기로 여럿 고르기, 같은 자리를 다시 누르면 뒤의
             도형
+          </li>
+          <li>
+            <kbd>P</kbd> 점 찍기: 꼭짓점·선분·구·평면 위를 누르면 거기에
+            붙습니다. 점을 끌 때 <kbd>Shift</kbd>는 위아래, <kbd>⌥</kbd>는
+            스냅 끄기
           </li>
           <li>
             빼기: 구 → 원기둥 순서로 고르고 <strong>빼기</strong>

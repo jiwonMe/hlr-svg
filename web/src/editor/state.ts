@@ -1,6 +1,7 @@
 import type { CsgOperation } from "@hlr/scene/primitives/csg.js";
 import { add3, type Tuple3 } from "./math";
 import {
+  canMerge,
   consumedIds,
   createBoolean,
   dependents,
@@ -52,6 +53,8 @@ export type EditorAction =
       roots?: readonly string[];
     }
   | { type: "boolean"; op: CsgOperation; a: string; b: string }
+  /** Point `from` dropped onto point `into`: everything drawn through it moves over. */
+  | { type: "merge"; from: string; into: string; transient?: boolean }
   /** Removes a boolean and gives its operands back. */
   | { type: "dissolve"; id: string }
   | { type: "settings"; patch: Partial<RenderSettings>; transient?: boolean }
@@ -302,6 +305,25 @@ export function editorReducer(
         ...commit(state, withObjects(doc, [...doc.objects, object])),
         selection: [object.id],
       };
+    }
+    case "merge": {
+      if (!canMerge(doc.objects, action.from, action.into)) return state;
+      const next = withObjects(
+        doc,
+        doc.objects
+          .filter((object) => object.id !== action.from)
+          .map((object) =>
+            mapReferences(object, (id) => (id === action.from ? action.into : id)),
+          ),
+      );
+      const selection = [
+        ...new Set(
+          state.selection.map((id) => (id === action.from ? action.into : id)),
+        ),
+      ];
+      return action.transient
+        ? { ...state, doc: next, selection }
+        : { ...commit(state, next), selection };
     }
     case "dissolve": {
       const target = doc.objects.find((object) => object.id === action.id);

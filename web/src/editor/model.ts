@@ -79,8 +79,11 @@ export type PointConstraint =
   | { type: "intersection"; line: string; surface: string }
   | { type: "onSegment"; segment: string; t: number }
   | { type: "onSphere"; sphere: string; azimuth: number; elevation: number }
+  /** On a plane or disk, `u` along its local x and `v` along its local z. */
   | { type: "onPlane"; plane: string; u: number; v: number }
-  | { type: "center"; of: string };
+  | { type: "center"; of: string }
+  /** A corner, apex or base centre of a shape (see anchors.ts). */
+  | { type: "anchor"; of: string; key: string };
 
 export type PointObject = Base & {
   kind: "point";
@@ -228,6 +231,12 @@ export function isFreePoint(object: EditorObject | undefined): boolean {
   return object?.kind === "point" && !object.constraint;
 }
 
+/** Points that slide along what they are on when dragged. */
+export function isSlidingPoint(object: EditorObject | undefined): boolean {
+  const type = object?.kind === "point" ? object.constraint?.type : undefined;
+  return type === "onSegment" || type === "onSphere" || type === "onPlane";
+}
+
 /** Ids an object reads from; they must exist for it to make sense. */
 export function references(object: EditorObject): string[] {
   switch (object.kind) {
@@ -254,6 +263,25 @@ export function references(object: EditorObject): string[] {
     default:
       return [];
   }
+}
+
+/**
+ * Whether point `from` can be merged into point `into`: nothing may draw
+ * through both (it would collapse) and `into` must not be built on `from`.
+ */
+export function canMerge(
+  objects: readonly EditorObject[],
+  from: string,
+  into: string,
+): boolean {
+  if (from === into) return false;
+  const kinds = objects.filter((o) => o.id === from || o.id === into);
+  if (kinds.length !== 2 || kinds.some((o) => o.kind !== "point")) return false;
+  if (dependents(objects, [from]).has(into)) return false;
+  return !objects.some((object) => {
+    const refs = references(object);
+    return refs.includes(from) && refs.includes(into);
+  });
 }
 
 /** Everything that depends on any of `ids`, transitively (deleted with them). */
@@ -447,6 +475,22 @@ export function createPoint(
   position: Tuple3 = [0, 0, 0],
 ): PointObject {
   return { ...baseFor(objects, "point"), kind: "point", position, constraint };
+}
+
+/** A point put down in the viewport, named after its letter. */
+export function placePoint(
+  objects: readonly EditorObject[],
+  position: Tuple3,
+  constraint?: PointConstraint,
+): PointObject {
+  const base = baseFor(objects, "point");
+  return {
+    ...base,
+    name: `점 ${base.label}`,
+    kind: "point",
+    position,
+    ...(constraint ? { constraint } : {}),
+  };
 }
 
 export function createAngle(

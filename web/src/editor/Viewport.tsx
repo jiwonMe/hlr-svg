@@ -1,5 +1,6 @@
 import React, {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -12,6 +13,7 @@ import { Scene } from "@hlr/core/scene.js";
 import { SvgRenderer } from "@hlr/core/svgRenderer.js";
 import { evalCubic3, type CubicBezier3 } from "@hlr/curves/cubicBezier3.js";
 import { Vec3 } from "@hlr/math/vec3.js";
+import { Csg } from "@hlr/scene/primitives/csg.js";
 import { Scene as RaycastScene } from "@hlr/scene/scene.js";
 import {
   SurfaceDiagram,
@@ -39,6 +41,8 @@ import {
   axisAngleMatrix,
   dot3,
   frameOf,
+  length3,
+  lerp3,
   scale3,
   snapValue,
   sub3,
@@ -48,12 +52,26 @@ import {
 import {
   isPositioned,
   isRotated,
+  isSlidingPoint,
+  placePoint,
   type EditorDoc,
   type EditorObject,
+  type PointConstraint,
   type PointObject,
   type PositionedObject,
 } from "./model";
-import { sphereAngles } from "./resolve";
+import { sphereAngles, sphereDirection } from "./resolve";
+import {
+  dragSnap,
+  dragTargets,
+  placementSnap,
+  segmentRatio,
+  slideLabel,
+  type DragTargets,
+  type Point2,
+  type Snap,
+  type SnapView,
+} from "./snap";
 import type { EditorAction } from "./state";
 import {
   axisScalePatch,
@@ -64,7 +82,7 @@ import {
   scalePatches,
   transformTargets,
 } from "./transform";
-import { cameraFor, type Projection } from "./viewCamera";
+import { cameraFor, worldPerPixel, type Projection } from "./viewCamera";
 
 export type { Projection };
 
@@ -83,7 +101,17 @@ const RING = 64;
 const SCALE_ARM = 62;
 const SCALE_RING = 92;
 
-type Point2 = { x: number; y: number };
+/** The plane a free point slides in: the floor plane through it, straight up and down, or facing the view. */
+type DragPlane = "floor" | "height" | "screen";
+
+/** What the overlay shows about a snap: a marker, its tag and the host. */
+type SnapMark = {
+  snap: Snap;
+  /** Placing shows the point it would make. */
+  preview: boolean;
+  /** Dragged free points show how high they are above the floor. */
+  drop: boolean;
+};
 
 type Drag =
   | {
@@ -128,11 +156,20 @@ type Drag =
   | {
       kind: "point";
       id: number;
+      /** Where the cursor was when the current plane was taken up. */
       x: number;
       y: number;
       point: PointObject;
+      /** Where the point was then. */
       start: Tuple3;
       started: boolean;
+      plane: DragPlane;
+      floor0: Tuple3 | null;
+      /** Where the point is now, to take up another plane from. */
+      last: Tuple3;
+      /** Free points: what they may land on. */
+      targets: DragTargets | null;
+      snap: Snap | null;
     }
   | {
       kind: "label";
@@ -160,15 +197,10 @@ type ViewportProps = {
   projection: Projection;
   gizmo: GizmoMode;
   snap: number;
+  /** Clicks put down points instead of picking. */
+  placing: boolean;
   onRendered?: (ms: number) => void;
 };
-
-/** World units per screen pixel at a point, for both projections. */
-function worldPerPixel(camera: Camera, p: Tuple3, height: number): number {
-  if (camera.kind === "orthographic") return (2 * camera.halfHeight!) / height;
-  const depth = Vec3.dot(Vec3.sub(vec(p), camera.position), camera.forward);
-  return (2 * Math.max(0.05, depth) * Math.tan(camera.fovYRad! / 2)) / height;
-}
 
 function basisFor(axis: Tuple3): [Tuple3, Tuple3] {
   const helper: Tuple3 = Math.abs(axis[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
@@ -217,6 +249,7 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       projection,
       gizmo,
       snap,
+      placing,
       onRendered,
     },
     ref,
@@ -229,6 +262,11 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
     const dragRef = useRef<Drag | null>(null);
     const pointers = useRef(new Map<number, Point2>());
     const [dragKind, setDragKind] = useState<Drag["kind"] | null>(null);
+    /** Where the cursor rests while placing, and whether ⌥ is down. */
+    const [hover, setHover] = useState<{ at: Point2; alt: boolean } | null>(
+      null,
+    );
+    const [dragMark, setDragMark] = useState<SnapMark | null>(null);
     const tones = useSurfaceTones();
     const dragging = dragKind !== null;
     const { settings } = doc;
@@ -403,6 +441,8 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       () => pivotOf(doc.objects, selection, scene, targets),
       [doc.objects, selection, scene, targets],
     );
+    // Points on rules have nothing for a gizmo to move; placing has no gizmo.
+    const showGizmo = !placing && targets.length > 0;
     const single = selection.length === 1 ? byId.get(selection[0]!) : undefined;
     const axesForScale = useMemo(() => scaleFrame(single), [single]);
     const laid = useMemo(
@@ -420,6 +460,77 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
     const rayAt = (at: Point2) => camera.screenToRay(at.x, at.y, width, height);
+
+    /** ⌥ (Alt) turns snapping off while it is held. */
+    const snapView = useCallback(
+      (alt: boolean): SnapView => ({
+        objects: doc.objects,
+        scene,
+        camera,
+        width,
+        height,
+        grid: snap,
+        snapping: !alt,
+      }),
+      [doc.objects, scene, camera, width, height, snap],
+    );
+
+    // The point a click would put down, previewed under the cursor.
+    const preview = useMemo<SnapMark | null>(
+      () =>
+        placing && hover && !dragKind
+          ? {
+              snap: placementSnap(snapView(hover.alt), hover.at),
+              preview: true,
+              drop: false,
+            }
+          : null,
+      [placing, hover, dragKind, snapView],
+    );
+    const mark = dragKind === "point" ? dragMark : preview;
+
+    // Holding or letting go of ⌥ changes the preview without moving the mouse.
+    useEffect(() => {
+      if (!placing) return;
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key !== "Alt") return;
+        setHover((h) =>
+          h && h.alt !== event.altKey ? { ...h, alt: event.altKey } : h,
+        );
+      };
+      window.addEventListener("keydown", onKey);
+      window.addEventListener("keyup", onKey);
+      return () => {
+        window.removeEventListener("keydown", onKey);
+        window.removeEventListener("keyup", onKey);
+      };
+    }, [placing]);
+    useEffect(() => {
+      if (!placing) setHover(null);
+    }, [placing]);
+
+    // The shape or segment a snap lands on, outlined.
+    const hostId = mark?.snap.hostId;
+    const hostPath = useMemo(() => {
+      if (!hostId) return null;
+      const segment = scene.segments.find((s) => s.id === hostId);
+      const projectVec = (p: Vec3) => camera.projectToSvg(p, width, height);
+      if (segment) {
+        const a = projectVec(vec(segment.from));
+        const b = projectVec(vec(segment.to));
+        return `M ${f(a.x)} ${f(a.y)} L ${f(b.x)} ${f(b.y)}`;
+      }
+      const item = scene.pickables.find((p) => p.objectId === hostId);
+      // Boolean outlines are costly to trace; their tag says enough.
+      if (!item || item.primitive instanceof Csg) return null;
+      return curvesFromPrimitives([item.primitive], camera)
+        .map((bez) => cubicPath(bez, projectVec))
+        .join(" ");
+    }, [hostId, scene, camera, width, height]);
+
+    /** Free points slide on the floor plane through them; Shift moves them up and down. */
+    const planeFor = (shift: boolean): DragPlane =>
+      shift ? "height" : Math.abs(camera.forward.y) > 0.2 ? "floor" : "screen";
 
     /** Everything under the cursor, drawn shapes first, nearest first. */
     const pickAt = (at: Point2): string[] => {
@@ -509,8 +620,9 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         ?.getAttribute("data-label");
       const pick = target.closest("[data-pick]")?.getAttribute("data-pick");
       const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+      const picked = pick ? byId.get(pick) : undefined;
 
-      if (handle && pivot && event.button === 0) {
+      if (handle && pivot && showGizmo && event.button === 0) {
         const [mode, axisName] = handle.split("-") as [GizmoMode, string];
         const axis =
           axisName === "c" || axisName === "u"
@@ -556,7 +668,7 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         return;
       }
 
-      if (labelId && event.button === 0) {
+      if (labelId && !placing && event.button === 0) {
         choose(labelId, additive);
         const object = byId.get(labelId);
         if (object && !additive)
@@ -576,16 +688,15 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         return;
       }
 
-      if (pick && event.button === 0) {
+      // While placing, points still drag; a click anywhere else puts one down.
+      if (pick && event.button === 0 && (!placing || picked?.kind === "point")) {
         choose(pick, additive);
-        const object = byId.get(pick);
-        const draggable =
-          object?.kind === "point" &&
-          (!object.constraint ||
-            object.constraint.type === "onSegment" ||
-            object.constraint.type === "onSphere" ||
-            object.constraint.type === "onPlane");
-        if (draggable && !additive)
+        if (
+          picked?.kind === "point" &&
+          (!picked.constraint || isSlidingPoint(picked)) &&
+          !additive
+        ) {
+          const start = scene.points.get(picked.id) ?? picked.position;
           beginDrag(
             event,
             {
@@ -593,12 +704,20 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
               id: event.pointerId,
               x: at.x,
               y: at.y,
-              point: object,
-              start: scene.points.get(object.id) ?? object.position,
+              point: picked,
+              start,
               started: false,
+              plane: planeFor(false),
+              floor0: floorHit(at, start[1]),
+              last: start,
+              targets: picked.constraint
+                ? null
+                : dragTargets(doc.objects, picked.id),
+              snap: null,
             },
             false,
           );
+        }
         return;
       }
 
@@ -689,22 +808,80 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       return scalePatches(group, p, k);
     };
 
+    /** Where a free point would go on its drag plane, before snapping. */
+    const freeCandidate = (
+      drag: Extract<Drag, { kind: "point" }>,
+      at: Point2,
+    ): Tuple3 | null => {
+      const dx = at.x - drag.x;
+      const dy = at.y - drag.y;
+      if (drag.plane === "floor") {
+        const now = floorHit(at, drag.start[1]);
+        if (!now || !drag.floor0) return null;
+        const delta = sub3(now, drag.floor0);
+        // Near the horizon a small motion flings the point far away.
+        return length3(delta) > 500 ? null : add3(drag.start, delta);
+      }
+      if (drag.plane === "height") {
+        const c = project(drag.start);
+        const tip = project(add3(drag.start, [0, 1, 0]));
+        const sx = tip.x - c.x;
+        const sy = tip.y - c.y;
+        const len2 = sx * sx + sy * sy;
+        if (len2 < 1e-3) return null;
+        return add3(drag.start, [0, (dx * sx + dy * sy) / len2, 0]);
+      }
+      const k = worldPerPixel(camera, drag.start, height);
+      const shift = Vec3.add(
+        Vec3.mulScalar(right, dx * k),
+        Vec3.mulScalar(screenUp, -dy * k),
+      );
+      return add3(drag.start, [shift.x, shift.y, shift.z]);
+    };
+
+    /** The point's new rule and position, and what the overlay says about it. */
     const pointPatch = (
       drag: Extract<Drag, { kind: "point" }>,
       at: Point2,
-    ): Partial<EditorObject> | null => {
+      alt: boolean,
+    ): { patch: Partial<PointObject>; snap: Snap } | null => {
+      const view = snapView(alt);
+      const rounding = view.snapping && snap > 0;
       const c = drag.point.constraint;
       if (!c) {
-        const k = worldPerPixel(camera, drag.start, height);
-        const shift = Vec3.add(
-          Vec3.mulScalar(right, (at.x - drag.x) * k),
-          Vec3.mulScalar(screenUp, -(at.y - drag.y) * k),
-        );
-        let next = add3(drag.start, [shift.x, shift.y, shift.z]);
-        if (snap > 0)
-          next = next.map((v) => snapValue(v, snap)) as unknown as Tuple3;
-        return { position: next };
+        if (!drag.targets) return null;
+        const candidate = freeCandidate(drag, at);
+        if (!candidate) return null;
+        const round: [boolean, boolean, boolean] =
+          drag.plane === "floor"
+            ? [true, false, true]
+            : drag.plane === "height"
+              ? [false, true, false]
+              : [Math.abs(right.x) > 0.1, true, Math.abs(right.z) > 0.1];
+        const landed = dragSnap(view, drag.targets, candidate, round);
+        return {
+          patch: {
+            constraint: landed.constraint,
+            position: landed.position,
+          },
+          snap: landed,
+        };
       }
+      const slide = (
+        constraint: PointConstraint,
+        position: Tuple3,
+        hostId: string,
+        label: string,
+      ) => ({
+        patch: { constraint },
+        snap: {
+          kind: constraint.type === "onSegment" ? ("segment" as const) : ("surface" as const),
+          position,
+          constraint,
+          hostId,
+          label,
+        },
+      });
       if (c.type === "onSegment") {
         const segment = byId.get(c.segment);
         if (segment?.kind !== "segment") return null;
@@ -715,13 +892,19 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         const b = project(b3);
         const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
         if (len2 < 1) return null;
-        let t = clamp(
-          0,
+        const { t, text } = segmentRatio(
+          view,
+          a3,
+          b3,
           ((at.x - a.x) * (b.x - a.x) + (at.y - a.y) * (b.y - a.y)) / len2,
-          1,
         );
-        if (snap > 0) t = Math.round(t * 20) / 20;
-        return { constraint: { ...c, t } };
+        const constraint = { ...c, t };
+        return slide(
+          constraint,
+          lerp3(a3, b3, t),
+          c.segment,
+          slideLabel(doc.objects, constraint, text),
+        );
       }
       if (c.type === "onSphere") {
         const sphere = byId.get(c.sphere);
@@ -738,15 +921,24 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
           p.y - center.y,
           p.z - center.z,
         ]);
-        if (snap > 0) {
+        if (rounding) {
           azimuth = Math.round(azimuth / 5) * 5;
           elevation = Math.round(elevation / 5) * 5;
         }
-        return { constraint: { ...c, azimuth, elevation } };
+        const constraint = { ...c, azimuth, elevation };
+        return slide(
+          constraint,
+          add3(
+            sphere.position,
+            scale3(sphereDirection(azimuth, elevation), sphere.radius),
+          ),
+          c.sphere,
+          slideLabel(doc.objects, constraint),
+        );
       }
       if (c.type === "onPlane") {
         const plane = byId.get(c.plane);
-        if (plane?.kind !== "plane") return null;
+        if (plane?.kind !== "plane" && plane?.kind !== "disk") return null;
         const frame = frameOf(plane.rotation);
         const ray = rayAt(at);
         const dir: Tuple3 = [ray.dir.x, ray.dir.y, ray.dir.z];
@@ -758,13 +950,33 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         const rel = sub3(hit, plane.position);
         let u = dot3(rel, frame.right);
         let v = dot3(rel, frame.forward);
-        if (snap > 0) {
+        if (rounding) {
           u = snapValue(u, snap / 2);
           v = snapValue(v, snap / 2);
         }
-        return { constraint: { ...c, u, v } };
+        const constraint = { ...c, u, v };
+        return slide(
+          constraint,
+          add3(
+            plane.position,
+            add3(scale3(frame.right, u), scale3(frame.forward, v)),
+          ),
+          c.plane,
+          slideLabel(doc.objects, constraint),
+        );
       }
       return null;
+    };
+
+    /** Puts a point down where a click at `at` lands, or picks the point there. */
+    const placeAt = (at: Point2, alt: boolean) => {
+      const landed = placementSnap(snapView(alt), at);
+      if (landed.pointId) dispatch({ type: "select", ids: [landed.pointId] });
+      else
+        dispatch({
+          type: "add",
+          objects: [placePoint(doc.objects, landed.position, landed.constraint)],
+        });
     };
 
     const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -772,7 +984,11 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       if (pointers.current.has(event.pointerId))
         pointers.current.set(event.pointerId, at);
       const drag = dragRef.current;
-      if (!drag) return;
+      if (!drag) {
+        if (placing && event.pointerType !== "touch")
+          setHover({ at, alt: event.altKey });
+        return;
+      }
 
       if (drag.kind === "pinch") {
         const a = pointers.current.get(drag.ids[0]);
@@ -849,14 +1065,30 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         if (patches)
           dispatch({ type: "updateMany", patches, transient: true });
       } else if (drag.kind === "point") {
-        const patch = pointPatch(drag, at);
-        if (patch)
-          dispatch({
-            type: "update",
-            id: drag.point.id,
-            patch,
-            transient: true,
-          });
+        const plane = planeFor(event.shiftKey);
+        if (!drag.point.constraint && plane !== drag.plane) {
+          // Take up the new plane where the point is, so it does not jump.
+          drag.plane = plane;
+          drag.x = at.x;
+          drag.y = at.y;
+          drag.start = drag.last;
+          drag.floor0 = floorHit(at, drag.last[1]);
+        }
+        const moved = pointPatch(drag, at, event.altKey);
+        if (!moved) return;
+        dispatch({
+          type: "update",
+          id: drag.point.id,
+          patch: moved.patch,
+          transient: true,
+        });
+        if (!drag.point.constraint) drag.last = moved.snap.position;
+        drag.snap = moved.snap;
+        setDragMark({
+          snap: moved.snap,
+          preview: false,
+          drop: !drag.point.constraint,
+        });
       } else {
         dispatch({
           type: "update",
@@ -890,13 +1122,26 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
       viewInput.flush();
       dragRef.current = null;
       setDragKind(null);
+      if (drag.kind === "point") {
+        setDragMark(null);
+        // Dropped on another point: become that point.
+        if (drag.started && drag.snap?.kind === "point" && drag.snap.pointId)
+          dispatch({
+            type: "merge",
+            from: drag.point.id,
+            into: drag.snap.pointId,
+            transient: true,
+          });
+      }
       if (
         drag.kind === "orbit" &&
         !drag.moved &&
         drag.click &&
         event.type === "pointerup"
-      )
-        clickPick(pointer(event), drag.additive);
+      ) {
+        if (placing) placeAt(pointer(event), event.altKey);
+        else clickPick(pointer(event), drag.additive);
+      }
     };
 
     const ghosts = useMemo(() => {
@@ -928,10 +1173,12 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         ref={wrapRef}
         className="ed-viewport"
         data-dragging={dragging || undefined}
+        data-placing={placing || undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onPointerLeave={() => setHover(null)}
         onContextMenu={(event) => event.preventDefault()}
       >
         {settings.grid && (
@@ -961,13 +1208,18 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
           height={height}
           gizmo={gizmo}
           pivot={
-            dragKind === null || dragKind === "transform" ? pivot : null
+            showGizmo && (dragKind === null || dragKind === "transform")
+              ? pivot
+              : null
           }
+          pointHandle={single?.kind === "point"}
           canRotate={targets.some(isRotated) || targets.length > 1}
           scaleAxes={axesForScale}
           labels={laid}
           showLabels={labels}
           ghosts={ghosts}
+          mark={mark}
+          hostPath={hostPath}
         />
       </div>
     );
@@ -1006,6 +1258,83 @@ function GridLayer({
   );
 }
 
+/** The marker, tag and host outline for where a point lands. */
+function SnapMarker({
+  mark,
+  hostPath,
+  project,
+  width,
+}: {
+  mark: SnapMark;
+  hostPath: string | null;
+  project: (p: Tuple3) => { x: number; y: number };
+  width: number;
+}) {
+  const { snap } = mark;
+  const p = project(snap.position);
+  const x = p.x;
+  const y = p.y;
+  const at = (dx: number, dy: number) => `${f(x + dx)} ${f(y + dy)}`;
+  let glyph: React.ReactNode = null;
+  if (snap.kind === "point")
+    glyph = <circle className="ed-snap-glyph" cx={f(x)} cy={f(y)} r={8} />;
+  else if (snap.kind === "anchor")
+    glyph = (
+      <rect className="ed-snap-glyph" x={f(x - 5.5)} y={f(y - 5.5)} width={11} height={11} />
+    );
+  else if (snap.kind === "center")
+    glyph = <circle className="ed-snap-glyph" cx={f(x)} cy={f(y)} r={6.5} />;
+  else if (snap.kind === "midpoint")
+    glyph = (
+      <path className="ed-snap-glyph" d={`M ${at(0, -7.5)} L ${at(6.5, 4)} L ${at(-6.5, 4)} Z`} />
+    );
+  else if (snap.kind === "segment")
+    glyph = (
+      <path
+        className="ed-snap-glyph"
+        d={`M ${at(-5, -5)} L ${at(5, 5)} M ${at(5, -5)} L ${at(-5, 5)}`}
+      />
+    );
+  else if (snap.kind === "surface" || snap.kind === "solid")
+    glyph = (
+      <path
+        className={snap.kind === "solid" ? "ed-snap-glyph is-loose" : "ed-snap-glyph"}
+        d={`M ${at(0, -7)} L ${at(7, 0)} L ${at(0, 7)} L ${at(-7, 0)} Z`}
+      />
+    );
+  else if (snap.kind === "floor")
+    glyph = (
+      <path className="ed-snap-glyph" d={`M ${at(-6, 0)} L ${at(6, 0)} M ${at(0, -6)} L ${at(0, 6)}`} />
+    );
+  // Free points show how high they float: a plumb line down to the floor.
+  const [px, py, pz] = snap.position;
+  const foot = mark.drop && Math.abs(py) > 1e-6 ? project([px, 0, pz]) : null;
+  const flip = x > width - 200;
+  return (
+    <g className="ed-snap-mark" aria-hidden="true">
+      {hostPath && <path className="ed-snap-host" d={hostPath} />}
+      {foot && (
+        <>
+          <line className="ed-snap-drop" x1={f(x)} y1={f(y)} x2={f(foot.x)} y2={f(foot.y)} />
+          <circle className="ed-snap-foot" cx={f(foot.x)} cy={f(foot.y)} r={2.5} />
+        </>
+      )}
+      {glyph}
+      {(mark.preview || snap.kind === "center") && (
+        <circle className="ed-snap-dot" cx={f(x)} cy={f(y)} r={mark.preview ? 3 : 1.6} />
+      )}
+      <text
+        className="ed-snap-tag"
+        x={f(flip ? x - 13 : x + 13)}
+        y={f(y < 30 ? y + 24 : y - 13)}
+        textAnchor={flip ? "end" : "start"}
+      >
+        {snap.label}
+      </text>
+    </g>
+  );
+}
+
 function Overlay({
   objects,
   scene,
@@ -1015,11 +1344,14 @@ function Overlay({
   height,
   gizmo,
   pivot,
+  pointHandle,
   canRotate,
   scaleAxes,
   labels,
   showLabels,
   ghosts,
+  mark,
+  hostPath,
 }: {
   objects: readonly EditorObject[];
   scene: BuiltScene;
@@ -1029,11 +1361,15 @@ function Overlay({
   height: number;
   gizmo: GizmoMode;
   pivot: Tuple3 | null;
+  /** One point is picked: the point itself is the handle, so the gizmo keeps clear of it. */
+  pointHandle: boolean;
   canRotate: boolean;
   scaleAxes: (Tuple3 | null)[] | null;
   labels: readonly LaidLabel[];
   showLabels: boolean;
   ghosts: readonly { id: string; d: string; strong: boolean }[];
+  mark: SnapMark | null;
+  hostPath: string | null;
 }) {
   const project = (p: Tuple3) => camera.projectToSvg(vec(p), width, height);
   const right = Vec3.normalize(Vec3.cross(camera.forward, UP));
@@ -1142,11 +1478,7 @@ function Overlay({
   for (const object of objects) {
     if (object.kind !== "point" || object.hidden) continue;
     const p = project(scene.points.get(object.id) ?? object.position);
-    const fixed =
-      !!object.constraint &&
-      object.constraint.type !== "onSegment" &&
-      object.constraint.type !== "onSphere" &&
-      object.constraint.type !== "onPlane";
+    const fixed = !!object.constraint && !isSlidingPoint(object);
     if (selected.has(object.id))
       marks.push(
         object.constraint ? (
@@ -1229,7 +1561,7 @@ function Overlay({
           </g>,
         );
       });
-    } else if (gizmo === "scale") {
+    } else if (gizmo === "scale" && !pointHandle) {
       gizmoParts.push(
         <g key="scale-u" className="ed-gizmo-part" data-gizmo="scale-u">
           <circle className="ed-gizmo-hit" cx={f(c.x)} cy={f(c.y)} r={SCALE_RING} />
@@ -1252,18 +1584,20 @@ function Overlay({
         );
       });
     } else if (gizmo === "move") {
-      // Floor handle: drag on the horizontal plane through the pivot.
+      // Floor handle: drag on the horizontal plane through the pivot. A
+      // point already slides on that plane when dragged itself.
       const fx = project(add3(pivot, [18 * k, 0, 0]));
       const fz = project(add3(pivot, [0, 0, 18 * k]));
       const fxz = project(add3(pivot, [18 * k, 0, 18 * k]));
-      gizmoParts.push(
-        <g key="move-f" className="ed-gizmo-part" data-gizmo="move-f">
-          <path
-            className="ed-gizmo-floor"
-            d={`M ${f(c.x)} ${f(c.y)} L ${f(fx.x)} ${f(fx.y)} L ${f(fxz.x)} ${f(fxz.y)} L ${f(fz.x)} ${f(fz.y)} Z`}
-          />
-        </g>,
-      );
+      if (!pointHandle)
+        gizmoParts.push(
+          <g key="move-f" className="ed-gizmo-part" data-gizmo="move-f">
+            <path
+              className="ed-gizmo-floor"
+              d={`M ${f(c.x)} ${f(c.y)} L ${f(fx.x)} ${f(fx.y)} L ${f(fxz.x)} ${f(fxz.y)} L ${f(fz.x)} ${f(fz.y)} Z`}
+            />
+          </g>,
+        );
       AXES.forEach((axis, index) => {
         const tip = project(add3(pivot, scale3(axis, ARROW * k)));
         const dx = tip.x - c.x;
@@ -1276,7 +1610,7 @@ function Overlay({
         const name = AXIS_NAMES[index]!;
         gizmoParts.push(
           <g key={`axis-${name}`} className={`ed-gizmo-part axis-${name.toLowerCase()}`} data-gizmo={`move-${name.toLowerCase()}`}>
-            <line className="ed-gizmo-hit" x1={f(c.x)} y1={f(c.y)} x2={f(tip.x)} y2={f(tip.y)} />
+            <line className="ed-gizmo-hit" x1={f(c.x + ux * (pointHandle ? 12 : 0))} y1={f(c.y + uy * (pointHandle ? 12 : 0))} x2={f(tip.x)} y2={f(tip.y)} />
             <line className="ed-gizmo-line" x1={f(c.x + ux * 8)} y1={f(c.y + uy * 8)} x2={f(tip.x - ux * 8)} y2={f(tip.y - uy * 8)} />
             <path className="ed-gizmo-head" d={head} />
             <text className="ed-gizmo-label" x={f(tip.x + ux * 12)} y={f(tip.y + uy * 12)}>
@@ -1286,7 +1620,7 @@ function Overlay({
         );
       });
     }
-    if (gizmo === "move" || gizmo === "scale")
+    if ((gizmo === "move" || gizmo === "scale") && !pointHandle)
       gizmoParts.push(
         <g key="center" className="ed-gizmo-part" data-gizmo={gizmo === "move" ? "move-c" : "scale-u"}>
           <rect className="ed-gizmo-center" x={f(c.x - 6)} y={f(c.y - 6)} width={12} height={12} />
@@ -1321,6 +1655,9 @@ function Overlay({
       <g className="ed-marks">{marks}</g>
       <g className="ed-hits">{hits}</g>
       <g className="ed-gizmo">{gizmoParts}</g>
+      {mark && (
+        <SnapMarker mark={mark} hostPath={hostPath} project={project} width={width} />
+      )}
     </svg>
   );
 }

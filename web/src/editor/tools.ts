@@ -51,7 +51,7 @@ export const CONSTRUCT_TOOLS: readonly Tool[] = [
   { id: "center", label: "중심", needs: "도형·면·선분 하나를 고르세요" },
   { id: "onSegment", label: "선분 위", needs: "선분 하나를 고르세요" },
   { id: "onSphere", label: "구 위", needs: "구 하나를 고르세요" },
-  { id: "onPlane", label: "평면 위", needs: "평면 하나를 고르세요" },
+  { id: "onPlane", label: "평면 위", needs: "평면이나 원판 하나를 고르세요" },
 ];
 
 export const BOOLEAN_TOOLS: readonly Tool[] = [
@@ -235,10 +235,12 @@ export function toolAction(id: ToolId, ctx: ToolContext): EditorAction | null {
       return point ? add([point]) : null;
     }
     case "onPlane": {
-      if (one?.kind !== "plane") return null;
+      if (one?.kind !== "plane" && one?.kind !== "disk") return null;
+      const [u, v] =
+        one.kind === "plane" ? [one.width / 4, one.depth / 4] : [one.radius / 2, 0];
       const point = constructed(
         objects,
-        { type: "onPlane", plane: one.id, u: one.width / 4, v: one.depth / 4 },
+        { type: "onPlane", plane: one.id, u, v },
         "PQ",
       );
       return point ? add([point]) : null;

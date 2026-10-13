@@ -23,12 +23,11 @@ import {
   projectedPathsToSvg,
   type SvgStyle,
 } from "@hlr/svg/svgWriter.js";
+import { boxCorners, planeCorners, positive } from "./anchors";
 import { isMathLabel, labelBoxEm, labelSvg } from "./labels";
 import {
   add3,
-  applyMat,
   dot3,
-  eulerToMatrix,
   frameOf,
   isRightAngleRotation,
   length3,
@@ -89,9 +88,6 @@ export type BuiltScene = {
   pickables: Pickable[];
 };
 
-const MIN_SIZE = 0.01;
-const positive = (value: number) => Math.max(MIN_SIZE, value);
-
 function ring(center: Tuple3, a: Tuple3, b: Tuple3, radius: number): Tuple3[] {
   return Array.from({ length: 16 }, (_, i) => {
     const t = (i / 16) * Math.PI * 2;
@@ -111,45 +107,6 @@ export function boundsOf(points: readonly Tuple3[]): Bounds {
       max[i] = Math.max(max[i]!, p[i]!);
     }
   return { min: min as unknown as Tuple3, max: max as unknown as Tuple3 };
-}
-
-export function boxCorners(
-  position: Tuple3,
-  rotation: Tuple3,
-  size: Tuple3,
-): Tuple3[] {
-  const m = eulerToMatrix(rotation);
-  return Array.from({ length: 8 }, (_, i) =>
-    add3(
-      position,
-      applyMat(m, [
-        ((i & 1 ? 1 : -1) * positive(size[0])) / 2,
-        ((i & 2 ? 1 : -1) * positive(size[1])) / 2,
-        ((i & 4 ? 1 : -1) * positive(size[2])) / 2,
-      ]),
-    ),
-  );
-}
-
-/** Corners of a plane rectangle, in order around its border. */
-export function planeCorners(
-  object: Extract<EditorObject, { kind: "plane" }>,
-  scale = 1,
-): Tuple3[] {
-  const { right, forward } = frameOf(object.rotation);
-  const hw = (positive(object.width) / 2) * scale;
-  const hd = (positive(object.depth) / 2) * scale;
-  return [
-    [-1, -1],
-    [1, -1],
-    [1, 1],
-    [-1, 1],
-  ].map(([a, b]) =>
-    add3(
-      object.position,
-      add3(scale3(right, a! * hw), scale3(forward, b! * hd)),
-    ),
-  );
 }
 
 /** The library solid for a closed shape; turned boxes become oriented boxes. */

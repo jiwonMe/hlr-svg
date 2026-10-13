@@ -1,3 +1,4 @@
+import { anchorOf } from "./anchors";
 import {
   add3,
   clean,
@@ -113,12 +114,16 @@ export function resolvePoints(objects: readonly EditorObject[]): Map<string, Tup
       }
       case "onPlane": {
         const plane = byId.get(c.plane);
-        if (plane?.kind !== "plane") return null;
+        if (plane?.kind !== "plane" && plane?.kind !== "disk") return null;
         const { right, forward } = frameOf(plane.rotation);
         return add3(plane.position, add3(scale3(right, c.u), scale3(forward, c.v)));
       }
       case "center":
         return centerOf(c.of);
+      case "anchor": {
+        const shape = byId.get(c.of);
+        return (shape && anchorOf(shape, c.key)?.position) ?? null;
+      }
     }
   }
 
@@ -176,4 +181,19 @@ export const CONSTRAINT_NAMES: Record<PointConstraint["type"], string> = {
   onSphere: "구 위의 점",
   onPlane: "평면 위의 점",
   center: "중심",
+  anchor: "꼭짓점",
 };
+
+/** What a rule makes of its point, e.g. "밑면의 중심" or "원판 위의 점". */
+export function constraintName(
+  c: PointConstraint,
+  byId: ReadonlyMap<string, EditorObject>,
+): string {
+  if (c.type === "anchor") {
+    const shape = byId.get(c.of);
+    return (shape && anchorOf(shape, c.key)?.name) ?? CONSTRAINT_NAMES.anchor;
+  }
+  if (c.type === "onPlane" && byId.get(c.plane)?.kind === "disk")
+    return "원판 위의 점";
+  return CONSTRAINT_NAMES[c.type];
+}

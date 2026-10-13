@@ -44,15 +44,55 @@ this page gives each label with a translation.
 | rotate (회전) | `E` | rings around X/Y/Z                                                                            |
 | scale (크기)  | `R` | the dashed circle or center box scale evenly; boxes at axis ends change that dimension only   |
 
-- With **snap** (0.1 … 1), positions snap to that step, rotation to 15°, size to 0.05.
+- With **snap** (0.1 … 1), positions snap to that step, rotation to 15°, size to 0.05. Holding `⌥` (Alt)
+  turns snapping off.
 - With several objects selected they move, turn and scale together about their center.
 - Arrow keys nudge by the snap step (Shift + ↑↓ moves up and down).
 - Scale handles: a box's sides; for cylinders and cones Y is the height and X/Z the radius; a plane's width and depth.
 
-## Points and constructions
+## Placing and attaching points
 
-A **point** (점) is free and stays where you put it. **Construction** (작도) tools create points with a
-rule based on what is selected, and those points follow when their references move. A tool turns green when the selection fits.
+Press **점** (point, `P`) to start placing. A preview point and a tag follow the cursor, and a click puts
+the point down. Dragging still orbits the view; `Esc` or `P` stops placing.
+
+A new point attaches to whatever is under the cursor and follows it from then on.
+
+| Under the cursor                                                  | New point                                   |
+| ----------------------------------------------------------------- | ------------------------------------------- |
+| an existing point                                                 | none: that point is selected instead        |
+| a corner of a box or plane, a cone's apex, a cylinder or cone base centre | pinned there (□)                    |
+| the centre of a sphere, disk or plane                             | its centre (○)                              |
+| the middle of a segment                                           | its midpoint (△)                            |
+| a segment                                                         | on the segment, catching at 1 : 2, 2 : 1, 1 : 3 and 3 : 1 (×) |
+| a sphere, plane or disk                                           | on that surface (◇)                         |
+| any other surface                                                 | a free point there (dashed ◇)               |
+| empty space                                                       | a free point on the floor grid, y = 0 (+)   |
+
+- The tag says what the point attaches to, and the shape it lands on is outlined in green.
+- Click with `⌥` (Alt) held to attach to nothing and skip the grid.
+- The corners A–H in the `정육면체의 단면` (cube section) template are pinned too, so they follow the cube
+  when it is resized or turned.
+
+### Dragging points
+
+- A free point slides on the horizontal plane at its height. Hold **Shift** while dragging to move it
+  straight up and down. In level views such as front and side it moves parallel to the screen.
+- While it moves, a dashed plumb line to the floor shows its height, and the grid applies only to the
+  coordinates it is moving along.
+- Dropped on a corner, centre or segment, it attaches there. Spheres, planes and disks catch it only where
+  it actually touches them, so a point floating above a plane is not pulled onto it; lower it with Shift
+  until it touches.
+- Dropped on another point, it merges into that point, and the segments, faces and marks through it now
+  go through that point. Points that would collapse something, such as the two ends of one segment, do
+  not merge.
+- Points on a segment, sphere or plane slide only within it. Pinned points such as corners and midpoints
+  do not drag; press **자유 점으로 풀기** (make free) in the properties panel to move one.
+- A selected point is its own handle; its X/Y/Z arrows move it along one axis.
+
+## Constructions
+
+**Construction** (작도) tools create points with a rule based on what is selected, and those points follow
+when their references move. A tool turns green when the selection fits.
 
 | Tool                        | Select                                          | New point        |
 | --------------------------- | ----------------------------------------------- | ---------------- |
@@ -62,7 +102,7 @@ rule based on what is selected, and those points follow when their references mo
 | 중심 center                 | a shape, face or segment                        | O (G for faces, M for segments) |
 | 선분 위 on segment          | a segment; dragging slides along it             | P                |
 | 구 위 on sphere             | a sphere; dragging slides over it               | P                |
-| 평면 위 on plane            | a plane; dragging moves within it               | P                |
+| 평면 위 on plane            | a plane or disk; dragging moves within it       | P                |
 
 Rule-based points expose their values (ratio, azimuth, elevation and so on) in the properties panel, and
 **자유 점으로 풀기** (make free) drops the rule and leaves the point in place. Rules that cannot be
@@ -140,10 +180,13 @@ curves, labels, point dots, floor grid (for work only, never exported) and light
 | `⌘A`                   | select all                     |
 | `Delete`, `Backspace`  | delete                         |
 | `H`                    | hide / show                    |
+| `P`                    | start or stop placing points   |
 | `W` `E` `R`            | move, rotate, scale tools      |
 | `F`                    | frame                          |
 | `0` `1` `3` `7` `5`    | views, projection toggle       |
 | arrows, Shift + ↑↓     | nudge                          |
-| `Esc`                  | clear selection, close dialogs |
+| Shift while dragging a point | move it up and down only |
+| hold `⌥` (Alt)         | no snapping or attaching       |
+| `Esc`                  | close dialogs, stop placing, clear selection |
 
 On Windows and Linux use `Ctrl` instead of `⌘`. Copied objects can be pasted into the studio in another tab.

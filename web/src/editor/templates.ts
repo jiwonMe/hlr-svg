@@ -53,6 +53,11 @@ function point(
   };
 }
 
+/** Corner `index` of a box: bits 0, 1 and 2 pick its +x, +y and +z side. */
+function corner(of: string, index: number): PointConstraint {
+  return { type: "anchor", of, key: `corner${index}` };
+}
+
 function segment(
   id: string,
   from: string,
@@ -228,14 +233,15 @@ export const TEMPLATES: readonly Template[] = [
             rotation: [0, 0, 0],
             size: [2, 2, 2],
           },
-          point("A", "A", [-1, 2, 1]),
-          point("B", "B", [1, 2, 1]),
-          point("C", "C", [1, 2, -1]),
-          point("D", "D", [-1, 2, -1]),
-          point("E", "E", [-1, 0, 1]),
-          point("F", "F", [1, 0, 1]),
-          point("G", "G", [1, 0, -1]),
-          point("H", "H", [-1, 0, -1]),
+          // Pinned to the cube's corners, so they follow it when it changes.
+          point("A", "A", [-1, 2, 1], corner("cube", 6)),
+          point("B", "B", [1, 2, 1], corner("cube", 7)),
+          point("C", "C", [1, 2, -1], corner("cube", 3)),
+          point("D", "D", [-1, 2, -1], corner("cube", 2)),
+          point("E", "E", [-1, 0, 1], corner("cube", 4)),
+          point("F", "F", [1, 0, 1], corner("cube", 5)),
+          point("G", "G", [1, 0, -1], corner("cube", 1)),
+          point("H", "H", [-1, 0, -1], corner("cube", 0)),
           segment("BD", "B", "D"),
           segment("DE", "D", "E"),
           segment("EB", "E", "B"),

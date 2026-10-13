@@ -38,8 +38,17 @@ const {
   pivotOf,
   axisAngleMatrix,
   createObject,
+  placePoint,
+  canMerge,
+  constraintName,
+  anchorsOf,
+  placementSnap,
+  dragSnap,
+  dragTargets,
 } = await load(
   "../web/src/editor/build.ts",
+  "../web/src/editor/anchors.ts",
+  "../web/src/editor/snap.ts",
   "../web/src/editor/state.ts",
   "../web/src/editor/tools.ts",
   "../web/src/editor/templates.ts",
@@ -289,4 +298,123 @@ test("annotations draw angle marks, radicals and dimmed hidden points", { skip }
   assert.ok(!ids.includes("OHA"), "a right angle has a mark, not a number");
   // O, the centre, sits inside the sphere: its dot is dimmed.
   assert.match(svg, /opacity="0\.45"/);
+});
+
+test("points pinned to corners and base centres follow their shape", { skip }, () => {
+  const doc = template("cube-section");
+  nearPoint(resolvePoints(doc.objects).get("A"), [-1, 2, 1]);
+  const wider = doc.objects.map((o) => (o.id === "cube" ? { ...o, size: [4, 2, 2] } : o));
+  const points = resolvePoints(wider);
+  nearPoint(points.get("A"), [-2, 2, 1]);
+  nearPoint(points.get("G"), [2, 0, -1]);
+
+  const cone = { ...createObject([], "cone"), id: "cone", position: [0, 1, 0], height: 2 };
+  const turned = {
+    ...createObject([], "cylinder"),
+    id: "can",
+    position: [0, 1, 0],
+    rotation: [0, 0, 90],
+    height: 2,
+  };
+  const at = (object, key) => anchorsOf(object).find((a) => a.key === key).position;
+  nearPoint(at(cone, "apex"), [0, 2, 0]);
+  nearPoint(at(cone, "base"), [0, 0, 0]);
+  nearPoint(at(turned, "top"), [-1, 1, 0], 1e-12);
+  nearPoint(at(turned, "bottom"), [1, 1, 0], 1e-12);
+  const byId = new Map([cone, turned].map((o) => [o.id, o]));
+  assert.equal(constraintName({ type: "anchor", of: "cone", key: "base" }, byId), "밑면의 중심");
+  assert.equal(constraintName({ type: "anchor", of: "can", key: "top" }, byId), "윗면의 중심");
+});
+
+/** A box, a ball, a floor plate and a segment PQ beside a lone point R. */
+function snapScene() {
+  const box = { ...createObject([], "box"), id: "box", name: "상자", position: [0, 1, 0] };
+  const ball = { ...createObject([], "sphere"), id: "ball", name: "구", position: [0, 1, -4] };
+  const plate = { ...createObject([], "plane"), id: "plate", name: "판", position: [0, 0, 6] };
+  const P = { ...placePoint([], [3, 0, 3]), id: "P", label: "P" };
+  const Q = { ...placePoint([], [5, 0, 1]), id: "Q", label: "Q" };
+  const R = { ...placePoint([], [7, 0, -1]), id: "R", label: "R" };
+  const PQ = { id: "PQ", kind: "segment", name: "선분", label: "", hidden: false, from: "P", to: "Q", arrow: false, line: "auto" };
+  const objects = [box, ball, plate, P, Q, R, PQ];
+  const view = (snapping = true) => ({
+    objects,
+    scene: buildScene({ objects }),
+    camera,
+    width: 600,
+    height: 400,
+    grid: 0.5,
+    snapping,
+  });
+  const screen = (p) => camera.projectToSvg(new Vec3(...p), 600, 400);
+  return { objects, view, screen };
+}
+
+test("a placed point lands on what is under the cursor, with its rule", { skip }, () => {
+  const { view, screen } = snapScene();
+  const corner = placementSnap(view(), screen([1, 2, 1]));
+  assert.equal(corner.kind, "anchor");
+  assert.deepEqual(corner.constraint, { type: "anchor", of: "box", key: "corner7" });
+  assert.equal(corner.label, "꼭짓점 · 상자");
+
+  // Up the visible side of the ball, clear of its centre on screen.
+  const side = [0.3, 0.8, 0.5].map((v) => v / Math.hypot(0.3, 0.8, 0.5));
+  const front = placementSnap(view(), screen([side[0], 1 + side[1], -4 + side[2]]));
+  assert.equal(front.constraint.type, "onSphere");
+  assert.equal(front.constraint.sphere, "ball");
+  near(front.constraint.azimuth % 5, 0);
+  near(Math.hypot(front.position[0], front.position[1] - 1, front.position[2] + 4), 1, 1e-9);
+
+  const floor = placementSnap(view(), screen([6.1, 0, -2.1]));
+  assert.equal(floor.kind, "floor");
+  nearPoint(floor.position, [6, 0, -2]);
+
+  const third = placementSnap(view(), screen([3 + 2 * 0.34, 0, 3 - 2 * 0.34]));
+  assert.equal(third.kind, "segment");
+  near(third.constraint.t, 1 / 3);
+  assert.match(third.label, /1 : 2$/);
+
+  const middle = placementSnap(view(), screen([4, 0, 2]));
+  assert.deepEqual(middle.constraint, { type: "midpoint", a: "P", b: "Q" });
+  assert.equal(placementSnap(view(), screen([7, 0, -1])).pointId, "R", "picks R, no new point");
+
+  // ⌥: no rule and no rounding, but still on the surface under the cursor.
+  const loose = placementSnap(view(false), screen([1, 2, 1]));
+  assert.equal(loose.kind, "free");
+  assert.equal(loose.constraint, undefined);
+});
+
+test("a dragged point merges into points and sticks to what it touches", { skip }, () => {
+  const { objects, view } = snapScene();
+  assert.equal(canMerge(objects, "P", "Q"), false, "PQ would collapse");
+  assert.equal(canMerge(objects, "P", "R"), true);
+  const targets = dragTargets(objects, "P");
+  assert.deepEqual([...targets.mergeable].sort(), ["R"]);
+  assert.ok(targets.exclude.has("PQ"), "P cannot land on its own segment");
+
+  const onto = dragSnap(view(), targets, [7, 0, -1], [true, false, true]);
+  assert.equal(onto.pointId, "R");
+  assert.equal(onto.label, "점 R에 합치기");
+
+  const touching = dragSnap(view(), targets, [1.2, 0.03, 6.8], [true, false, true]);
+  assert.equal(touching.constraint.type, "onPlane");
+  nearPoint(touching.position, [1.25, 0, 6.75]);
+
+  // Above the plate it only moves on the grid of its drag plane.
+  const above = dragSnap(view(), targets, [1.2, 1.3, 6.8], [true, false, true]);
+  assert.equal(above.kind, "free");
+  nearPoint(above.position, [1, 1.3, 7]);
+
+  const merged = editorReducer(
+    { ...start({ ...template("sphere-plane"), objects }), selection: ["P"] },
+    { type: "merge", from: "P", into: "R" },
+  );
+  assert.ok(!merged.doc.objects.some((o) => o.id === "P"));
+  assert.equal(merged.doc.objects.find((o) => o.id === "PQ").from, "R");
+  assert.deepEqual(merged.selection, ["R"]);
+  const refused = editorReducer(start({ ...template("sphere-plane"), objects }), {
+    type: "merge",
+    from: "P",
+    into: "Q",
+  });
+  assert.equal(refused.doc.objects.length, objects.length);
 });

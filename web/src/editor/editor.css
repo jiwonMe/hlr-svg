@@ -169,6 +169,11 @@
 .ed-viewport[data-dragging] {
   cursor: grabbing;
 }
+.ed-viewport[data-placing]:not([data-dragging]),
+.ed-viewport[data-placing]:not([data-dragging]) .ed-hit-line,
+.ed-viewport[data-placing]:not([data-dragging]) .ed-label-hit {
+  cursor: crosshair;
+}
 .ed-grid,
 .ed-overlay {
   position: absolute;
@@ -288,6 +293,48 @@
 }
 .ed-brackets.is-operand {
   stroke-dasharray: 3 3;
+}
+/* Where a point lands: marker, tag, the shape it lands on, plumb line. */
+.ed-snap-host {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+}
+.ed-snap-glyph {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.ed-snap-glyph.is-loose {
+  stroke-dasharray: 2.5 2;
+}
+.ed-snap-dot {
+  fill: var(--accent);
+}
+.ed-snap-drop {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+.ed-snap-foot {
+  fill: var(--bg);
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+.ed-snap-tag {
+  font:
+    600 11.5px var(--sans),
+    sans-serif;
+  fill: var(--accent);
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 .ed-gizmo-part {
   cursor: grab;
@@ -460,6 +507,11 @@
   border-color: var(--accent) !important;
   background: var(--accent-wash);
   color: var(--ink);
+}
+.ed-add-btn[aria-pressed="true"] {
+  border-color: var(--accent) !important;
+  background: var(--accent);
+  color: var(--bg);
 }
 .ed-palette-sub {
   justify-content: space-between;

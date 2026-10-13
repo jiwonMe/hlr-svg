@@ -21,7 +21,7 @@ import {
   type ToolContext,
 } from "./tools";
 
-export type ShapeKind = SolidKind | SurfaceKind | "point";
+export type ShapeKind = SolidKind | SurfaceKind;
 
 const SHAPES: readonly ShapeKind[] = [
   "sphere",
@@ -80,10 +80,15 @@ function ToolButtons({
 /** Shapes to drop in, and constructions that work on the selection. */
 export function AddPalette({
   onAdd,
+  placing,
+  onTogglePlacing,
   ctx,
   dispatch,
 }: {
   onAdd: (kind: ShapeKind) => void;
+  /** The 점 tool: clicks in the viewport put down points. */
+  placing: boolean;
+  onTogglePlacing: () => void;
   ctx: ToolContext;
   dispatch: React.Dispatch<EditorAction>;
 }) {
@@ -106,8 +111,9 @@ export function AddPalette({
         <button
           type="button"
           className="ed-add-btn"
-          onClick={() => onAdd("point")}
-          title="점 추가"
+          aria-pressed={placing}
+          onClick={onTogglePlacing}
+          title="점 찍기 (P) — 누른 자리에 점을 놓습니다. 꼭짓점·선분·구·평면에 놓으면 거기에 붙습니다."
         >
           <KindIcon kind="point" />
           <span>점</span>

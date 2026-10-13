@@ -49,6 +49,7 @@ import { Inspector } from "./editor/Inspector";
 import { formatNumber, snapValue, vec, type Tuple3 } from "./editor/math";
 import {
   createObject,
+  isFreePoint,
   isPositioned,
   KIND_NAMES,
   parseDoc,
@@ -274,6 +275,8 @@ export function GeometryPlayground(): React.ReactElement {
   );
   const [gizmo, setGizmo] = useState<GizmoMode>("move");
   const [snap, setSnap] = useState<number>(0.5);
+  /** Clicks in the viewport put down points (the 점 tool, P). */
+  const [placing, setPlacing] = useState(false);
   const [renderMs, setRenderMs] = useState(0);
   const [dialog, setDialog] = useState<null | "code" | "templates">(null);
   const [message, setMessage] = useState("");
@@ -354,8 +357,17 @@ export function GeometryPlayground(): React.ReactElement {
     };
   }, [params, setParams, loadScene]);
 
-  const latest = useRef({ doc, selection, snap, scene, dropAt: ctx.dropAt });
-  latest.current = { doc, selection, snap, scene, dropAt: ctx.dropAt };
+  const latest = useRef({
+    doc,
+    selection,
+    snap,
+    scene,
+    dropAt: ctx.dropAt,
+    placing,
+  });
+  latest.current = { doc, selection, snap, scene, dropAt: ctx.dropAt, placing };
+
+  const togglePlacing = useCallback(() => setPlacing((on) => !on), []);
 
   const addShape = useCallback((kind: ShapeKind) => {
     const { doc: current, dropAt } = latest.current;
@@ -468,6 +480,7 @@ export function GeometryPlayground(): React.ReactElement {
         selection: picked,
         snap: grid,
         scene: built,
+        placing: placingNow,
       } = latest.current;
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
@@ -490,8 +503,10 @@ export function GeometryPlayground(): React.ReactElement {
         dispatch({ type: "remove", ids: picked });
       } else if (key === "escape") {
         if (dialog) setDialog(null);
+        else if (placingNow) setPlacing(false);
         else dispatch({ type: "select", ids: [] });
-      } else if (key === "w") setGizmo("move");
+      } else if (key === "p") setPlacing((on) => !on);
+      else if (key === "w") setGizmo("move");
       else if (key === "e") setGizmo("rotate");
       else if (key === "r") setGizmo("scale");
       else if (key === "f") frame(selectionBounds(picked, built));
@@ -684,7 +699,13 @@ export function GeometryPlayground(): React.ReactElement {
 
       <div className="ed-body">
         <aside className="ed-left" aria-label="만들기와 장면 목록">
-          <MemoPalette onAdd={addShape} ctx={ctx} dispatch={dispatch} />
+          <MemoPalette
+            onAdd={addShape}
+            placing={placing}
+            onTogglePlacing={togglePlacing}
+            ctx={ctx}
+            dispatch={dispatch}
+          />
           <MemoOutliner
             objects={objects}
             selection={selection}
@@ -704,7 +725,10 @@ export function GeometryPlayground(): React.ReactElement {
               ]}
               onChange={setGizmo}
             />
-            <label className="ed-snap">
+            <label
+              className="ed-snap"
+              title="격자 간격. 점은 이와 따로 점·꼭짓점·선분·면에 붙습니다. ⌥를 누르는 동안은 둘 다 끕니다."
+            >
               <span>스냅</span>
               <select
                 value={snap}
@@ -769,14 +793,18 @@ export function GeometryPlayground(): React.ReactElement {
             projection={projection}
             gizmo={gizmo}
             snap={snap}
+            placing={placing}
             onRendered={setRenderMs}
           />
 
           <footer className="ed-statusbar">
             <span className="ed-status-selection">{selectionText}</span>
             <span className="ed-status-hint">
-              끌기 회전 · Shift 끌기 이동 · Shift+누르기 여럿 · W·E·R
-              이동·회전·크기 · F 맞춤 · ⌘C·⌘V 복사
+              {placing
+                ? "점 찍기 · 누르면 그 자리에 점 · 끌기 회전 · ⌥ 스냅 끄기 · Esc 끝내기"
+                : isFreePoint(single)
+                  ? "점 끌기 · 수평으로 움직임 · 끄는 중 Shift 위아래 · ⌥ 스냅 끄기 · 다른 점에 놓으면 합치기"
+                  : "끌기 회전 · Shift 끌기 이동 · Shift+누르기 여럿 · P 점 찍기 · W·E·R 이동·회전·크기 · F 맞춤"}
             </span>
             <span className="ed-status-meta" role="status">
               {message || `렌더 ${renderMs.toFixed(0)}ms · 자동 저장`}
