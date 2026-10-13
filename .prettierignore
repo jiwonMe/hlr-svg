@@ -5,3 +5,4 @@ coverage
 demo.svg
 _tmp_*.svg
 skills/hlr-svg/scripts/hlr.mjs
+web/public/upmath.js

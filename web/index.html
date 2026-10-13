@@ -21,7 +21,11 @@
         document.documentElement.style.colorScheme = theme;
       })();
     </script>
-    
+    <!-- upmath.js draws $$…$$ formulas as SVG pictures from i.upmath.me. It
+         must run before the page finishes loading: run any later, it calls
+         processTree before defining it and never sets window.S2Latex. -->
+    <script src="/upmath.js" defer></script>
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="HLR SVG - Hidden Line Removal for SVG" />

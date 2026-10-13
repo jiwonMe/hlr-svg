@@ -397,6 +397,9 @@
   line-height: 1.85;
   word-break: normal;
 }
+.example-notes .tex {
+  --latex-zoom: 0.82; /* 15px */
+}
 .example-code .code-window-body {
   max-height: 560px;
 }

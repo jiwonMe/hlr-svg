@@ -12,45 +12,6 @@ import { ExamFigure } from "./ExamFigure";
 import type { FigureId } from "./figures";
 import "./exam.css";
 
-/* ── Math typesetting: just enough for exam stems and choices ─────────── */
-
-export function V({ children }: { children: React.ReactNode }) {
-  return <var className="m-v">{children}</var>;
-}
-
-export function Sqrt({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="m-sqrt">
-      <span className="m-rad">{children}</span>
-    </span>
-  );
-}
-
-/** `say` is what a screen reader hears, e.g. "3분의 루트 3". */
-export function Frac({
-  n,
-  d,
-  say,
-}: {
-  n: React.ReactNode;
-  d: React.ReactNode;
-  say?: string;
-}) {
-  return (
-    <span className="m-frac-wrap">
-      <span className="m-frac" aria-hidden={say ? true : undefined}>
-        <span className="m-num">{n}</span>
-        <span className="m-den">{d}</span>
-      </span>
-      {say && <span className="sr-only">{say}</span>}
-    </span>
-  );
-}
-
-export function Vec({ children }: { children: React.ReactNode }) {
-  return <span className="m-vec">{children}</span>;
-}
-
 /* ── Answers shared between the paper, the clipping and the answer key ─── */
 
 export type Choice = 1 | 2 | 3 | 4 | 5;

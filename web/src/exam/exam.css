@@ -68,10 +68,12 @@
   outline-offset: 3px;
   border-radius: 50%;
 }
+/* 답은 수식 그림이라 밑줄(text-decoration)이 그어지지 않는다. */
+.q-choice-value {
+  border-bottom: 1px solid transparent;
+}
 .q-choice:hover .q-choice-value {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
+  border-bottom-color: currentColor;
 }
 .q-tag {
   display: inline-flex;
@@ -113,74 +115,20 @@
 }
 
 /* ── 수식 ─────────────────────────────────────────────────────────────── */
-.m-v {
-  font-family: var(--math);
-  font-style: italic;
-  padding-right: 0.04em;
+/* upmath.js가 $$…$$를 i.upmath.me의 SVG 그림으로 바꾼다. 11pt LaTeX가
+   1em ≈ 18.3px로 그려지므로 --latex-zoom으로 둘레 글자 크기에 맞춘다. */
+.tex {
+  --latex-zoom: 0.874; /* 16px */
 }
-.q sub,
-.bogi sub,
-.m-sub {
-  font-size: 0.68em;
-  vertical-align: -0.3em;
-  line-height: 0;
+.tex img {
+  display: inline; /* Tailwind preflight는 그림을 블록으로 만든다. */
 }
-.m-frac-wrap {
-  display: inline-block;
-  vertical-align: middle;
+.q-fig-caption .tex {
+  --latex-zoom: 0.683; /* 12.5px */
 }
-.m-frac {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  margin: 0 0.12em;
-  font-size: 0.84em;
-  line-height: 1.1;
-  text-align: center;
-  text-indent: 0;
-}
-.m-num {
-  padding: 0 0.12em 0.08em;
-  border-bottom: 1px solid currentColor;
-}
-.m-den {
-  padding: 0.08em 0.12em 0;
-}
-.m-sqrt {
-  white-space: nowrap;
-}
-.m-sqrt::before {
-  content: "√";
-  margin-right: -0.02em;
-}
-.m-rad {
-  padding: 0 0.05em 0 0.04em;
-  border-top: 1px solid currentColor;
-}
-.m-vec {
-  position: relative;
-  display: inline-block;
-  padding-top: 0.28em;
-  line-height: 1.15;
-}
-.m-vec::before {
-  content: "";
-  position: absolute;
-  left: 0.06em;
-  right: 0.06em;
-  top: 0.14em;
-  border-top: 1px solid currentColor;
-}
-.m-vec::after {
-  content: "";
-  position: absolute;
-  right: 0.05em;
-  top: calc(0.14em - 2.5px);
-  width: 5px;
-  height: 5px;
-  border-top: 1px solid currentColor;
-  border-right: 1px solid currentColor;
-  transform: rotate(45deg);
+/* 어두운 화면: 먹색 수식을 분필색(--ink #ededed)으로 뒤집는다. */
+:root[data-theme="dark"] .tex img {
+  filter: invert(0.93);
 }
 
 /* ── 채점 펜: 고른 답은 먹, 채점은 초록 ──────────────────────────────── */
@@ -528,6 +476,9 @@
   .q-cond,
   .q-choices {
     font-size: 15.5px;
+  }
+  :is(.q-stem, .q-cond, .q-choices) .tex {
+    --latex-zoom: 0.847;
   }
   .q-choices {
     gap: 0 2px;
