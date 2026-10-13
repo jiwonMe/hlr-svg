@@ -4,7 +4,13 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "out/**", "node_modules/**", "coverage/**"],
+    ignores: [
+      "dist/**",
+      "out/**",
+      "node_modules/**",
+      "coverage/**",
+      "skills/hlr-svg/scripts/hlr.mjs",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -27,6 +33,14 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+    },
+  },
+  {
+    files: ["scripts/**/*.mjs", "skills/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
     },
   },
   {

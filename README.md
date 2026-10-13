@@ -20,6 +20,18 @@ Full documentation (English and Korean) lives at [hlr.js.org](https://hlr.js.org
 For AI assistants there is an [llms.txt](https://hlr.js.org/llms.txt) index and the whole documentation in
 one file: [llms-full.txt](https://hlr.js.org/llms-full.txt) (Korean: [llms-full.ko.txt](https://hlr.js.org/llms-full.ko.txt)).
 
+## Agent Skill
+
+[`skills/hlr-svg`](skills/hlr-svg) is an [Agent Skill](https://agentskills.io) for Claude Code, Codex, Cursor and other coding agents. The agent describes a scene as JSON and runs one Node command to get the SVG; the library is bundled in the skill, so there is nothing to `npm install`.
+
+```sh
+npx skills add jiwonMe/hlr-svg -g -a claude-code   # Claude Code: ~/.claude/skills/hlr-svg
+npx skills add jiwonMe/hlr-svg -g -a codex         # Codex: ~/.agents/skills/hlr-svg
+npx skills add jiwonMe/hlr-svg -a cursor           # Cursor, this project: .agents/skills/hlr-svg
+```
+
+Then ask for a figure, for example `/hlr-svg draw a cube ABCD-EFGH with the space diagonal AG`. Installing without the CLI, `AGENTS.md` and Cursor rules, and the scene format are in the [skill's README](skills/hlr-svg/README.md).
+
 ## Tooling
 
 - **Package manager**: `pnpm 10.33.0`
