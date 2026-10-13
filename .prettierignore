@@ -4,3 +4,4 @@ node_modules
 coverage
 demo.svg
 _tmp_*.svg
+skills/hlr-svg/scripts/hlr.mjs
