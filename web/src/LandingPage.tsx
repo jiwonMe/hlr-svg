@@ -6,13 +6,7 @@ import { sphereSilhouetteToCubics3 } from "@hlr/curves/builders.js";
 import { Vec3 } from "@hlr/math/vec3.js";
 import { PlaneRect } from "@hlr/scene/primitives/planeRect.js";
 import { Sphere } from "@hlr/scene/primitives/sphere.js";
-import {
-  CIRCLED,
-  ExamProvider,
-  PenMark,
-  Question,
-  useExam,
-} from "./exam/exam";
+import { CIRCLED, ExamProvider, PenMark, Question, useExam } from "./exam/exam";
 import {
   ExamFigure,
   HiddenLineProvider,
@@ -148,6 +142,7 @@ export function LandingPage(): React.ReactElement {
               onHidden={setHidden}
             />
             <CodeBand />
+            <SkillBand />
             <Closing />
           </main>
           <SiteFooter />
@@ -167,8 +162,7 @@ function Hero({ schoolYear }: { schoolYear: number }) {
         <ArrowRight aria-hidden="true" size={14} strokeWidth={1.8} />
       </Link>
       <h1 id="hero-title" className="hero-title">
-        보이는 선은 실선으로,{" "}
-        <br />
+        보이는 선은 실선으로, <br />
         가려진 선은 점선으로.
       </h1>
       <p className="hero-sub">
@@ -475,6 +469,102 @@ function CodeBand() {
             ratio={0.75}
           />
         </figure>
+      </div>
+    </section>
+  );
+}
+
+const SKILL_URL = "https://github.com/jiwonMe/hlr-svg/tree/main/skills/hlr-svg";
+
+const SKILL_AGENTS = [
+  { agent: "Claude Code", flag: "claude-code" },
+  { agent: "Codex", flag: "codex" },
+  { agent: "Cursor", flag: "cursor" },
+] as const;
+
+const SKILL_SCENE = `{
+  "title": "A sphere cut by a horizontal plane",
+  "width": 640,
+  "height": 480,
+  "camera": { "azimuth": 30, "elevation": 20 },
+  "objects": [
+    { "type": "sphere", "id": "ball", "center": [0, 0, 0], "radius": 1 },
+    { "type": "plane", "id": "cut", "center": [0, 0.4, 0],
+      "normal": [0, 1, 0], "width": 3.2, "height": 2.4 }
+  ],
+  "points": [
+    { "at": [0, 0, 0], "label": "O", "on": ["ball"] },
+    { "at": [0, 0.4, 0], "label": "O′", "on": ["cut"] }
+  ]
+}`;
+
+const SKILL_RUN = `$ node <skill-dir>/scripts/render.mjs scene.json -o figure.svg
+wrote figure.svg: 640x480, 2 objects, 6 visible / 5 hidden paths`;
+
+function SkillBand() {
+  return (
+    <section
+      className="band code-band skill-band"
+      id="skill"
+      aria-labelledby="skill-title"
+    >
+      <div className="code-copy">
+        <p className="band-eyebrow">서술형 · 에이전트 스킬</p>
+        <h2 id="skill-title" className="band-title">
+          말로 시키면
+          <br />
+          에이전트가 그립니다.
+        </h2>
+        <p className="band-desc">
+          hlr-svg 스킬을 설치하면 Claude Code, Codex, Cursor 같은 코딩
+          에이전트가 “구를 자르는 평면을 그려 줘” 같은 요청을 JSON 장면으로
+          옮기고, 명령 한 줄로 숨은선이 점선 처리된 SVG를 만듭니다. 라이브러리가
+          함께 들어 있어 npm 설치가 필요 없고, Node.js 20 이상이면 됩니다.
+        </p>
+        <ol className="steps">
+          <li>
+            <span className="steps-mark">(가)</span>
+            <span>
+              장면을 쓴다 <code>scene.json</code> — 구·원기둥·원뿔·상자·평면,
+              CSG, OBJ/STL
+            </span>
+          </li>
+          <li>
+            <span className="steps-mark">(나)</span>
+            <span>
+              렌더링한다 <code>scripts/render.mjs</code>
+            </span>
+          </li>
+          <li>
+            <span className="steps-mark">(다)</span>
+            <span>그림을 보고 시점과 라벨을 고쳐 다시 그린다</span>
+          </li>
+        </ol>
+        <div className="skill-install">
+          <p className="skill-install-head">설치</p>
+          {SKILL_AGENTS.map(({ agent, flag }) => (
+            <div key={flag} className="skill-install-row">
+              <span className="skill-agent">{agent}</span>
+              <code>npx skills add jiwonMe/hlr-svg -g -a {flag}</code>
+            </div>
+          ))}
+          <p className="skill-note">
+            ※ skills CLI는 Node.js 22.20 이상이 필요합니다.
+          </p>
+        </div>
+        <a
+          className="text-link"
+          href={SKILL_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub에서 skills/hlr-svg 보기
+          <ArrowRight aria-hidden="true" size={15} strokeWidth={1.8} />
+        </a>
+      </div>
+      <div className="code-demo">
+        <CodeWindow title="scene.json" code={SKILL_SCENE} />
+        <CodeWindow title="터미널" code={SKILL_RUN} />
       </div>
     </section>
   );
