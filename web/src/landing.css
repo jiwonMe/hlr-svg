@@ -376,3 +376,39 @@
     padding: 64px 16px 68px;
   }
 }
+
+/* Agent skill band */
+.skill-install {
+  margin: 20px 0;
+  border-top: 1px solid currentColor;
+  padding-top: 12px;
+}
+.skill-install-head {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.skill-install-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin: 6px 0;
+}
+.skill-agent {
+  min-width: 7.5em;
+  font-weight: 600;
+}
+.skill-install-row code {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+.skill-note {
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin: 10px 0 0;
+}
+.skill-band .code-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
