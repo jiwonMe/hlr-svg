@@ -18,6 +18,7 @@ import {
   type SurfaceDiagramHandle,
 } from "../components/SurfaceDiagram";
 import { useElementSize } from "../docs/examples/useElementSize";
+import { useFormulas } from "../exam/upmath";
 import { useSurfaceTones } from "../site/theme";
 import { clamp, type OrbitState } from "../runtime/orbit";
 import type { FrameStateControl } from "../runtime/useFrameState";
@@ -263,7 +264,7 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
     );
 
     const timing = useRef(0);
-    const lineSvg = useMemo(() => {
+    const lines = useMemo(() => {
       const started = performance.now();
       const svg = renderer.render(hlrScene, camera, {
         curves: scene.curves,
@@ -273,34 +274,47 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(
         // Coarser visibility sampling while the view or a shape is moving.
         hlr: dragging ? { samples: 64, coarseSamples: 16 } : undefined,
       });
-      const extra =
-        forcedLinesSvg(scene, camera, width, height, strokeWidth) +
-        annotationSvg(
-          doc.objects,
-          { labels, pointDots },
-          scene,
-          camera,
-          width,
-          height,
-          occluders,
-        );
+      const forced = forcedLinesSvg(scene, camera, width, height, strokeWidth);
       timing.current = performance.now() - started;
-      return extra ? svg.replace(/<\/svg>\s*$/, () => `${extra}</svg>`) : svg;
+      return forced ? svg.replace(/<\/svg>\s*$/, () => `${forced}</svg>`) : svg;
     }, [
       renderer,
       hlrScene,
-      occluders,
       camera,
       intersections,
       style,
       strokeWidth,
       dragging,
+      scene,
+      width,
+      height,
+    ]);
+    // Labels redraw as their formulas arrive from upmath; the lines stay.
+    const formulas = useFormulas();
+    const lineSvg = useMemo(() => {
+      const extra = annotationSvg(
+        doc.objects,
+        { labels, pointDots },
+        scene,
+        camera,
+        width,
+        height,
+        occluders,
+      );
+      return extra
+        ? lines.replace(/<\/svg>\s*$/, () => `${extra}</svg>`)
+        : lines;
+    }, [
+      lines,
+      occluders,
+      camera,
       doc.objects,
       labels,
       pointDots,
       scene,
       width,
       height,
+      formulas,
     ]);
 
     useEffect(() => onRendered?.(timing.current), [lineSvg, onRendered]);

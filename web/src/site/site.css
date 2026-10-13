@@ -174,7 +174,7 @@
 /* 저장하는 SVG는 그대로 흑백이고, 화면에서만 테마를 따른다. */
 :is(.fig-canvas, .example-canvas, .ed-surface)
   svg
-  :is([fill="#0a0a0a"], [fill="#141414"], [fill="black"]) {
+  :is([fill="#0a0a0a"], [fill="#141414"], [fill="black"], .fig-tex) {
   fill: var(--ink);
 }
 /* 흰 테두리(라벨의 바탕 테, 선을 끊는 흰 선)와 흰 칠은 종이 색을 따른다. */

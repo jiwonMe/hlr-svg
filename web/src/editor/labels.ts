@@ -1,7 +1,11 @@
 /**
  * Exam-style label text in SVG: plain names, subscripts (S1 → S₁), and a
  * small math syntax — `√x` for radicals and `a/b` for stacked fractions.
+ * upmath typesets labels as LaTeX; plain SVG text stands in while a formula
+ * loads and for text LaTeX cannot set, such as Hangul.
  */
+
+import { formulaSvg } from "../exam/upmath";
 
 const SERIF = "'Bookk Myungjo', 'AppleMyungjo', 'Batang', serif";
 const MATH = "'Times New Roman', Times, serif";
@@ -31,6 +35,103 @@ export function isMathLabel(text: string): boolean {
   return text.includes("/") || text.includes("√");
 }
 
+/** Digits after a letter or prime are a subscript (S1, P'2); 2.45 is a number. */
+const SUBSCRIPT = /^(.*[A-Za-zα-ωΑ-Ω'′])([0-9]+|[₀-₉]+)$/;
+
+const asciiDigits = (digits: string) =>
+  digits.replace(/[₀-₉]/g, (d) => String(d.charCodeAt(0) - 0x2080));
+
+const GREEK: Record<string, string> = {
+  α: "alpha",
+  β: "beta",
+  γ: "gamma",
+  δ: "delta",
+  ε: "varepsilon",
+  ζ: "zeta",
+  η: "eta",
+  θ: "theta",
+  ι: "iota",
+  κ: "kappa",
+  λ: "lambda",
+  μ: "mu",
+  ν: "nu",
+  ξ: "xi",
+  π: "pi",
+  ρ: "rho",
+  σ: "sigma",
+  τ: "tau",
+  υ: "upsilon",
+  φ: "varphi",
+  χ: "chi",
+  ψ: "psi",
+  ω: "omega",
+  Γ: "Gamma",
+  Δ: "Delta",
+  Θ: "Theta",
+  Λ: "Lambda",
+  Ξ: "Xi",
+  Π: "Pi",
+  Σ: "Sigma",
+  Φ: "Phi",
+  Ψ: "Psi",
+  Ω: "Omega",
+};
+
+/** LaTeX for a run of label text, or null at a character it cannot set. */
+function texRun(text: string, italic: boolean): string | null {
+  let tex = "";
+  let roman = "";
+  const flush = () => {
+    if (roman) tex += `\\mathrm{${roman}}`;
+    roman = "";
+  };
+  for (const ch of text) {
+    if (!italic && /[A-Za-z]/.test(ch)) {
+      roman += ch;
+      continue;
+    }
+    flush();
+    if (/[A-Za-z0-9.,:;!?()[\]+\-=<>|']/.test(ch)) tex += ch;
+    else if (GREEK[ch]) tex += `{\\${GREEK[ch]}}`;
+    else if (ch === "°") tex += "^{\\circ}";
+    else if (ch === "′") tex += "'";
+    else if (ch === "−") tex += "-";
+    else if (ch === " ") tex += "\\ ";
+    else return null;
+  }
+  flush();
+  return tex;
+}
+
+/**
+ * The label as LaTeX: `S1` → `S_{1}`, `√6/2` → `\frac{\sqrt{6}}{2}`, and
+ * upright letters in \mathrm. Null for text LaTeX cannot set, such as Hangul.
+ */
+export function labelTex(text: string, italic: boolean): string | null {
+  if (!text.trim()) return null;
+  if (!isMathLabel(text)) {
+    const match = SUBSCRIPT.exec(text);
+    const base = texRun(match ? match[1]! : text, italic);
+    return base !== null && match
+      ? `${base}_{${asciiDigits(match[2]!)}}`
+      : base;
+  }
+  const radical = (part: string): string | null => {
+    const at = part.indexOf("√");
+    if (at < 0) return texRun(part, italic);
+    const factor = texRun(part.slice(0, at), italic);
+    const radicand = texRun(part.slice(at + 1), italic);
+    return factor === null || radicand === null
+      ? null
+      : `${factor}\\sqrt{${radicand}}`;
+  };
+  const slash = text.indexOf("/");
+  if (slash < 0) return radical(text);
+  const top = radical(text.slice(0, slash));
+  const bottom = radical(text.slice(slash + 1));
+  return top === null || bottom === null ? null : `\\frac{${top}}{${bottom}}`;
+}
+
 /** Width and height of a label in em, for hit areas and placement. */
 export function labelBoxEm(text: string): { width: number; height: number } {
   if (!isMathLabel(text)) return { width: Math.max(0.6, textWidthEm(text)), height: 1 };
@@ -49,10 +150,9 @@ function fontAttrs(italic: boolean): string {
 
 /** Plain text with trailing digits drawn as a subscript (S1 → S₁). */
 function plainMarkup(text: string): string {
-  const match = /^(.*?[^0-9₀-₉])([0-9₀-₉]+)$/.exec(text);
+  const match = SUBSCRIPT.exec(text);
   if (!match) return escapeText(text);
-  const digits = match[2]!.replace(/[₀-₉]/g, (d) => String(d.charCodeAt(0) - 0x2080));
-  return `${escapeText(match[1]!)}<tspan baseline-shift="sub" font-size="68%">${digits}</tspan>`;
+  return `${escapeText(match[1]!)}<tspan baseline-shift="sub" font-size="68%">${asciiDigits(match[2]!)}</tspan>`;
 }
 
 const n = (value: number) => value.toFixed(2);
@@ -88,7 +188,7 @@ function radicalLine(
 
 /**
  * SVG for a label centred on (x, y). Callers wrap it in a group that sets
- * the font size, fill and white halo.
+ * the font size, fill and a 4px white halo.
  */
 export function labelSvg(
   text: string,
@@ -97,6 +197,9 @@ export function labelSvg(
   size: number,
   italic: boolean,
 ): string {
+  const tex = labelTex(text, italic);
+  const formula = tex === null ? null : formulaSvg(tex, x, y, size);
+  if (formula !== null) return formula;
   if (!isMathLabel(text))
     return `<text x="${n(x)}" y="${n(y)}"${fontAttrs(italic)}>${plainMarkup(text)}</text>`;
   const slash = text.indexOf("/");

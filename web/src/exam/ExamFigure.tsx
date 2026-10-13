@@ -20,6 +20,7 @@ import {
   type FigureId,
 } from "./figures";
 import { lineRenderOptions, type HiddenLineMode } from "./lineStyle";
+import { useFormulas } from "./upmath";
 import "./exam.css";
 
 const HiddenLineContext = createContext<HiddenLineMode>("dashed");
@@ -259,13 +260,15 @@ function FigureCanvas({
 
   const demo = useMemo(() => ({ ...model.demo, camera }), [model, camera]);
   const lines = useDemoSvg(demo, lineRenderOptions(hiddenLines, dragging));
+  // Labels redraw as their formulas arrive from upmath.
+  const formulas = useFormulas();
   const svg = useMemo(
     () =>
       lines.replace(
         /<\/svg>\s*$/,
         () => `${model.annotate(camera, width, height)}</svg>`,
       ),
-    [lines, model, camera, width, height],
+    [lines, model, camera, width, height, formulas],
   );
 
   const rotated = offset.azimuth !== 0 || offset.polar !== 0;

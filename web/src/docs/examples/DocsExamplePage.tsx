@@ -27,6 +27,7 @@ import {
 import { ExamProvider, Question, type QuestionSpec } from "../../exam/exam";
 import { LEAD_QUESTION, PAPER_QUESTIONS } from "../../exam/questions";
 import { lineRenderOptions, type HiddenLineMode } from "../../exam/lineStyle";
+import { useFormulas } from "../../exam/upmath";
 import { CodeWindow } from "../../site/Code";
 import { useSurfaceTones } from "../../site/theme";
 import {
@@ -273,6 +274,8 @@ function InteractiveExample({
     runtimeDemo,
     lineRenderOptions(hiddenLines, dragging || playing),
   );
+  // Labels redraw as their formulas arrive from upmath.
+  const formulas = useFormulas();
   const lineSvg = useMemo(() => {
     const annotations = model.annotate(
       camera,
@@ -281,7 +284,14 @@ function InteractiveExample({
     );
     if (!annotations) return renderedLines;
     return renderedLines.replace(/<\/svg>\s*$/, () => `${annotations}</svg>`);
-  }, [camera, model, renderedLines, runtimeDemo.width, runtimeDemo.height]);
+  }, [
+    camera,
+    model,
+    renderedLines,
+    runtimeDemo.width,
+    runtimeDemo.height,
+    formulas,
+  ]);
 
   const lightSettings = useMemo(
     () => ({

@@ -19,6 +19,8 @@ import { Cylinder } from "@hlr/scene/primitives/cylinder.js";
 import { PlaneRect } from "@hlr/scene/primitives/planeRect.js";
 import { TriangleMesh } from "@hlr/scene/primitives/triangleMesh.js";
 import { Scene as RaycastScene } from "@hlr/scene/scene.js";
+import { labelSvg, labelTex } from "../editor/labels";
+import { formulaSvg } from "./upmath";
 
 export type FigureId =
   | "sphere-sections"
@@ -39,7 +41,6 @@ type Label = {
   text: string;
   at: Point2;
   italic?: boolean;
-  sub?: string;
 };
 
 const UP = new Vec3(0, 1, 0);
@@ -139,20 +140,14 @@ function beside(
 }
 
 function labelLayer(labels: readonly Label[], fontSize: number): string {
-  const texts = labels
-    .map(
-      ({ text, at, italic, sub }) =>
-        `<text x="${n(at.x)}" y="${n(at.y)}"${italic ? ' class="fig-var"' : ""}>${text}${
-          sub
-            ? `<tspan baseline-shift="sub" font-size="68%">${sub}</tspan>`
-            : ""
-        }</text>`,
-    )
-    .join("");
   return (
     `<g class="fig-labels" font-size="${fontSize}" text-anchor="middle" dominant-baseline="central" ` +
     `fill="#141414" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" paint-order="stroke">` +
-    texts +
+    labels
+      .map(({ text, at, italic = false }) =>
+        labelSvg(text, at.x, at.y, fontSize, italic),
+      )
+      .join("") +
     `</g>`
   );
 }
@@ -419,18 +414,64 @@ function cylinderSection(width: number, height: number) {
   };
 }
 
+/** Plane, curve and sphere names, which exam typesetting italicises. */
+const NAMES = /^(α|β|C|S)$/;
+const DEMO_TEXT =
+  /<text x="(-?[\d.]+)" y="(-?[\d.]+)">([^<]+)(?:<tspan baseline-shift="sub"[^>]*>([^<]+)<\/tspan>)?<\/text>/g;
+const DEMO_FRACTION =
+  /<g data-label="height" font-size="([\d.]+)">([\s\S]*?)<\/g>/;
+
 /**
- * The shared demo annotations set every label upright. Exam typesetting
- * italicises plane, curve and sphere names (α, β, C₁, S) but not points.
+ * The shared demo annotations letter their labels as SVG text, set upright
+ * from the left edge of the baseline. Typeset them with upmath instead,
+ * names in italic and points upright; text upmath has not set yet stays.
  */
-function italicizeNames(
+function typesetLabels(
   annotate: ExamFigureModel["annotate"],
 ): ExamFigureModel["annotate"] {
-  return (camera, width, height) =>
-    annotate(camera, width, height).replace(
-      />(α|β|C|S)(?=<)/g,
-      '><tspan class="fig-var">$1</tspan>',
+  return (camera, width, height) => {
+    const svg = annotate(camera, width, height);
+    const size = Number(
+      /font-size="([\d.]+)" paint-order/.exec(svg)?.[1] ?? 16,
     );
+    return (
+      svg
+        // √6 over 2, centred where the fraction bar was.
+        .replace(DEMO_FRACTION, (group, fontSize: string, body: string) => {
+          const parts = [...body.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(
+            (match) => match[1]!,
+          );
+          const bar = [
+            ...body.matchAll(/<path d="M (-?[\d.]+) (-?[\d.]+) H (-?[\d.]+)"/g),
+          ].at(-1);
+          const tex = labelTex(
+            `${parts.slice(0, -1).join("")}/${parts.at(-1)}`,
+            false,
+          );
+          if (!bar || tex === null) return group;
+          const x = (Number(bar[1]) + Number(bar[3])) / 2;
+          return (
+            formulaSvg(tex, x, Number(bar[2]), Number(fontSize), { halo: 3 }) ??
+            group
+          );
+        })
+        .replace(
+          DEMO_TEXT,
+          (text, x: string, y: string, name: string, sub = "") => {
+            const tex = labelTex(name + sub, NAMES.test(name));
+            const formula =
+              tex === null
+                ? null
+                : formulaSvg(tex, Number(x), Number(y), size, {
+                    align: "start",
+                    halo: 3,
+                  });
+            return formula ?? text;
+          },
+        )
+        .replace(/>(α|β|C|S)(?=<)/g, '><tspan class="fig-var">$1</tspan>')
+    );
+  };
 }
 
 /** Points spread around a sphere's outline as seen along `direction`. */
@@ -474,7 +515,7 @@ function sphereSections(width: number, height: number): ExamFigureModel {
         padding: 16,
       }),
     },
-    annotate: italicizeNames(renderSpherePlaneSectionsAnnotations),
+    annotate: typesetLabels(renderSpherePlaneSectionsAnnotations),
   };
 }
 
@@ -489,7 +530,7 @@ export function buildExamFigure(
     case "tangent-spheres":
       return {
         demo: buildTangentSpheresDemo(width, height),
-        annotate: italicizeNames(renderTangentSpheresAnnotations),
+        annotate: typesetLabels(renderTangentSpheresAnnotations),
       };
     case "coordinate-tetrahedron":
       return coordinateTetrahedron(width, height);
