@@ -627,7 +627,26 @@ function resolveCamera(spec, extent, width, height) {
   if (c.position !== undefined)
     dist = Vec3.len(Vec3.sub(vec(c, "position", "camera"), target));
   else if (c.distance !== undefined) dist = positive(c, "distance", "camera");
-  else dist = fitHalfHeight / tanHalf + radius;
+  else {
+    // Closest distance at which every bounding point, and every padded
+    // sphere around one, fits inside the field of view.
+    const sinHalfY = Math.sin(Math.atan(tanHalf));
+    const sinHalfX = Math.sin(Math.atan(tanHalf * aspect));
+    dist = 1e-6;
+    for (const { p, pad } of pts) {
+      const d = Vec3.sub(p, target);
+      const z = Vec3.dot(d, dir);
+      const x = Math.abs(Vec3.dot(d, right));
+      const y = Math.abs(Vec3.dot(d, screenUp));
+      dist = Math.max(
+        dist,
+        z + (y * margin) / zoom / tanHalf + (pad * margin) / zoom / sinHalfY,
+        z +
+          (x * margin) / zoom / (tanHalf * aspect) +
+          (pad * margin) / zoom / sinHalfX,
+      );
+    }
+  }
   const position = Vec3.add(target, Vec3.mulScalar(dir, dist));
   return {
     camera: Camera.from({
