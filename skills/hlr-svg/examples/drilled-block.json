@@ -1,0 +1,31 @@
+{
+  "title": "A block with a hole drilled through it",
+  "width": 640,
+  "height": 480,
+  "camera": {
+    "projection": "perspective",
+    "azimuth": 40,
+    "elevation": 28,
+    "fov": 30
+  },
+  "style": {
+    "strokeWidthVisible": 2,
+    "strokeWidthHidden": 1,
+    "dashArrayHidden": "5 4"
+  },
+  "objects": [
+    {
+      "type": "csg",
+      "id": "block",
+      "op": "subtract",
+      "a": { "type": "box", "center": [0, 0, 0], "size": [3, 1.2, 2] },
+      "b": {
+        "type": "cylinder",
+        "base": [0, -1, 0],
+        "axis": [0, 1, 0],
+        "height": 2,
+        "radius": 0.55
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "A sphere with its equator and a tilted orbit",
+  "width": 600,
+  "height": 480,
+  "hiddenLines": true,
+  "camera": { "azimuth": 20, "elevation": 18 },
+  "objects": [{ "type": "sphere", "id": "planet", "radius": 1 }],
+  "circles": [
+    { "center": [0, 0, 0], "normal": [0, 1, 0], "radius": 1, "on": ["planet"] },
+    { "center": [0, 0, 0], "normal": [0.35, 1, 0.2], "radius": 1.6 }
+  ],
+  "points": [{ "at": [0, 1, 0], "label": "N", "on": ["planet"] }]
+}

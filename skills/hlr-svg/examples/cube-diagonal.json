@@ -1,0 +1,20 @@
+{
+  "title": "Cube ABCD-EFGH with the space diagonal AG",
+  "width": 560,
+  "height": 520,
+  "camera": { "azimuth": 35, "elevation": 22 },
+  "objects": [
+    { "type": "box", "id": "cube", "min": [0, 0, 0], "max": [2, 2, 2] }
+  ],
+  "lines": [{ "from": [0, 0, 2], "to": [2, 2, 0] }],
+  "points": [
+    { "at": [0, 0, 2], "label": "A", "offset": [-10, 12], "on": ["cube"] },
+    { "at": [2, 0, 2], "label": "B", "offset": [10, 12], "on": ["cube"] },
+    { "at": [2, 0, 0], "label": "C", "offset": [10, 10], "on": ["cube"] },
+    { "at": [0, 0, 0], "label": "D", "offset": [-10, 10], "on": ["cube"] },
+    { "at": [0, 2, 2], "label": "E", "offset": [-10, -10], "on": ["cube"] },
+    { "at": [2, 2, 2], "label": "F", "offset": [10, -10], "on": ["cube"] },
+    { "at": [2, 2, 0], "label": "G", "offset": [10, -10], "on": ["cube"] },
+    { "at": [0, 2, 0], "label": "H", "offset": [-10, -10], "on": ["cube"] }
+  ]
+}

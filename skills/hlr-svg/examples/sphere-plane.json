@@ -1,0 +1,22 @@
+{
+  "title": "A sphere cut by a horizontal plane",
+  "width": 640,
+  "height": 480,
+  "camera": { "azimuth": 30, "elevation": 20 },
+  "objects": [
+    { "type": "sphere", "id": "ball", "center": [0, 0, 0], "radius": 1 },
+    {
+      "type": "plane",
+      "id": "cut",
+      "center": [0, 0.4, 0],
+      "normal": [0, 1, 0],
+      "width": 3.2,
+      "height": 2.4
+    }
+  ],
+  "points": [
+    { "at": [0, 0, 0], "label": "O", "on": ["ball"] },
+    { "at": [0, 0.4, 0], "label": "O′", "on": ["cut"] }
+  ],
+  "lines": [{ "from": [0, 0, 0], "to": [0, 0.4, 0] }]
+}

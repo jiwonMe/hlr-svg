@@ -1,0 +1,24 @@
+{
+  "title": "A cone piercing a cylinder",
+  "width": 640,
+  "height": 520,
+  "camera": { "view": "isometric" },
+  "objects": [
+    {
+      "type": "cylinder",
+      "id": "drum",
+      "base": [0, -1, 0],
+      "axis": [0, 1, 0],
+      "height": 2,
+      "radius": 1
+    },
+    {
+      "type": "cone",
+      "id": "spike",
+      "apex": [-1.8, 0.2, 0],
+      "axis": [1, 0, 0],
+      "height": 3.4,
+      "radius": 0.7
+    }
+  ]
+}
